@@ -66,6 +66,25 @@ export async function readMetadata(
   }
 }
 
+export async function reorderItemsInParent(
+  projectName: string,
+  parentId: string | null,
+  orderedIds: string[]
+) {
+  const metadata = await readMetadata(projectName);
+
+  if (parentId) {
+    const parent = metadata.files[parentId];
+    if (parent && parent.children) {
+      parent.children = orderedIds;
+    }
+  } else {
+    metadata.rootOrder = orderedIds;
+  }
+
+  await updateMetadata(projectName, metadata);
+}
+
 // Write metadata for a project
 export async function updateMetadata(
   projectName: string,
@@ -83,6 +102,7 @@ export async function updateMetadata(
 }
 
 // Read file content from metadata
+// Read file content from a JSON file
 export async function readFileFromMetadata(
   projectName: string,
   fileId: string
@@ -92,7 +112,17 @@ export async function readFileFromMetadata(
   if (!file || file.type !== "file") {
     throw new Error(`File with ID ${fileId} not found or is not a file.`);
   }
-  return file.content || "";
+  const filePath = `${BASE_DIR}/${projectName}/${fileId}.json`;
+  try {
+    const fileContent = await readTextFile(filePath, {
+      baseDir: BaseDirectory.AppData,
+    });
+    const parsedContent = JSON.parse(fileContent);
+    return parsedContent.content || ""; // Return content field from JSON
+  } catch (err) {
+    console.error(`Error reading file content: ${filePath}`, err);
+    return ""; // Return an empty string if file is missing
+  }
 }
 
 // Save file content to metadata
@@ -106,8 +136,14 @@ export async function saveFileToMetadata(
   if (!file || file.type !== "file") {
     throw new Error(`File with ID ${fileId} not found or is not a file.`);
   }
-  file.content = content;
-  await updateMetadata(projectName, metadata);
+  const filePath = `${BASE_DIR}/${projectName}/${fileId}.json`;
+  try {
+    const fileData = JSON.stringify({ content }); // Save content in a JSON structure
+    await writeTextFile(filePath, fileData, { baseDir: BaseDirectory.AppData });
+  } catch (err) {
+    console.error(`Error saving file content: ${filePath}`, err);
+    throw err;
+  }
 }
 
 // Add an item (file/folder) to the project

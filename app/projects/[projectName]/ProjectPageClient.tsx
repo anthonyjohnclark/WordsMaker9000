@@ -2,26 +2,25 @@
 
 import React, { useEffect, useState } from "react";
 import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
 import { Tree, NodeModel } from "@minoru/react-dnd-treeview";
+
 import {
   readMetadata,
   addItemToProject,
   deleteItemFromMetadata,
   readFileFromMetadata,
   saveFileToMetadata,
+  updateMetadata,
 } from "../../utils/fileManager";
+
 import dynamic from "next/dynamic";
-import {
-  FiFilePlus,
-  FiFolderPlus,
-  FiMenu,
-  FiTrash2,
-  FiX,
-} from "react-icons/fi";
+
+import TreeNode from "gilgamesh/app/components/TreeNode";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
 
 export interface ExtendedNodeModel extends NodeModel {
-  text: string;
+  titleText: string;
   droppable: boolean;
   children?: string[];
 }
@@ -43,7 +42,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     Record<string, boolean>
   >({});
 
-  console.log(folderOpenState);
+  console.log(selectedFile);
 
   useEffect(() => {
     async function fetchMetadata() {
@@ -55,18 +54,20 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
 
         const tree = Object.values(metadata.files).map((file) => ({
           id: file.id,
-          text: file.title || "Untitled",
-          parent: file.parent || null,
-          droppable: file.type === "folder",
+          titleText: file.title || "Untitled",
+          parent: file.parent ?? 0,
+          droppable: true,
           children: file.children || [],
+          type: file.type,
         }));
 
+        console.log(tree);
         setFileTree(tree);
 
         // Initialize folder open state based on metadata
         const initialOpenState: Record<string, boolean> = {};
         tree.forEach((node) => {
-          if (node.droppable) {
+          if (node.type === "folder") {
             initialOpenState[node.id] = false; // Default all folders to closed
           }
         });
@@ -78,6 +79,49 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     }
     fetchMetadata();
   }, [projectName]);
+
+  async function handleDrop(
+    newTree: ExtendedNodeModel[],
+    options: { dragSourceId: string; dropTargetId?: string }
+  ) {
+    const { dragSourceId, dropTargetId } = options;
+
+    console.log("are we dropping?");
+    // Update the local tree state
+    setFileTree(newTree);
+
+    // Update the metadata
+    const metadata = await readMetadata(projectName);
+
+    const draggedItem = metadata.files[dragSourceId];
+    if (!draggedItem) return;
+
+    // Remove from old parent or rootOrder
+    if (draggedItem.parent) {
+      const parent = metadata.files[draggedItem.parent];
+      if (parent?.children) {
+        parent.children = parent.children.filter((id) => id !== dragSourceId);
+      }
+    } else {
+      metadata.rootOrder = metadata.rootOrder.filter(
+        (id) => id !== dragSourceId
+      );
+    }
+
+    // Add to new parent or rootOrder
+    if (dropTargetId) {
+      const targetParent = metadata.files[dropTargetId];
+      if (!targetParent.children) targetParent.children = [];
+      targetParent.children.push(dragSourceId);
+      draggedItem.parent = dropTargetId;
+    } else {
+      metadata.rootOrder.push(dragSourceId);
+      draggedItem.parent = null;
+    }
+
+    // Save the updated metadata
+    await updateMetadata(projectName, metadata);
+  }
 
   async function handleAddItem(
     parentId: string | null,
@@ -95,14 +139,15 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
 
     try {
       await addItemToProject(projectName, newItem);
-      setFileTree((prev) => [
+      setFileTree((prev: any) => [
         ...prev,
         {
           id: newItem.id,
-          text: newItem.title,
+          titleText: newItem.title,
           parent: parentId,
-          droppable: type === "folder",
+          droppable: true,
           children: [],
+          type: file.type,
         },
       ]);
     } catch (err) {
@@ -124,7 +169,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
   }
 
   async function loadFileContent(node: ExtendedNodeModel) {
-    if (node.droppable) return; // Skip folders
+    if (node.type === "folder") return; // Skip folders
     try {
       const content = await readFileFromMetadata(projectName, node.id);
       setSelectedFile(node);
@@ -201,58 +246,26 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
               ) : (
                 <Tree<ExtendedNodeModel>
                   tree={fileTree}
-                  rootId={null} // Root has no parent
+                  rootId={0} // Root has no parent
                   initialOpen={Object.entries(folderOpenState)
                     .filter(([_, isOpen]) => isOpen)
-                    .map(([folderId]) => folderId)} // Pass open folder IDs to initialOpen
+                    .map(([folderId]) => folderId)}
+                  sort={false}
+                  canDrag={() => true}
+                  onDrop={handleDrop}
                   render={(node, { depth, isOpen, onToggle }) => (
-                    <div
-                      style={{
-                        marginLeft: depth * 20,
-                        backgroundColor:
-                          selectedFile?.id === node.id
-                            ? "rgba(59, 130, 246, 0.2)"
-                            : "transparent",
-                      }}
-                      className="p-2 cursor-pointer flex items-center gap-2"
-                    >
-                      {/* Folder and File Icons */}
-                      <span
-                        onClick={() => {
-                          if (node.droppable) {
-                            toggleFolderState(node.id, !isOpen);
-                            onToggle(); // Sync with Tree's internal state
-                          } else {
-                            loadFileContent(node);
-                          }
-                        }}
-                      >
-                        {node.droppable
-                          ? isOpen
-                            ? "📂 " + node.text
-                            : "📁 " + node.text
-                          : "📄 " + node.text}
-                      </span>
-                      {node.droppable && (
-                        <>
-                          <FiFilePlus
-                            onClick={() => handleAddItem(node.id, "file")}
-                            className="text-green-600 cursor-pointer hover:text-green-400"
-                            title="Add File"
-                          />
-                          <FiFolderPlus
-                            onClick={() => handleAddItem(node.id, "folder")}
-                            className="text-blue-600 cursor-pointer hover:text-blue-400"
-                            title="Add Folder"
-                          />
-                        </>
-                      )}
-                      <FiTrash2
-                        onClick={() => handleDeleteItem(node.id)}
-                        className="text-red-600 cursor-pointer hover:text-red-400"
-                        title="Delete"
-                      />
-                    </div>
+                    <TreeNode
+                      node={node}
+                      depth={depth}
+                      isOpen={isOpen}
+                      onToggle={onToggle}
+                      selectedFile={selectedFile}
+                      toggleFolderState={toggleFolderState}
+                      setSelectedFile={setSelectedFile}
+                      loadFileContent={loadFileContent}
+                      handleAddItem={handleAddItem}
+                      handleDeleteItem={handleDeleteItem}
+                    />
                   )}
                 />
               )}
@@ -272,7 +285,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
             <>
               <div className="mb-4 flex items-center justify-between border-b pb-2">
                 <h2 className="text-2xl font-semibold text-white-800">
-                  {selectedFile.text}
+                  {selectedFile.titleText}
                 </h2>
               </div>
               <TextEditor
