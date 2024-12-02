@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DndProvider } from "react-dnd";
-import { Tree, NodeModel } from "@minoru/react-dnd-treeview";
-
+import { Tree, NodeModel, DndProvider } from "@minoru/react-dnd-treeview";
 import {
   readMetadata,
   addItemToProject,
@@ -14,7 +12,6 @@ import {
 } from "../../utils/fileManager";
 
 import dynamic from "next/dynamic";
-
 import TreeNode from "gilgamesh/app/components/TreeNode";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
@@ -31,7 +28,6 @@ const TextEditor = dynamic(() => import("../../components/TextEditor"), {
 
 const ProjectPageClient = ({ projectName }: { projectName: string }) => {
   const [fileTree, setFileTree] = useState<ExtendedNodeModel[]>([]);
-
   const [selectedFile, setSelectedFile] = useState<ExtendedNodeModel | null>(
     null
   );
@@ -61,7 +57,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
           type: file.type,
         }));
 
-        console.log(tree);
+        console.log(console.log("beginning tree:", tree));
         setFileTree(tree);
 
         // Initialize folder open state based on metadata
@@ -80,47 +76,9 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     fetchMetadata();
   }, [projectName]);
 
-  async function handleDrop(
-    newTree: ExtendedNodeModel[],
-    options: { dragSourceId: string; dropTargetId?: string }
-  ) {
-    const { dragSourceId, dropTargetId } = options;
-
-    console.log("are we dropping?");
-    // Update the local tree state
+  async function handleDrop(newTree: ExtendedNodeModel[]) {
+    console.log("newTree", newTree);
     setFileTree(newTree);
-
-    // Update the metadata
-    const metadata = await readMetadata(projectName);
-
-    const draggedItem = metadata.files[dragSourceId];
-    if (!draggedItem) return;
-
-    // Remove from old parent or rootOrder
-    if (draggedItem.parent) {
-      const parent = metadata.files[draggedItem.parent];
-      if (parent?.children) {
-        parent.children = parent.children.filter((id) => id !== dragSourceId);
-      }
-    } else {
-      metadata.rootOrder = metadata.rootOrder.filter(
-        (id) => id !== dragSourceId
-      );
-    }
-
-    // Add to new parent or rootOrder
-    if (dropTargetId) {
-      const targetParent = metadata.files[dropTargetId];
-      if (!targetParent.children) targetParent.children = [];
-      targetParent.children.push(dragSourceId);
-      draggedItem.parent = dropTargetId;
-    } else {
-      metadata.rootOrder.push(dragSourceId);
-      draggedItem.parent = null;
-    }
-
-    // Save the updated metadata
-    await updateMetadata(projectName, metadata);
   }
 
   async function handleAddItem(
@@ -147,7 +105,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
           parent: parentId,
           droppable: true,
           children: [],
-          type: file.type,
+          type: newItem.type,
         },
       ]);
     } catch (err) {
@@ -251,8 +209,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
                     .filter(([_, isOpen]) => isOpen)
                     .map(([folderId]) => folderId)}
                   sort={false}
-                  canDrag={() => true}
-                  onDrop={handleDrop}
+                  onDrop={(newTree) => handleDrop(newTree)} // Simplified handler
                   render={(node, { depth, isOpen, onToggle }) => (
                     <TreeNode
                       node={node}
