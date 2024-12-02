@@ -23,17 +23,14 @@ export default function HomePage() {
       setProjects(updatedProjects);
     }
   }
-
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100">
+    <div className="flex flex-col min-h-screen bg-black-100">
       {/* Header */}
       <header className="bg-blue-600 text-white py-4">
         <div className="container mx-auto flex justify-between items-center px-4">
           <h1 className="text-2xl font-bold">My Editor</h1>
         </div>
       </header>
-
-      {/* Main Section */}
       <main className="flex-1 container mx-auto p-4">
         <h2 className="text-2xl font-bold mb-4">Projects</h2>
         <ul className="mb-4">
