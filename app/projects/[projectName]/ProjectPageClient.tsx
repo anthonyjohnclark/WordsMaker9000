@@ -11,6 +11,8 @@ import {
   updateMetadata,
 } from "../../utils/fileManager";
 
+import { v4 as uuidv4 } from "uuid";
+
 import dynamic from "next/dynamic";
 import TreeNode from "gilgamesh/app/components/TreeNode";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -89,25 +91,29 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     if (!title) return;
 
     const newItem = {
-      id: `${Date.now()}`, // Unique ID
+      id: uuidv4(), // Generates a GUID
       title,
       type,
       parent: parentId,
     };
 
     try {
+      // Add the item to the project metadata
       await addItemToProject(projectName, newItem);
-      setFileTree((prev: any) => [
-        ...prev,
-        {
-          id: newItem.id,
-          text: newItem.title,
-          parent: parentId,
-          droppable: true,
-          children: [],
-          type: newItem.type,
-        },
-      ]);
+
+      // Refetch metadata to update the tree
+      const metadata = await readMetadata(projectName);
+      const updatedTree = Object.values(metadata.files).map((file) => ({
+        id: file.id,
+        text: file.title || "Untitled",
+        parent: file.parent ?? 0,
+        droppable: true,
+        children: file.children || [],
+        type: file.type,
+      }));
+
+      // Update the tree state
+      setFileTree(updatedTree);
     } catch (err) {
       console.error("Failed to add item:", err);
       setError("Failed to add item.");
@@ -209,6 +215,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
                     .filter(([_, isOpen]) => isOpen)
                     .map(([folderId]) => folderId)}
                   sort={false}
+                  insertDroppableFirsts={true}
                   onDrop={(newTree) => handleDrop(newTree)} // Simplified handler
                   render={(node, { depth, isOpen, onToggle }) => (
                     <TreeNode
