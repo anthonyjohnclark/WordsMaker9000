@@ -60,9 +60,9 @@ const TreeNode = forwardRef<HTMLDivElement, TreeNodeProps>(
         >
           {node.type === "folder"
             ? isOpen
-              ? "📂 " + node.titleText
-              : "📁 " + node.titleText
-            : "📄 " + node.titleText}
+              ? "📂 " + node.text
+              : "📁 " + node.text
+            : "📄 " + node.text}
         </span>
         {node.type === "folder" && (
           <>

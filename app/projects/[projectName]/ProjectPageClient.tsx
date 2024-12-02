@@ -17,7 +17,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
 
 export interface ExtendedNodeModel extends NodeModel {
-  titleText: string;
+  text: string;
   droppable: boolean;
   children?: string[];
 }
@@ -50,7 +50,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
 
         const tree = Object.values(metadata.files).map((file) => ({
           id: file.id,
-          titleText: file.title || "Untitled",
+          text: file.title || "Untitled",
           parent: file.parent ?? 0,
           droppable: true,
           children: file.children || [],
@@ -101,7 +101,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
         ...prev,
         {
           id: newItem.id,
-          titleText: newItem.title,
+          text: newItem.title,
           parent: parentId,
           droppable: true,
           children: [],
@@ -242,7 +242,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
             <>
               <div className="mb-4 flex items-center justify-between border-b pb-2">
                 <h2 className="text-2xl font-semibold text-white-800">
-                  {selectedFile.titleText}
+                  {selectedFile.text}
                 </h2>
               </div>
               <TextEditor

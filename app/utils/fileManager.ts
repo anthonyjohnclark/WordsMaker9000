@@ -151,12 +151,13 @@ export async function addItemToProject(
   projectName: string,
   item: FileMetadata
 ) {
-  const metadata = await readMetadata(projectName);
+  const metadata = await readMetadata(decodeURIComponent(projectName));
 
+  // Add the new item to metadata.files
   metadata.files[item.id] = item;
 
   // Add to the appropriate parent or root order
-  if (item.parent) {
+  if (item.parent && metadata.files[item.parent]) {
     const parent = metadata.files[item.parent];
     if (!parent.children) {
       parent.children = [];
@@ -166,7 +167,24 @@ export async function addItemToProject(
     metadata.rootOrder.push(item.id);
   }
 
-  await updateMetadata(projectName, metadata);
+  // If the item is a file, create a separate JSON file for its content
+  if (item.type === "file") {
+    const filePath = `${BASE_DIR}/${decodeURIComponent(projectName)}/${
+      item.id
+    }.json`;
+    try {
+      const fileData = JSON.stringify({ content: "" }); // Initialize with empty content
+      await writeTextFile(filePath, fileData, {
+        baseDir: BaseDirectory.AppData,
+      });
+    } catch (err) {
+      console.error(`Error creating file content: ${filePath}`, err);
+      throw err;
+    }
+  }
+
+  // Update the metadata file
+  await updateMetadata(decodeURIComponent(projectName), metadata);
 }
 
 // Delete an item (file/folder) from the project
