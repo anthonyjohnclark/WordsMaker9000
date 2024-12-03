@@ -23,6 +23,7 @@ export default function HomePage() {
       setProjects(updatedProjects);
     }
   }
+
   return (
     <div className="flex flex-col min-h-screen bg-black-100">
       {/* Header */}

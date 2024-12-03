@@ -43,7 +43,7 @@ const TreeNode = ({
             ? "rgba(59, 130, 246, 0.2)"
             : "transparent",
       }}
-      className="p-2 cursor-pointer flex items-center gap-2"
+      className="p-2 cursor-pointer flex items-center gap-2 group"
     >
       <span
         onClick={() => {
@@ -61,52 +61,54 @@ const TreeNode = ({
             : "📁 " + node.text
           : "📄 " + node.text}
       </span>
-      {node.type === "folder" && (
-        <>
-          <FiFilePlus
-            onClick={() => {
-              if (!isOpen) {
-                onToggle();
-              }
-              handleSubmit({
-                text: node.text,
-                parent: node.id,
-                droppable: node.droppable,
-                type: "file",
-                data: {
-                  fileType: "file",
-                },
-              });
-            }}
-            className="text-green-600 cursor-pointer hover:text-green-400"
-            title="Add File"
-          />
-          <FiFolderPlus
-            onClick={() => {
-              if (!isOpen) {
-                onToggle();
-              }
-              handleSubmit({
-                text: node.text,
-                parent: node.id,
-                droppable: node.droppable,
-                type: "folder",
+      <div className="flex items-center gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+        {node.type === "folder" && (
+          <>
+            <FiFilePlus
+              onClick={() => {
+                if (!isOpen) {
+                  onToggle();
+                }
+                handleSubmit({
+                  text: node.text,
+                  parent: node.id,
+                  droppable: node.droppable,
+                  type: "file",
+                  data: {
+                    fileType: "file",
+                  },
+                });
+              }}
+              className="text-green-600 cursor-pointer hover:text-green-400"
+              title="Add File"
+            />
+            <FiFolderPlus
+              onClick={() => {
+                if (!isOpen) {
+                  onToggle();
+                }
+                handleSubmit({
+                  text: node.text,
+                  parent: node.id,
+                  droppable: node.droppable,
+                  type: "folder",
 
-                data: {
-                  fileType: "folder",
-                },
-              });
-            }}
-            className="text-blue-600 cursor-pointer hover:text-blue-400"
-            title="Add Folder"
-          />
-        </>
-      )}
-      <FiTrash2
-        onClick={() => onDelete(node.id)}
-        className="text-red-600 cursor-pointer hover:text-red-400"
-        title="Delete"
-      />
+                  data: {
+                    fileType: "folder",
+                  },
+                });
+              }}
+              className="text-blue-600 cursor-pointer hover:text-blue-400"
+              title="Add Folder"
+            />
+          </>
+        )}
+        <FiTrash2
+          onClick={() => onDelete(node.id)}
+          className="text-red-600 cursor-pointer hover:text-red-400"
+          title="Delete"
+        />
+      </div>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+
 import {
   Tree,
   NodeModel,
@@ -9,6 +10,7 @@ import {
   getBackendOptions,
   getDescendants,
 } from "@minoru/react-dnd-treeview";
+
 import {
   readMetadata,
   addItemToProject,
@@ -302,7 +304,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
           <div className="p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-lg">
-                Project: {decodeURIComponent(projectName)}
+                {decodeURIComponent(projectName)}
               </h2>
               <div className="flex gap-4">
                 <FiFilePlus
