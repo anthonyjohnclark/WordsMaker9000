@@ -6,17 +6,14 @@ import {
   Tree,
   NodeModel,
   DndProvider,
-  MultiBackend,
-  getBackendOptions,
   getDescendants,
 } from "@minoru/react-dnd-treeview";
 
 import {
   readMetadata,
-  addItemToProject,
-  deleteItemFromMetadata,
-  readFileFromMetadata,
-  saveFileToMetadata,
+  deleteFile,
+  readFile,
+  saveFile,
   updateMetadata,
 } from "../../utils/fileManager";
 
@@ -39,19 +36,37 @@ const TextEditor = dynamic(() => import("../../components/TextEditor"), {
 
 const ProjectPageClient = ({ projectName }: { projectName: string }) => {
   const [treeData, setTreeData] = useState<ExtendedNodeModel[]>([]);
+
+  console.log("state tree data", treeData);
+
   const [selectedFile, setSelectedFile] = useState<ExtendedNodeModel | null>(
     null
   );
+
+  console.log(selectedFile);
+
   const [fileContent, setFileContent] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
   const [folderOpenState, setFolderOpenState] = useState<
     Record<string, boolean>
   >({});
 
   console.log(treeData);
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id, type) => {
+    if (type === "file") {
+      try {
+        await deleteFile(projectName, id);
+      } catch (err) {
+        console.error("Failed to delete item:", err);
+        setError("Failed to delete item.");
+      }
+    }
+
     const deleteIds = [
       id,
       ...getDescendants(treeData, id).map((node) => node.id),
@@ -61,7 +76,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     setTreeData(newTree);
   };
 
-  const handleSubmit = (newNode) => {
+  const handleSubmit = async (newNode) => {
     const title = prompt(`Enter ${newNode.type} name:`);
     if (!title) return;
 
@@ -78,6 +93,15 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     };
 
     const lastId = getLastId(treeData) + 1;
+
+    if (newNode.type === "file") {
+      try {
+        await saveFile(projectName, newItem.data.fileId, "");
+      } catch (err) {
+        console.error("Failed to add item:", err);
+        setError("Failed to add item.");
+      }
+    }
 
     console.log({
       ...newItem,
@@ -124,34 +148,44 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     return newArray;
   };
 
-  // useEffect(() => {
-  //   async function fetchMetadata() {
-  //     try {
-  //       const metadata = await readMetadata(projectName);
-  //       if (!metadata.rootOrder || !metadata.files) {
-  //         throw new Error("Invalid metadata structure.");
-  //       }
+  useEffect(() => {
+    async function fetchMetadata() {
+      try {
+        const metadata = await readMetadata(projectName);
+        if (!metadata.projectName || !metadata.treeData) {
+          throw new Error("Invalid metadata structure.");
+        }
+        console.log(console.log("beginning tree:", metadata.treeData));
 
-  //       const tree = buildTree(metadata);
+        if (metadata.treeData) {
+          setTreeData(metadata.treeData);
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load project data.");
+      }
+    }
 
-  //       console.log(console.log("beginning tree:", tree));
-  //       setTreeData(tree);
+    fetchMetadata();
+  }, []);
 
-  //       // Initialize folder open state based on metadata
-  //       const initialOpenState: Record<string, boolean> = {};
-  //       tree.forEach((node) => {
-  //         if (node.type === "folder") {
-  //           initialOpenState[node.id] = false; // Default all folders to closed
-  //         }
-  //       });
-  //       setFolderOpenState(initialOpenState);
-  //     } catch (err) {
-  //       console.error(err);
-  //       setError("Failed to load project data.");
-  //     }
-  //   }
-  //   fetchMetadata();
-  // }, [projectName]);
+  useEffect(() => {
+    async function saveTreeData() {
+      try {
+        const metadata = { projectName, treeData };
+        console.log(console.log("saving tree:", treeData));
+
+        if (metadata.treeData) {
+          updateMetadata(projectName, metadata);
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Failed to save project data.");
+      }
+    }
+
+    saveTreeData();
+  }, [treeData]);
 
   const handleDrop = (newTree, e) => {
     console.log(newTree);
@@ -205,52 +239,10 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     }
   };
 
-  async function handleAddItem(
-    parentId: string | null,
-    type: "file" | "folder"
-  ) {
-    const title = prompt(`Enter ${type} name:`);
-    if (!title) return;
-
-    try {
-      // Add the item to the project metadata
-      await addItemToProject(projectName, newItem);
-
-      // Refetch metadata to update the tree
-      const metadata = await readMetadata(projectName);
-      const updatedTree = Object.values(metadata.files).map((file) => ({
-        id: file.id,
-        text: file.title || "Untitled",
-        parent: file.parent ?? 0,
-        droppable: true,
-        children: file.children || [],
-        type: file.type,
-      }));
-
-      // Update the tree state
-      setTreeData(updatedTree);
-    } catch (err) {
-      console.error("Failed to add item:", err);
-      setError("Failed to add item.");
-    }
-  }
-
-  async function handleDeleteItem(nodeId: string) {
-    try {
-      await deleteItemFromMetadata(projectName, nodeId);
-      setTreeData((prev) =>
-        prev.filter((node) => node.id !== nodeId && node.parent !== nodeId)
-      );
-    } catch (err) {
-      console.error("Failed to delete item:", err);
-      setError("Failed to delete item.");
-    }
-  }
-
   async function loadFileContent(node: ExtendedNodeModel) {
     if (node.type === "folder") return; // Skip folders
     try {
-      const content = await readFileFromMetadata(projectName, node.id);
+      const content = await readFile(projectName, node.data.fileId);
       setSelectedFile(node);
       setFileContent(content);
     } catch (err) {
@@ -262,7 +254,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
   async function saveFileContent(content: string) {
     if (selectedFile) {
       try {
-        await saveFileToMetadata(projectName, selectedFile.id, content);
+        await saveFile(projectName, selectedFile.data.fileId, content);
         setFileContent(content);
         alert("File saved!");
       } catch (err) {
@@ -362,7 +354,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
                   placeholderRender={(node, { depth }) => (
                     <div
                       style={{
-                        padding: "5px",
+                        padding: depth,
                         borderBottom: "2px solid white",
                       }}
                     ></div>
@@ -373,13 +365,11 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
                       depth={depth}
                       isOpen={isOpen}
                       onToggle={onToggle}
-                      onDelete={handleDelete}
+                      handleDelete={handleDelete}
                       selectedFile={selectedFile}
-                      toggleFolderState={toggleFolderState}
                       setSelectedFile={setSelectedFile}
                       loadFileContent={loadFileContent}
                       handleSubmit={handleSubmit}
-                      handleDeleteItem={handleDeleteItem}
                     />
                   )}
                 />
@@ -405,7 +395,6 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
               </h2>
             </div>
             <TextEditor
-              key={selectedFile.id} // Use the file ID as the key to force remount
               initialContent={fileContent || ""}
               onSave={saveFileContent}
               selectedFile={selectedFile}

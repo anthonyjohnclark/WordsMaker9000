@@ -4,6 +4,7 @@ import {
   mkdir,
   readDir,
   BaseDirectory,
+  remove,
 } from "@tauri-apps/plugin-fs";
 
 const BASE_DIR = "Projects";
@@ -18,8 +19,8 @@ interface FileMetadata {
 }
 
 interface ProjectMetadata {
-  rootOrder: string[];
-  files: Record<string, FileMetadata>;
+  projectName: string;
+  treeData: [];
 }
 
 // Ensure the base directory exists
@@ -36,7 +37,7 @@ export async function createProject(projectName: string) {
   await mkdir(projectPath, { baseDir: BaseDirectory.AppData });
 
   // Initialize metadata for the project
-  const metadata: ProjectMetadata = { rootOrder: [], files: {} };
+  const metadata: ProjectMetadata = { projectName: projectName, treeData: [] };
   await writeTextFile(metadataPath, JSON.stringify(metadata), {
     baseDir: BaseDirectory.AppData,
   });
@@ -68,25 +69,6 @@ export async function readMetadata(
   }
 }
 
-export async function reorderItemsInParent(
-  projectName: string,
-  parentId: string | null,
-  orderedIds: string[]
-) {
-  const metadata = await readMetadata(projectName);
-
-  if (parentId) {
-    const parent = metadata.files[parentId];
-    if (parent && parent.children) {
-      parent.children = orderedIds;
-    }
-  } else {
-    metadata.rootOrder = orderedIds;
-  }
-
-  await updateMetadata(projectName, metadata);
-}
-
 // Write metadata for a project
 export async function updateMetadata(
   projectName: string,
@@ -107,15 +89,10 @@ export async function updateMetadata(
 
 // Read file content from metadata
 // Read file content from a JSON file
-export async function readFileFromMetadata(
+export async function readFile(
   projectName: string,
   fileId: string
 ): Promise<string> {
-  const metadata = await readMetadata(projectName);
-  const file = metadata.files[fileId];
-  if (!file || file.type !== "file") {
-    throw new Error(`File with ID ${fileId} not found or is not a file.`);
-  }
   const filePath = `${BASE_DIR}/${decodeURIComponent(
     projectName
   )}/${fileId}.json`;
@@ -132,19 +109,15 @@ export async function readFileFromMetadata(
 }
 
 // Save file content to metadata
-export async function saveFileToMetadata(
+export async function saveFile(
   projectName: string,
   fileId: string,
   content: string
 ) {
-  const metadata = await readMetadata(projectName);
-  const file = metadata.files[fileId];
-  if (!file || file.type !== "file") {
-    throw new Error(`File with ID ${fileId} not found or is not a file.`);
-  }
   const filePath = `${BASE_DIR}/${decodeURIComponent(
     projectName
   )}/${fileId}.json`;
+
   try {
     const fileData = JSON.stringify({ content }); // Save content in a JSON structure
     await writeTextFile(filePath, fileData, { baseDir: BaseDirectory.AppData });
@@ -196,42 +169,25 @@ export async function addItemToProject(
 }
 
 // Delete an item (file/folder) from the project
-export async function deleteItemFromMetadata(
-  projectName: string,
-  itemId: string
-) {
+export async function deleteFile(projectName: string, fileId: string) {
   const metadata = await readMetadata(projectName);
 
+  const file = metadata.treeData.find((item) => item.id === fileId);
+
   // Ensure the item exists
-  if (!metadata.files[itemId]) {
-    throw new Error(`Item with ID ${itemId} does not exist.`);
+  if (!file) {
+    throw new Error(`Item with ID ${fileId} does not exist.`);
   }
 
-  const item = metadata.files[itemId];
+  const filePath = `${BASE_DIR}/${decodeURIComponent(projectName)}/${
+    file.fileId
+  }.json`;
 
-  // Remove from its parent's children or root order
-  if (item.parent) {
-    const parent = metadata.files[item.parent];
-    if (parent && parent.children) {
-      parent.children = parent.children.filter(
-        (childId: string) => childId !== itemId
-      );
-    }
-  } else {
-    metadata.rootOrder = metadata.rootOrder.filter(
-      (id: string) => id !== itemId
-    );
+  try {
+    await remove(filePath, { baseDir: BaseDirectory.AppData });
+    console.log(`File ${filePath} deleted successfully.`);
+  } catch (error) {
+    console.error(`Failed to delete file: ${error.message}`);
+    throw new Error("Failed to delete the file.");
   }
-
-  // Recursively delete children if the item is a folder
-  if (item.type === "folder" && item.children) {
-    for (const childId of item.children) {
-      await deleteItemFromMetadata(projectName, childId);
-    }
-  }
-
-  // Remove the item itself
-  delete metadata.files[itemId];
-
-  await updateMetadata(projectName, metadata);
 }

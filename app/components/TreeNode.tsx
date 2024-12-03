@@ -8,13 +8,11 @@ type TreeNodeProps = {
   isOpen: boolean;
   onToggle: () => void;
   selectedFile: ExtendedNodeModel | null;
-  toggleFolderState: (id: string, isOpen: boolean) => void;
   setSelectedFile: (node: ExtendedNodeModel) => void;
   loadFileContent: (node: ExtendedNodeModel) => void;
   handleAddItem: (parentId: string | null, type: "file" | "folder") => void;
-  handleDeleteItem: (nodeId: string) => void;
-  onDelete: (id: any) => void;
-  handleSubmit: (newNode: any) => void;
+  handleDelete: (id: any, type: any) => Promise<void>;
+  handleSubmit: (newNode: any) => Promise<void>;
 };
 
 // Use forwardRef to ensure drag-and-drop props are handled properly
@@ -24,12 +22,9 @@ const TreeNode = ({
   isOpen,
   onToggle,
   selectedFile,
-  toggleFolderState,
   setSelectedFile,
   loadFileContent,
-  handleAddItem,
-  handleDeleteItem,
-  onDelete,
+  handleDelete,
   handleSubmit,
   ...dragAndDropProps // Spread drag-and-drop props
 }: TreeNodeProps) => {
@@ -104,7 +99,7 @@ const TreeNode = ({
           </>
         )}
         <FiTrash2
-          onClick={() => onDelete(node.id)}
+          onClick={() => handleDelete(node.id, node.type)}
           className="text-red-600 cursor-pointer hover:text-red-400"
           title="Delete"
         />

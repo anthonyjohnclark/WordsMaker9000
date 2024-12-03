@@ -21,6 +21,10 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const [content, setContent] = useState(initialContent);
 
   useEffect(() => {
+    setContent(initialContent);
+  }, [initialContent]); // This runs whenever `initialContent` changes
+
+  useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key === "s") {
         event.preventDefault();
