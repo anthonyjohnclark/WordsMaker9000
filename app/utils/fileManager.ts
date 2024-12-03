@@ -54,7 +54,9 @@ export async function listProjects() {
 export async function readMetadata(
   projectName: string
 ): Promise<ProjectMetadata> {
-  const metadataPath = `${BASE_DIR}/${projectName}/metadata.json`;
+  const metadataPath = `${BASE_DIR}/${decodeURIComponent(
+    projectName
+  )}/metadata.json`;
   try {
     const content = await readTextFile(metadataPath, {
       baseDir: BaseDirectory.AppData,
@@ -90,7 +92,9 @@ export async function updateMetadata(
   projectName: string,
   metadata: ProjectMetadata
 ) {
-  const metadataPath = `${BASE_DIR}/${projectName}/metadata.json`;
+  const metadataPath = `${BASE_DIR}/${decodeURIComponent(
+    projectName
+  )}/metadata.json`;
   try {
     await writeTextFile(metadataPath, JSON.stringify(metadata), {
       baseDir: BaseDirectory.AppData,
@@ -112,7 +116,9 @@ export async function readFileFromMetadata(
   if (!file || file.type !== "file") {
     throw new Error(`File with ID ${fileId} not found or is not a file.`);
   }
-  const filePath = `${BASE_DIR}/${projectName}/${fileId}.json`;
+  const filePath = `${BASE_DIR}/${decodeURIComponent(
+    projectName
+  )}/${fileId}.json`;
   try {
     const fileContent = await readTextFile(filePath, {
       baseDir: BaseDirectory.AppData,
@@ -136,7 +142,9 @@ export async function saveFileToMetadata(
   if (!file || file.type !== "file") {
     throw new Error(`File with ID ${fileId} not found or is not a file.`);
   }
-  const filePath = `${BASE_DIR}/${projectName}/${fileId}.json`;
+  const filePath = `${BASE_DIR}/${decodeURIComponent(
+    projectName
+  )}/${fileId}.json`;
   try {
     const fileData = JSON.stringify({ content }); // Save content in a JSON structure
     await writeTextFile(filePath, fileData, { baseDir: BaseDirectory.AppData });
