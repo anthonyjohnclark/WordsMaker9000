@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-
 import {
   Tree,
   NodeModel,
@@ -9,7 +8,6 @@ import {
   getDescendants,
   DropOptions,
 } from "@minoru/react-dnd-treeview";
-
 import {
   readMetadata,
   deleteFile,
@@ -17,15 +15,10 @@ import {
   saveFile,
   updateMetadata,
 } from "../../utils/fileManager";
-
 import { v4 as uuidv4 } from "uuid";
-
 import dynamic from "next/dynamic";
-
 import TreeNode from "gilgamesh/app/components/TreeNode";
-
 import { HTML5Backend } from "react-dnd-html5-backend";
-
 import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
 
 export type NodeData = {
@@ -50,20 +43,59 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
   projectName,
 }) => {
   const [treeData, setTreeData] = useState<ExtendedNodeModel[]>([]);
-
-  console.log("state tree data", treeData);
-
   const [selectedFile, setSelectedFile] = useState<ExtendedNodeModel | null>(
     null
   );
-
-  console.log(selectedFile);
-
   const [fileContent, setFileContent] = useState<string | null>(null);
-
   const [error, setError] = useState<string | null>(null);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
+  // New state for pending metadata
+  const [pendingMetadata, setPendingMetadata] = useState<{
+    projectName: string;
+    treeData: ExtendedNodeModel[];
+  } | null>(null);
+
+  // Save tree data with a delay (debounced effect)
+  useEffect(() => {
+    if (!pendingMetadata) return;
+
+    const timeout = setTimeout(async () => {
+      try {
+        await updateMetadata(pendingMetadata.projectName, pendingMetadata);
+        setPendingMetadata(null); // Clear pending metadata after save
+      } catch (err) {
+        console.error("Error saving metadata:", err);
+        setError("Failed to save project data.");
+      }
+    }, 300); // Adjust delay as needed
+
+    return () => clearTimeout(timeout); // Cleanup timeout on unmount or updates
+  }, [pendingMetadata]);
+
+  // Load metadata on initial render
+  useEffect(() => {
+    async function fetchMetadata() {
+      try {
+        const metadata = await readMetadata(projectName);
+        if (!metadata.projectName || !metadata.treeData) {
+          throw new Error("Invalid metadata structure.");
+        }
+        setTreeData(metadata.treeData);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load project data.");
+      }
+    }
+
+    fetchMetadata();
+  }, [projectName]);
+
+  // Handle tree data changes and buffer the save operation
+  const handleTreeDataChange = (newTreeData: ExtendedNodeModel[]) => {
+    setTreeData(newTreeData);
+    setPendingMetadata({ projectName, treeData: newTreeData });
+  };
 
   const handleDelete = async (
     id: number,
@@ -95,31 +127,25 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
       }
     }
 
-    // Remove the folder and its descendants from the treeData
     const deleteIds = [
       id,
       ...getDescendants(treeData, id).map((node) => node.id),
     ];
     const newTree = treeData.filter((node) => !deleteIds.includes(node.id));
-    setTreeData(newTree);
+    handleTreeDataChange(newTree); // Use the handler for updates
   };
 
   const handleRename = (id: number, newName: string) => {
-    setTreeData(
-      (prevTree) =>
-        prevTree.map((node) =>
-          node.id === id
-            ? ({
-                ...node,
-                text: newName,
-                data: {
-                  ...node.data,
-                  fileName: newName,
-                  fileType: node?.data?.fileType ?? "file", // Ensure fileType is defined
-                },
-              } as ExtendedNodeModel) // Explicit cast to satisfy TypeScript
-            : node
-        ) as ExtendedNodeModel[] // Explicit cast for the array
+    handleTreeDataChange(
+      treeData.map((node) =>
+        node.id === id
+          ? ({
+              ...node,
+              text: newName,
+              data: { ...node.data, fileName: newName },
+            } as ExtendedNodeModel)
+          : node
+      )
     );
   };
 
@@ -130,10 +156,10 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
     const newItem: ExtendedNodeModel = {
       id: 0,
       text: title,
-      parent: newNode.parent ?? 0, // Provide a default if `newNode.parent` is undefined
+      parent: newNode.parent ?? 0,
       droppable: true,
       data: {
-        fileType: newNode?.data?.fileType ?? "file", // Provide a default type if undefined
+        fileType: newNode?.data?.fileType ?? "file",
         fileName: title,
         fileId: uuidv4(),
       },
