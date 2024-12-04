@@ -1,5 +1,5 @@
-import React from "react";
-import { FiFilePlus, FiFolderPlus, FiTrash2 } from "react-icons/fi";
+import React, { useState } from "react";
+import { FiFilePlus, FiFolderPlus, FiTrash2, FiEdit } from "react-icons/fi";
 import {
   ExtendedNodeModel,
   NodeData,
@@ -19,6 +19,7 @@ type TreeNodeProps = {
     fileId: string | undefined,
     type: "file" | "folder" | undefined
   ) => Promise<void>;
+  handleRename: (id: number, newName: string) => void;
   handleSubmit: (newNode: ExtendedNodeModel) => Promise<void>;
 };
 
@@ -31,8 +32,19 @@ const TreeNode = ({
   setSelectedFile,
   loadFileContent,
   handleDelete,
+  handleRename,
   handleSubmit,
 }: TreeNodeProps) => {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState(node.text);
+
+  const handleRenameSubmit = () => {
+    if (newName.trim()) {
+      handleRename(node.id as number, newName.trim());
+    }
+    setIsRenaming(false);
+  };
+
   return (
     <div
       style={{
@@ -80,7 +92,7 @@ const TreeNode = ({
                   },
                 });
               }}
-              className="text-green-600 cursor-pointer hover:text-green-400"
+              className="text-green-500 cursor-pointer hover:text-green-300"
               title="Add File"
             />
             <FiFolderPlus
@@ -100,8 +112,13 @@ const TreeNode = ({
                   },
                 });
               }}
-              className="text-blue-600 cursor-pointer hover:text-blue-400"
+              className="text-blue-500 cursor-pointer hover:text-blue-300"
               title="Add Folder"
+            />
+            <FiEdit
+              onClick={() => setIsRenaming(true)}
+              className="text-yellow-500 cursor-pointer hover:text-yellow-300"
+              title="Rename"
             />
           </>
         )}
@@ -113,10 +130,40 @@ const TreeNode = ({
               node.data?.fileType
             )
           }
-          className="text-red-600 cursor-pointer hover:text-red-400"
+          className="text-red-500 cursor-pointer hover:text-red-300"
           title="Delete"
         />
       </div>
+
+      {/* Rename Modal */}
+      {isRenaming && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-50">
+          <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-96">
+            <h2 className="text-xl font-bold text-white mb-4">Rename Folder</h2>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="w-full p-3 border border-gray-600 rounded bg-gray-700 text-white text-lg focus:outline-none focus:ring focus:ring-blue-500"
+              autoFocus
+            />
+            <div className="flex justify-end gap-4 mt-4">
+              <button
+                onClick={() => setIsRenaming(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameSubmit}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-400"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

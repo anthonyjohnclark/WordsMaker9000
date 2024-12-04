@@ -104,6 +104,25 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
     setTreeData(newTree);
   };
 
+  const handleRename = (id: number, newName: string) => {
+    setTreeData(
+      (prevTree) =>
+        prevTree.map((node) =>
+          node.id === id
+            ? ({
+                ...node,
+                text: newName,
+                data: {
+                  ...node.data,
+                  fileName: newName,
+                  fileType: node?.data?.fileType ?? "file", // Ensure fileType is defined
+                },
+              } as ExtendedNodeModel) // Explicit cast to satisfy TypeScript
+            : node
+        ) as ExtendedNodeModel[] // Explicit cast for the array
+    );
+  };
+
   const handleSubmit = async (newNode: ExtendedNodeModel) => {
     const title = prompt(`Enter ${newNode?.data?.fileType} name:`);
     if (!title) return;
@@ -401,6 +420,7 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
                       setSelectedFile={setSelectedFile}
                       loadFileContent={loadFileContent}
                       handleSubmit={handleSubmit}
+                      handleRename={handleRename}
                     />
                   )}
                 />
@@ -413,17 +433,53 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
       </div>
 
       {/* Main Content */}
-      <section
-        className={`flex-1 p-4 ${
-          isSidebarOpen ? "ml-0" : "ml-12"
-        } transition-all duration-300 relative`}
-      >
+      <section className={`flex-1 p-4 ${isSidebarOpen ? "ml-0" : "ml-12"}`}>
         {selectedFile ? (
           <>
             <div className="mb-4 flex items-center justify-between border-b pb-2">
-              <h2 className="text-2xl font-semibold text-white-800">
-                {selectedFile.text}
-              </h2>
+              <input
+                type="text"
+                value={selectedFile?.text || ""}
+                onChange={(e) => {
+                  const newName = e.target.value;
+
+                  // Update treeData and reselect the file with updated name
+                  setTreeData((prevTree) => {
+                    const updatedTree = prevTree.map((node) =>
+                      node.id === selectedFile?.id
+                        ? {
+                            ...node,
+                            text: newName,
+                            data: {
+                              ...node.data,
+                              fileName: newName,
+                              fileType: node?.data?.fileType, // Ensure fileType is not undefined
+                            },
+                          }
+                        : node
+                    ) as ExtendedNodeModel[]; // Explicit cast to satisfy the type checker
+
+                    // Update selectedFile to reflect the changes
+                    const updatedSelectedFile = updatedTree.find(
+                      (node) => node.id === selectedFile?.id
+                    );
+
+                    if (updatedSelectedFile) {
+                      setSelectedFile({
+                        ...updatedSelectedFile,
+                        data: {
+                          ...updatedSelectedFile.data,
+                          fileType:
+                            updatedSelectedFile?.data?.fileType ?? "file", // Provide a default value
+                        },
+                      } as ExtendedNodeModel); // Explicit cast to ensure the correct type
+                    }
+
+                    return updatedTree;
+                  });
+                }}
+                className="w-full text-2xl font-semibold text-white bg-black p-2 rounded focus:outline-none focus:ring focus:ring-blue-500"
+              />
             </div>
             <TextEditor
               initialContent={fileContent || ""}
