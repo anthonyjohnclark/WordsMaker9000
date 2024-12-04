@@ -21,8 +21,11 @@ import {
 import { v4 as uuidv4 } from "uuid";
 
 import dynamic from "next/dynamic";
+
 import TreeNode from "gilgamesh/app/components/TreeNode";
+
 import { HTML5Backend } from "react-dnd-html5-backend";
+
 import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
 
 export type NodeData = {
@@ -71,17 +74,33 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
       try {
         await deleteFile(projectName, fileId);
       } catch (err) {
-        console.error("Failed to delete item:", err);
-        setError("Failed to delete item.");
+        console.error("Failed to delete file:", err);
+        setError("Failed to delete file.");
+      }
+    } else if (type === "folder") {
+      const descendants = getDescendants(treeData, id);
+
+      for (const descendant of descendants) {
+        if (descendant?.data?.fileType === "file") {
+          try {
+            await deleteFile(projectName, descendant.data.fileId);
+          } catch (err) {
+            console.error(`Failed to delete file ${descendant.text}:`, err);
+            setError(`Failed to delete file ${descendant.text}.`);
+          }
+        } else if (descendant?.data?.fileType === "folder") {
+          // Recursively delete the folder and its contents
+          await handleDelete(descendant.id as number, undefined, "folder");
+        }
       }
     }
 
+    // Remove the folder and its descendants from the treeData
     const deleteIds = [
       id,
       ...getDescendants(treeData, id).map((node) => node.id),
     ];
     const newTree = treeData.filter((node) => !deleteIds.includes(node.id));
-
     setTreeData(newTree);
   };
 
@@ -90,7 +109,7 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
     if (!title) return;
 
     const newItem: ExtendedNodeModel = {
-      id: 0, // Ensure an ID is added (or use your logic to generate it)
+      id: 0,
       text: title,
       parent: newNode.parent ?? 0, // Provide a default if `newNode.parent` is undefined
       droppable: true,
