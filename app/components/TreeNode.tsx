@@ -1,21 +1,27 @@
 import React from "react";
 import { FiFilePlus, FiFolderPlus, FiTrash2 } from "react-icons/fi";
-import { ExtendedNodeModel } from "../projects/[projectName]/ProjectPageClient";
+import {
+  ExtendedNodeModel,
+  NodeData,
+} from "../projects/[projectName]/ProjectPageClient";
+import { NodeModel } from "@minoru/react-dnd-treeview";
 
 type TreeNodeProps = {
-  node: ExtendedNodeModel;
+  node: NodeModel<NodeData> | ExtendedNodeModel;
   depth: number;
   isOpen: boolean;
   onToggle: () => void;
   selectedFile: ExtendedNodeModel | null;
   setSelectedFile: (node: ExtendedNodeModel) => void;
   loadFileContent: (node: ExtendedNodeModel) => void;
-  handleAddItem: (parentId: string | null, type: "file" | "folder") => void;
-  handleDelete: (id: any, type: any) => Promise<void>;
-  handleSubmit: (newNode: any) => Promise<void>;
+  handleDelete: (
+    id: number,
+    fileId: string | undefined,
+    type: "file" | "folder" | undefined
+  ) => Promise<void>;
+  handleSubmit: (newNode: ExtendedNodeModel) => Promise<void>;
 };
 
-// Use forwardRef to ensure drag-and-drop props are handled properly
 const TreeNode = ({
   node,
   depth,
@@ -26,12 +32,10 @@ const TreeNode = ({
   loadFileContent,
   handleDelete,
   handleSubmit,
-  ...dragAndDropProps // Spread drag-and-drop props
 }: TreeNodeProps) => {
   return (
     <div
       style={{
-        ...dragAndDropProps.style, // Ensure drag-and-drop style is applied
         marginLeft: depth * 20,
         backgroundColor:
           selectedFile?.id === node.id
@@ -42,22 +46,22 @@ const TreeNode = ({
     >
       <span
         onClick={() => {
-          if (node.type === "folder") {
+          if (node.data?.fileType === "folder") {
             onToggle();
           } else {
-            setSelectedFile(node);
-            loadFileContent(node);
+            setSelectedFile(node as ExtendedNodeModel);
+            loadFileContent(node as ExtendedNodeModel);
           }
         }}
       >
-        {node.type === "folder"
+        {node.data?.fileType === "folder"
           ? isOpen
             ? "📂 " + node.text
             : "📁 " + node.text
           : "📄 " + node.text}
       </span>
       <div className="flex items-center gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-        {node.type === "folder" && (
+        {node.data?.fileType === "folder" && (
           <>
             <FiFilePlus
               onClick={() => {
@@ -65,11 +69,13 @@ const TreeNode = ({
                   onToggle();
                 }
                 handleSubmit({
+                  id: 0,
                   text: node.text,
-                  parent: node.id,
+                  parent: node.id as number,
                   droppable: node.droppable,
-                  type: "file",
                   data: {
+                    fileId: "",
+                    fileName: "",
                     fileType: "file",
                   },
                 });
@@ -83,12 +89,13 @@ const TreeNode = ({
                   onToggle();
                 }
                 handleSubmit({
+                  id: 0,
                   text: node.text,
-                  parent: node.id,
+                  parent: node.id as number,
                   droppable: node.droppable,
-                  type: "folder",
-
                   data: {
+                    fileId: "",
+                    fileName: "",
                     fileType: "folder",
                   },
                 });
@@ -99,7 +106,13 @@ const TreeNode = ({
           </>
         )}
         <FiTrash2
-          onClick={() => handleDelete(node.id, node.type)}
+          onClick={() =>
+            handleDelete(
+              node.id as number,
+              node.data?.fileId,
+              node.data?.fileType
+            )
+          }
           className="text-red-600 cursor-pointer hover:text-red-400"
           title="Delete"
         />

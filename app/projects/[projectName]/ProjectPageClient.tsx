@@ -7,6 +7,7 @@ import {
   NodeModel,
   DndProvider,
   getDescendants,
+  DropOptions,
 } from "@minoru/react-dnd-treeview";
 
 import {
@@ -24,17 +25,27 @@ import TreeNode from "gilgamesh/app/components/TreeNode";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
 
-export interface ExtendedNodeModel extends NodeModel {
-  text: string;
-  droppable: boolean;
-  children?: string[];
+export type NodeData = {
+  fileType: "file" | "folder";
+  fileName: string;
+  fileId: string;
+};
+
+export interface ExtendedNodeModel extends NodeModel<NodeData> {
+  parent: number;
+}
+
+interface ProjectPageClientProps {
+  projectName: string;
 }
 
 const TextEditor = dynamic(() => import("../../components/TextEditor"), {
   ssr: false,
 });
 
-const ProjectPageClient = ({ projectName }: { projectName: string }) => {
+const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
+  projectName,
+}) => {
   const [treeData, setTreeData] = useState<ExtendedNodeModel[]>([]);
 
   console.log("state tree data", treeData);
@@ -51,16 +62,14 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
 
-  const [folderOpenState, setFolderOpenState] = useState<
-    Record<string, boolean>
-  >({});
-
-  console.log(treeData);
-
-  const handleDelete = async (id, type) => {
+  const handleDelete = async (
+    id: number,
+    fileId: string | undefined,
+    type: "file" | "folder" | undefined
+  ) => {
     if (type === "file") {
       try {
-        await deleteFile(projectName, id);
+        await deleteFile(projectName, fileId);
       } catch (err) {
         console.error("Failed to delete item:", err);
         setError("Failed to delete item.");
@@ -76,17 +85,17 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     setTreeData(newTree);
   };
 
-  const handleSubmit = async (newNode) => {
-    const title = prompt(`Enter ${newNode.type} name:`);
+  const handleSubmit = async (newNode: ExtendedNodeModel) => {
+    const title = prompt(`Enter ${newNode?.data?.fileType} name:`);
     if (!title) return;
 
-    const newItem = {
+    const newItem: ExtendedNodeModel = {
+      id: 0, // Ensure an ID is added (or use your logic to generate it)
       text: title,
-      parent: newNode.parent,
+      parent: newNode.parent ?? 0, // Provide a default if `newNode.parent` is undefined
       droppable: true,
-      type: newNode.type,
       data: {
-        fileType: newNode.type,
+        fileType: newNode?.data?.fileType ?? "file", // Provide a default type if undefined
         fileName: title,
         fileId: uuidv4(),
       },
@@ -94,9 +103,9 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
 
     const lastId = getLastId(treeData) + 1;
 
-    if (newNode.type === "file") {
+    if (newNode?.data?.fileType === "file") {
       try {
-        await saveFile(projectName, newItem.data.fileId, "");
+        await saveFile(projectName, newItem?.data?.fileId, "");
       } catch (err) {
         console.error("Failed to add item:", err);
         setError("Failed to add item.");
@@ -115,11 +124,9 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
         id: lastId,
       },
     ]);
-
-    toggleFolderState(newNode.parent, true);
   };
 
-  const getLastId = (treeData) => {
+  const getLastId = (treeData: ExtendedNodeModel[]): number => {
     const reversedArray = [...treeData].sort((a, b) => {
       if (a.id < b.id) {
         return 1;
@@ -131,7 +138,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     });
 
     if (reversedArray.length > 0) {
-      return reversedArray[0].id;
+      return reversedArray[0].id as number;
     }
 
     return 0;
@@ -167,7 +174,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     }
 
     fetchMetadata();
-  }, []);
+  }, [projectName]);
 
   useEffect(() => {
     async function saveTreeData() {
@@ -185,11 +192,11 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
     }
 
     saveTreeData();
-  }, [treeData]);
+  }, [projectName, treeData]);
 
-  const handleDrop = (newTree, e) => {
+  const handleDrop = (newTree: NodeModel<NodeData>[], options: DropOptions) => {
     console.log(newTree);
-    const { dragSourceId, dropTargetId, destinationIndex } = e;
+    const { dragSourceId, dropTargetId, destinationIndex } = options;
     if (
       typeof dragSourceId === "undefined" ||
       typeof dropTargetId === "undefined"
@@ -233,16 +240,16 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
           destinationIndex
         );
         const movedElement = output.find((el) => el.id === dragSourceId);
-        if (movedElement) movedElement.parent = dropTargetId;
+        if (movedElement) movedElement.parent = dropTargetId as number;
         return output;
       });
     }
   };
 
   async function loadFileContent(node: ExtendedNodeModel) {
-    if (node.type === "folder") return; // Skip folders
+    if (node?.data?.fileType === "folder") return; // Skip folders
     try {
-      const content = await readFile(projectName, node.data.fileId);
+      const content = await readFile(projectName, node?.data?.fileId);
       setSelectedFile(node);
       setFileContent(content);
     } catch (err) {
@@ -254,7 +261,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
   async function saveFileContent(content: string) {
     if (selectedFile) {
       try {
-        await saveFile(projectName, selectedFile.data.fileId, content);
+        await saveFile(projectName, selectedFile.data?.fileId, content);
         setFileContent(content);
         alert("File saved!");
       } catch (err) {
@@ -262,13 +269,6 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
         setError("Failed to save file content.");
       }
     }
-  }
-
-  function toggleFolderState(nodeId: string, isOpen: boolean) {
-    setFolderOpenState((prev) => ({
-      ...prev,
-      [nodeId]: isOpen, // Explicitly set to match `isOpen` from Tree
-    }));
   }
 
   return (
@@ -302,9 +302,15 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
                 <FiFilePlus
                   onClick={() =>
                     handleSubmit({
+                      id: 0,
+                      text: "",
                       parent: 0,
                       droppable: true,
-                      type: "file",
+                      data: {
+                        fileType: "file",
+                        fileName: "",
+                        fileId: "",
+                      },
                     })
                   }
                   className="text-green-600 cursor-pointer hover:text-green-400 text-xl"
@@ -313,9 +319,15 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
                 <FiFolderPlus
                   onClick={() =>
                     handleSubmit({
+                      id: 0,
+                      text: "",
                       parent: 0,
                       droppable: true,
-                      type: "folder",
+                      data: {
+                        fileType: "folder",
+                        fileName: "",
+                        fileId: "",
+                      },
                     })
                   }
                   className="text-blue-600 cursor-pointer hover:text-blue-400 text-xl"
@@ -327,7 +339,7 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
               <p className="text-red-600">{error}</p>
             ) : (
               <DndProvider backend={HTML5Backend}>
-                <Tree<ExtendedNodeModel>
+                <Tree<NodeData>
                   tree={treeData}
                   rootId={0} // Root has no parent
                   initialOpen={true}
@@ -342,8 +354,8 @@ const ProjectPageClient = ({ projectName }: { projectName: string }) => {
 
                     // Prevent folders from being dropped into files
                     if (
-                      dragSource?.type === "folder" &&
-                      dropTarget?.type === "file"
+                      dragSource?.data?.fileType === "folder" &&
+                      dropTarget?.data?.fileType === "file"
                     ) {
                       return false;
                     }

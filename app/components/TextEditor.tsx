@@ -22,7 +22,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   useEffect(() => {
     setContent(initialContent);
-  }, [initialContent]); // This runs whenever `initialContent` changes
+  }, [initialContent]);
 
   useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
@@ -38,7 +38,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleSaveShortcut);
     };
-  }, [content, selectedFile]);
+  }, [content, onSave, selectedFile]);
 
   return (
     <div className="relative">
