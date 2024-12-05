@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import {
   Tree,
@@ -347,19 +347,23 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
     }
   }
 
-  async function saveFileContent(content: string) {
-    if (selectedFile) {
-      try {
-        await saveFile(projectName, selectedFile.data?.fileId, content);
-        setFileContent(content);
-        setFileSavedMessage(true); // Show success message
-        setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
-      } catch (err) {
-        console.error("Error saving file:", err);
-        setError("Failed to save file content.");
+  const saveFileContent = useCallback(
+    async (content: string) => {
+      if (selectedFile) {
+        try {
+          await saveFile(projectName, selectedFile.data?.fileId, content);
+          setFileContent(content);
+          setFileSavedMessage(true); // Show success message
+          console.log("File auto-saved.", content);
+          setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
+        } catch (err) {
+          console.error("Error saving file:", err);
+          setError("Failed to save file content.");
+        }
       }
-    }
-  }
+    },
+    [projectName, selectedFile, setFileContent, setError]
+  );
 
   return (
     <div className="flex h-screen">
