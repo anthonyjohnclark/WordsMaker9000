@@ -21,6 +21,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 
 import TreeNode from "gilgamesh/app/components/TreeNode";
 
@@ -365,6 +366,8 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
     [projectName, selectedFile, setFileContent, setError]
   );
 
+  const router = useRouter();
+
   return (
     <div className="flex h-screen">
       {fileSavedMessage && (
@@ -380,6 +383,17 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
           isSidebarOpen ? "w-64" : "w-12"
         } bg-gray-800 text-white transition-all duration-300 flex flex-col`}
       >
+        {isSidebarOpen && (
+          <div className="text-center pt-4 ">
+            <h1
+              className="text-xl pt-4 font-bold text-yellow-600 cursor-pointer transform transition duration-200 hover:scale-110 hover:text-yellow-400"
+              onClick={() => router.push("/")}
+            >
+              Gilgamesh
+            </h1>
+          </div>
+        )}
+
         {/* Toggle Button */}
         <button
           onClick={() => setIsSidebarOpen((prev) => !prev)}
@@ -500,13 +514,13 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
 
       {/* Main Content */}
       <section
-        className={`flex-1 bg-black pl-5 pr-5 pt-4 ${
+        className={`flex-1 bg-black pl-5 pr-5  ${
           isSidebarOpen ? "ml-0" : "ml-12"
         }`}
       >
         {selectedFile ? (
           <>
-            <div className="mb-0 flex items-center justify-between border-b pb-2">
+            <div className="mb-0 flex items-center justify-between border-b pb-2 pt-2">
               <input
                 type="text"
                 value={selectedFile?.text || ""}
@@ -558,7 +572,7 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
             />
           </>
         ) : (
-          <div className="flex-1 h-screen flex items-center justify-center p-4 relative">
+          <div className="flex-1 h-screen flex items-center justify-center ">
             <div className="text-center max-w-md bg-gray-800 text-white rounded-lg shadow-lg p-8 relative">
               {/* Project Name */}
               <h1 className="text-2xl font-bold mb-6 text-yellow-600">
