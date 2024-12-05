@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+
 import {
   Tree,
   NodeModel,
@@ -8,6 +9,7 @@ import {
   getDescendants,
   DropOptions,
 } from "@minoru/react-dnd-treeview";
+
 import {
   readMetadata,
   deleteFile,
@@ -15,14 +17,27 @@ import {
   saveFile,
   updateMetadata,
 } from "../../utils/fileManager";
+
 import { v4 as uuidv4 } from "uuid";
+
 import dynamic from "next/dynamic";
+
 import TreeNode from "gilgamesh/app/components/TreeNode";
+
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { FiFilePlus, FiFolderPlus, FiMenu, FiX } from "react-icons/fi";
+
+import {
+  FiCheckCircle,
+  FiFile,
+  FiFilePlus,
+  FiFolder,
+  FiFolderPlus,
+  FiMenu,
+  FiX,
+} from "react-icons/fi";
 
 export type NodeData = {
-  fileType: "file" | "folder";
+  fileType: "file" | "folder" | undefined;
   fileName: string;
   fileId: string;
 };
@@ -49,6 +64,9 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newNode, setNewNode] = useState<ExtendedNodeModel | null>(null);
+  const [fileSavedMessage, setFileSavedMessage] = useState(false);
 
   // New state for pending metadata
   const [pendingMetadata, setPendingMetadata] = useState<{
@@ -95,6 +113,14 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
   const handleTreeDataChange = (newTreeData: ExtendedNodeModel[]) => {
     setTreeData(newTreeData);
     setPendingMetadata({ projectName, treeData: newTreeData });
+  };
+
+  const handleModalOpen = (open: boolean) => {
+    setIsModalOpen(open);
+  };
+
+  const handleSetNewNode = (newNode: ExtendedNodeModel) => {
+    setNewNode(newNode);
   };
 
   const handleDelete = async (
@@ -149,18 +175,16 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
     );
   };
 
-  const handleSubmit = async (newNode: ExtendedNodeModel) => {
-    const title = prompt(`Enter ${newNode?.data?.fileType} name:`);
-    if (!title) return;
-
+  const handleSubmit = async (newNode: ExtendedNodeModel | null) => {
+    if (!newNode) return;
     const newItem: ExtendedNodeModel = {
       id: 0,
-      text: title,
-      parent: newNode.parent ?? 0,
+      text: newNode?.text,
+      parent: newNode?.parent ?? 0,
       droppable: true,
       data: {
         fileType: newNode?.data?.fileType ?? "file",
-        fileName: title,
+        fileName: newNode?.text,
         fileId: uuidv4(),
       },
     };
@@ -188,6 +212,7 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
         id: lastId,
       },
     ]);
+    setIsModalOpen(false);
   };
 
   const getLastId = (treeData: ExtendedNodeModel[]): number => {
@@ -246,7 +271,7 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
         const metadata = { projectName, treeData };
         console.log(console.log("saving tree:", treeData));
 
-        if (metadata.treeData) {
+        if (metadata.treeData && metadata.treeData.length !== 0) {
           updateMetadata(projectName, metadata);
         }
       } catch (err) {
@@ -327,7 +352,8 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
       try {
         await saveFile(projectName, selectedFile.data?.fileId, content);
         setFileContent(content);
-        alert("File saved!");
+        setFileSavedMessage(true); // Show success message
+        setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
       } catch (err) {
         console.error("Error saving file:", err);
         setError("Failed to save file content.");
@@ -337,6 +363,13 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
 
   return (
     <div className="flex h-screen">
+      {fileSavedMessage && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded flex items-center shadow-lg">
+          <FiCheckCircle className="w-5 h-5 mr-2" />
+          <span>File saved!</span>
+        </div>
+      )}
+
       {/* Sidebar */}
       <div
         className={`${
@@ -364,8 +397,8 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
               </h2>
               <div className="flex gap-4">
                 <FiFilePlus
-                  onClick={() =>
-                    handleSubmit({
+                  onClick={() => {
+                    setNewNode({
                       id: 0,
                       text: "",
                       parent: 0,
@@ -375,14 +408,15 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
                         fileName: "",
                         fileId: "",
                       },
-                    })
-                  }
+                    });
+                    setIsModalOpen(true);
+                  }}
                   className="text-green-600 cursor-pointer hover:text-green-400 text-xl"
                   title="Add File"
                 />
                 <FiFolderPlus
-                  onClick={() =>
-                    handleSubmit({
+                  onClick={() => {
+                    setNewNode({
                       id: 0,
                       text: "",
                       parent: 0,
@@ -392,8 +426,9 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
                         fileName: "",
                         fileId: "",
                       },
-                    })
-                  }
+                    });
+                    setIsModalOpen(true);
+                  }}
                   className="text-blue-600 cursor-pointer hover:text-blue-400 text-xl"
                   title="Add Folder"
                 />
@@ -445,8 +480,9 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
                       selectedFile={selectedFile}
                       setSelectedFile={setSelectedFile}
                       loadFileContent={loadFileContent}
-                      handleSubmit={handleSubmit}
                       handleRename={handleRename}
+                      handleModalOpen={handleModalOpen}
+                      handleSetNewNode={handleSetNewNode}
                     />
                   )}
                 />
@@ -459,10 +495,14 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
       </div>
 
       {/* Main Content */}
-      <section className={`flex-1 p-4 ${isSidebarOpen ? "ml-0" : "ml-12"}`}>
+      <section
+        className={`flex-1 bg-black pl-5 pr-5 pt-4 ${
+          isSidebarOpen ? "ml-0" : "ml-12"
+        }`}
+      >
         {selectedFile ? (
           <>
-            <div className="mb-4 flex items-center justify-between border-b pb-2">
+            <div className="mb-0 flex items-center justify-between border-b pb-2">
               <input
                 type="text"
                 value={selectedFile?.text || ""}
@@ -514,9 +554,104 @@ const ProjectPageClient: React.FC<ProjectPageClientProps> = ({
             />
           </>
         ) : (
-          <p>Select a file to edit</p>
+          <div className="flex-1 h-screen flex items-center justify-center p-4 relative">
+            <div className="text-center max-w-md bg-gray-800 text-white rounded-lg shadow-lg p-8 relative">
+              {/* Project Name */}
+              <h1 className="text-2xl font-bold mb-6 text-yellow-600">
+                {decodeURIComponent(projectName)}
+              </h1>
+
+              {/* Arrow to Sidebar */}
+              <div className="absolute left-[-80px] top-1/2 transform -translate-y-1/2 flex items-center">
+                <div className="flex flex-col items-center">
+                  <div className="bg-gray-700 p-2 rounded-full">
+                    <svg
+                      className="w-6 h-6 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Jumbotron Message */}
+              <p className="text-lg text-gray-300 mb-6">
+                Select a file from the sidebar or create one to start editing.
+              </p>
+            </div>
+          </div>
         )}
       </section>
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center"
+          onClick={() => setIsModalOpen(false)} // Close modal on backdrop click
+        >
+          <div
+            className="bg-gray-800 p-6 rounded shadow-lg w-96"
+            onClick={(e) => e.stopPropagation()} // Prevent click inside modal from closing it
+          >
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              {newNode?.data?.fileType === "file" ? (
+                <FiFile className="text-green-500" />
+              ) : (
+                <FiFolder className="text-blue-500" />
+              )}
+              {`Enter ${newNode?.data?.fileType} name`}
+            </h2>
+            <input
+              type="text"
+              value={newNode?.text}
+              onChange={(e) => {
+                if (newNode) {
+                  setNewNode({
+                    ...newNode,
+                    text: e.target.value,
+                  });
+                }
+              }}
+              autoFocus
+              className={`border border-gray-600 bg-gray-700 text-white rounded w-full p-2 mb-4 focus:outline-none focus:ring-2 ${
+                newNode?.data?.fileType === "folder"
+                  ? "focus:ring-blue-500"
+                  : "focus:ring-green-600"
+              }`}
+              placeholder={`Enter ${newNode?.data?.fileType} name`}
+            />
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 bg-gray-600 text-gray-200 rounded hover:bg-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleSubmit(newNode)}
+                className={`px-4 py-2 text-white rounded hover:${
+                  newNode?.data?.fileType === "folder"
+                    ? "bg-blue-400"
+                    : "bg-green-500"
+                } ${
+                  newNode?.data?.fileType === "folder"
+                    ? "bg-blue-500"
+                    : "bg-green-600"
+                }`}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
