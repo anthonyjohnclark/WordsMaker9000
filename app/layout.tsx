@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "My Editor",
+  title: "Gilgamesh",
 };
 
 export default function RootLayout({

@@ -5,12 +5,12 @@ import ReactQuill from "react-quill-new";
 import { FiSave } from "react-icons/fi";
 
 import "react-quill-new/dist/quill.snow.css";
-import { ExtendedNodeModel } from "../projects/[projectName]/ProjectPageClient";
+import { ExtendedNodeModel } from "../types/ProjectPageTypes";
 
 type TextEditorProps = {
   initialContent: string;
   onSave: (content: string) => void;
-  selectedFile: ExtendedNodeModel;
+  selectedFile: ExtendedNodeModel | null;
 };
 
 const TextEditor: React.FC<TextEditorProps> = ({
