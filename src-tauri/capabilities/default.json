@@ -18,6 +18,19 @@
       "allow": [
         { "path": "$APPDATA/Projects/*" }
       ]
+    },
+    {
+      "identifier": "core:window:allow-minimize",
+      "windows": ["main"]
+    },
+
+    {
+      "identifier": "core:window:allow-maximize",
+      "windows": ["main"]
+    },
+    {
+      "identifier": "core:window:allow-close",
+      "windows": ["main"]
     }
   ]
 }

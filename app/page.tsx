@@ -29,7 +29,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-900 text-white overflow-x-hidden">
+    <div className="flex flex-col h-full bg-gray-900 text-white overflow-x-hidden">
       {/* Header */}
       <header className="bg-yellow-600 text-white py-6 shadow-md">
         <div className="container mx-auto flex justify-between items-center px-6">

@@ -7,8 +7,8 @@ const NoFileSelectedContent: React.FC = () => {
   const project = useProjectContext();
 
   return (
-    <div className="flex-1 h-screen flex items-center justify-center">
-      <div className="text-center max-w-md bg-gray-800 text-white rounded-lg shadow-lg p-8 relative">
+    <div className="flex-1 flex items-center justify-center h-full">
+      <div className="text-center max-w-md bg-gray-800 text-white rounded-lg shadow-lg p-8 relative ">
         {/* Project Name */}
         <h1 className="text-2xl font-bold mb-6 text-yellow-600">
           {decodeURIComponent(project.projectName)}

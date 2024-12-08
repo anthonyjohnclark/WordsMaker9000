@@ -1,3 +1,4 @@
+import TitleBar from "./components/TitleBar";
 import "./globals.css";
 
 export const metadata = {
@@ -12,9 +13,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="flex h-screen">
+        <div className="grid grid-rows-[auto,1fr] h-screen">
+          {/* Title Bar */}
+          <TitleBar />
+
           {/* Main Content */}
-          <main className="flex-1 overflow-y-none">{children}</main>
+          <main className="overflow-auto">{children}</main>
         </div>
       </body>
     </html>
