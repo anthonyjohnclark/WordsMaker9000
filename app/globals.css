@@ -18,4 +18,41 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+  -ms-overflow-style: none;
+}
+
+.fullscreen-editor .ql-toolbar {
+  display: none;
+}
+
+/* Remove white border */
+.ql-container {
+  border: none !important;
+}
+
+.ql-toolbar {
+  border: none !important;
+}
+
+/* Fullscreen editor adjustments */
+.fullscreen-editor .ql-container {
+  border: none !important;
+}
+
+.fullscreen-editor .ql-toolbar {
+  border: none !important;
+}
+
+/* Hide save icon in full-screen mode */
+.fullscreen-editor .save-icon {
+  display: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.ql-editor {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }

@@ -14,7 +14,7 @@ export default function RootLayout({
       <body>
         <div className="flex h-screen">
           {/* Main Content */}
-          <main className="flex-1 overflow-y-auto">{children}</main>
+          <main className="flex-1 overflow-y-none">{children}</main>
         </div>
       </body>
     </html>

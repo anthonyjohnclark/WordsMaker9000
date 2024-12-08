@@ -1,24 +1,35 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import ReactQuill from "react-quill-new";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { FiSave } from "react-icons/fi";
-
 import "react-quill-new/dist/quill.snow.css";
 import { ExtendedNodeModel } from "../types/ProjectPageTypes";
+import dynamic from "next/dynamic";
 
 type TextEditorProps = {
   initialContent: string;
   onSave: (content: string) => void;
   selectedFile: ExtendedNodeModel | null;
+  isDrawerExpanded: boolean;
 };
+
+const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 
 const TextEditor: React.FC<TextEditorProps> = ({
   initialContent,
   onSave,
   selectedFile,
+  isDrawerExpanded,
 }) => {
   const [content, setContent] = useState(initialContent);
+  const [isFullScreen, setIsFullScreen] = useState(false); // Track full-screen mode
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setContent(initialContent);
@@ -28,8 +39,6 @@ const TextEditor: React.FC<TextEditorProps> = ({
     if (content !== null) {
       onSave(content);
       console.log("File auto-saved:", content);
-
-      setTimeout(() => {}, 3000);
     }
   }, [content, onSave]);
 
@@ -58,17 +67,63 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
   }, [content, handleSave, selectedFile]);
 
+  // Handle full-screen toggle with F11
+  useEffect(() => {
+    const handleFullScreenShortcut = (event: KeyboardEvent) => {
+      if (event.key === "F11") {
+        event.preventDefault();
+        const element = editorRef.current;
+        if (element) {
+          if (!document.fullscreenElement) {
+            element.requestFullscreen().catch(console.error);
+            setIsFullScreen(true);
+          } else {
+            document.exitFullscreen().catch(console.error);
+            setIsFullScreen(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleFullScreenShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleFullScreenShortcut);
+    };
+  }, []);
+
+  const modules = useMemo(() => {
+    return {
+      toolbar: [
+        ["bold", "italic", "underline", "strike"], // Basic formatting
+        [{ list: "ordered" }, { list: "bullet" }], // Lists
+        ["link", "image"], // Link and image
+        ["clean"], // Remove formatting
+      ],
+    };
+  }, []);
+
   return (
-    <div className="relative">
+    <div
+      ref={editorRef}
+      className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
+    >
+      {/* Save Icon */}
       {/* Save Icon */}
       <FiSave
         onClick={handleSave}
-        className="absolute top-2 right-2 text-blue-600 cursor-pointer hover:text-blue-400 text-2xl"
+        className="save-icon absolute top-2 right-2 text-blue-600 cursor-pointer hover:text-blue-400 text-2xl"
         title="Save"
       />
 
       {/* Text Editor */}
-      <ReactQuill value={content} onChange={setContent} />
+      <ReactQuill
+        value={content}
+        onChange={setContent}
+        style={{
+          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+        }}
+        modules={modules} // Always include toolbar configuration
+      />
     </div>
   );
 };

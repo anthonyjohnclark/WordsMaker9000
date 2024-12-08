@@ -9,7 +9,7 @@ export const ProjectsPageWrapper = ({
   return (
     <>
       <GlobalModal />
-      <div className="flex h-screen">{children}</div>
+      <div className="flex h-full min-h-screen">{children}</div>
     </>
   );
 };
