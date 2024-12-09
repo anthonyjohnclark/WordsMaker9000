@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { FiFile, FiFolder } from "react-icons/fi";
-import { useProjectContext } from "gilgamesh/app/contexts/pages/ProjectProvider";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import { ExtendedNodeModel } from "../../types/ProjectPageTypes";
-import { useModal } from "gilgamesh/app/contexts/global/ModalContext";
+import { useModal } from "WordsMaker9000/app/contexts/global/ModalContext";
 
 interface IProps {
   newNode: ExtendedNodeModel;

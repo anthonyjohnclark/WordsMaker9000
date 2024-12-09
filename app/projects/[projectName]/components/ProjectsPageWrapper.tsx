@@ -1,5 +1,5 @@
 "use client";
-import GlobalModal from "gilgamesh/app/components/GlobalModal";
+import GlobalModal from "WordsMaker9000/app/components/GlobalModal";
 
 export const ProjectsPageWrapper = ({
   children,

@@ -2,7 +2,7 @@ import TitleBar from "./components/TitleBar";
 import "./globals.css";
 
 export const metadata = {
-  title: "Gilgamesh",
+  title: "WordsMaker9000",
 };
 
 export default function RootLayout({

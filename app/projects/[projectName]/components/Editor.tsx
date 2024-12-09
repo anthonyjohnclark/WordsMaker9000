@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { useProjectContext } from "gilgamesh/app/contexts/pages/ProjectProvider";
-import TextEditor from "gilgamesh/app/projects/[projectName]/components/TextEditor";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
+import TextEditor from "WordsMaker9000/app/projects/[projectName]/components/TextEditor";
 import BottomDrawer from "./BottomDrawer";
 
 const Editor: React.FC = () => {

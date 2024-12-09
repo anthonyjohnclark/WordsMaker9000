@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0-rc",
-  "productName": "gilgamesh",
+  "productName": "WordsMaker9000",
   "version": "0.1.0",
   "identifier": "com.tauri.dev",
   "build": {
@@ -15,7 +15,7 @@
   "app": {
     "windows": [
       {
-        "title": "Gilgamesh",
+        "title": "WordsMaker9000",
         "width": 800,
         "height": 600,
         "resizable": true,

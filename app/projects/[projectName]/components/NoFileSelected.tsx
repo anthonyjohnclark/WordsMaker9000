@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useProjectContext } from "gilgamesh/app/contexts/pages/ProjectProvider";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 
 const NoFileSelectedContent: React.FC = () => {
   const project = useProjectContext();

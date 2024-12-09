@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
-import { useProjectContext } from "gilgamesh/app/contexts/pages/ProjectProvider";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import { FiX, FiMenu, FiFilePlus, FiFolderPlus } from "react-icons/fi";
 import { DndProvider, Tree } from "@minoru/react-dnd-treeview";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import TreeNode from "gilgamesh/app/projects/[projectName]/components/TreeNode";
-import { useModal } from "gilgamesh/app/contexts/global/ModalContext";
+import TreeNode from "WordsMaker9000/app/projects/[projectName]/components/TreeNode";
+import { useModal } from "WordsMaker9000/app/contexts/global/ModalContext";
 import { AddFileFolderModal } from "./modals/AddFileFolderModal";
 
 const Sidebar: React.FC = () => {

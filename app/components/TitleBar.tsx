@@ -19,7 +19,7 @@ const TitleBar = () => {
         className="text-sm font-semibold"
         style={{ WebkitAppRegion: "no-drag", cursor: "pointer" }}
       >
-        Gilgamesh
+        WordsMaker9000
       </Link>
 
       {/* Window Controls */}

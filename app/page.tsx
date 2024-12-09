@@ -33,7 +33,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="bg-yellow-600 text-white py-6 shadow-md">
         <div className="container mx-auto flex justify-between items-center px-6">
-          <h1 className="text-3xl font-extrabold">Gilgamesh</h1>
+          <h1 className="text-3xl font-extrabold">WordsMaker9000</h1>
         </div>
       </header>
 
@@ -92,7 +92,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="bg-gray-800 text-gray-400 py-4">
         <div className="container mx-auto text-center">
-          © {new Date().getFullYear()} Gilgamesh - All Rights Reserved
+          © {new Date().getFullYear()} WordsMaker9000 - All Rights Reserved
         </div>
       </footer>
     </div>

@@ -1,5 +1,5 @@
-import { useModal } from "gilgamesh/app/contexts/global/ModalContext";
-import { useProjectContext } from "gilgamesh/app/contexts/pages/ProjectProvider";
+import { useModal } from "WordsMaker9000/app/contexts/global/ModalContext";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { NodeModel } from "@minoru/react-dnd-treeview";
 

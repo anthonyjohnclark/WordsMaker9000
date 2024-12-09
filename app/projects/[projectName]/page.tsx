@@ -1,8 +1,8 @@
-import { ProjectProvider } from "gilgamesh/app/contexts/pages/ProjectProvider";
+import { ProjectProvider } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import FileSavedMessage from "./components/FileSavedMessage";
 import Sidebar from "./components/SideBar";
 import MainContent from "./components/MainContent";
-import { ProvideModal } from "gilgamesh/app/contexts/global/ModalContext";
+import { ProvideModal } from "WordsMaker9000/app/contexts/global/ModalContext";
 import { ProjectsPageWrapper } from "./components/ProjectsPageWrapper";
 
 const ProjectsPage = async ({

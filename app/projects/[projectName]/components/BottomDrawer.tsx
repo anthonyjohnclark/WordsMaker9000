@@ -20,34 +20,11 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
         isExpanded ? "h-48" : "h-12"
       } overflow-hidden`}
     >
-      {/* Common Top Section (Last Edited, Word Count, and Toggle Button) */}
-      <div className="flex items-center justify-between p-2 border-t border-gray-700 relative">
-        {/* Left: Last Edited & Word Count */}
-        <div className="flex items-center space-x-4">
-          <span className="text-sm">
-            <span className="font-bold">Last Edited:</span> Placeholder
-          </span>
-          <span className="text-sm">
-            <span className="font-bold">Word Count:</span> Placeholder
-          </span>
-        </div>
-
-        {/* Right: Toggle Button */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 focus:outline-none focus:ring focus:ring-blue-500 absolute top-2 right-2"
-        >
-          {isExpanded ? <FiChevronDown /> : <FiChevronUp />}
-        </button>
-      </div>
-
-      {/* Expanded State Content */}
-      {isExpanded && (
-        <div className="relative h-full pt-10">
-          {" "}
-          {/* Add padding to avoid overlap */}
-          {/* Top-Left: AI Suite */}
-          <div className="absolute top-2 left-2">
+      {/* Top Section (Last Edited, Word Count, and Toggle Button) */}
+      <div className="flex items-center justify-between p-2 border-t border-gray-700 relative h-12">
+        {/* Left: AI Suite (Visible only when expanded) */}
+        {isExpanded && (
+          <div className="absolute left-2 top-3/4 transform -translate-y-1/2 pt-5 z-50">
             <h3 className="text-lg font-semibold mb-2">AI Suite</h3>
             <div className="flex space-x-4">
               <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-400">
@@ -61,6 +38,34 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Right: Last Edited, Word Count, and Toggle Button */}
+        <div className="ml-auto flex items-center space-x-4">
+          {/* Last Edited & Word Count */}
+          <div className="flex items-center space-x-4">
+            <span className="text-sm">
+              <span className="font-bold">Last Edited:</span> Placeholder
+            </span>
+            <span className="text-sm">
+              <span className="font-bold">Word Count:</span> Placeholder
+            </span>
+          </div>
+
+          {/* Toggle Button */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 focus:outline-none focus:ring focus:ring-blue-500"
+          >
+            {isExpanded ? <FiChevronDown /> : <FiChevronUp />}
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded State Content */}
+      {isExpanded && (
+        <div className="relative h-full pt-14">
+          {/* Space for expanded content */}
         </div>
       )}
     </div>
