@@ -33,7 +33,9 @@ export default function HomePage() {
       {/* Header */}
       <header className="bg-yellow-600 text-white py-6 shadow-md">
         <div className="container mx-auto flex justify-between items-center px-6">
-          <h1 className="text-3xl font-extrabold">WordsMaker9000</h1>
+          <h1 className="text-3xl font-extrabold futuristic-font">
+            WordsMaker9000
+          </h1>
         </div>
       </header>
 

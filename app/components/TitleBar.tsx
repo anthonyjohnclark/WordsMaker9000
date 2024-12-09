@@ -16,7 +16,7 @@ const TitleBar = () => {
       <Link
         href="/"
         passHref
-        className="text-sm font-semibold"
+        className="text-sm font-semibold futuristic-font"
         style={{ WebkitAppRegion: "no-drag", cursor: "pointer" }}
       >
         WordsMaker9000

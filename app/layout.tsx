@@ -12,6 +12,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Add Google Font */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+
       <body>
         <div className="grid grid-rows-[auto,1fr] h-screen">
           {/* Title Bar */}
