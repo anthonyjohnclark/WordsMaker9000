@@ -1,5 +1,6 @@
 "use client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import Link from "next/link";
 
 const TitleBar = () => {
   const handleClose = () => getCurrentWindow().close();
@@ -12,7 +13,14 @@ const TitleBar = () => {
       style={{ WebkitAppRegion: "drag" }}
     >
       {/* App Title */}
-      <span className="text-sm font-semibold">Gilgamesh</span>
+      <Link
+        href="/"
+        passHref
+        className="text-sm font-semibold"
+        style={{ WebkitAppRegion: "no-drag", cursor: "pointer" }}
+      >
+        Gilgamesh
+      </Link>
 
       {/* Window Controls */}
       <div className="flex space-x-2" style={{ WebkitAppRegion: "no-drag" }}>

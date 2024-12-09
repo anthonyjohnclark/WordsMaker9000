@@ -2,7 +2,6 @@
 
 import React from "react";
 import { useProjectContext } from "gilgamesh/app/contexts/pages/ProjectProvider";
-import { useRouter } from "next/navigation";
 import { FiX, FiMenu, FiFilePlus, FiFolderPlus } from "react-icons/fi";
 import { DndProvider, Tree } from "@minoru/react-dnd-treeview";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -12,8 +11,6 @@ import { AddFileFolderModal } from "./modals/AddFileFolderModal";
 
 const Sidebar: React.FC = () => {
   const project = useProjectContext();
-  const router = useRouter();
-
   const modal = useModal();
 
   return (
@@ -21,89 +18,90 @@ const Sidebar: React.FC = () => {
       {" "}
       <div
         className={`${
-          project.isSidebarOpen ? "w-64" : "w-12"
+          project.isSidebarOpen ? "min-w-[16rem]" : "w-12"
         } bg-gray-800 text-white transition-all duration-300 flex flex-col`}
+        style={{ width: "fit-content" }} // Ensures the sidebar expands to fit its content
       >
-        {/* Header */}
-        {project.isSidebarOpen && (
-          <div className="text-center pt-4 ">
-            <h1
-              className="text-xl pt-4 font-bold text-yellow-600 cursor-pointer transform transition duration-200 hover:scale-110 hover:text-yellow-400"
-              onClick={() => router.push("/")}
+        {/* Header with Toggle Button, Project Name, and Action Buttons */}
+        <div className="flex items-center justify-between p-3 pb-0">
+          {/* Left Section: Toggle Button and Project Name */}
+          <div className="flex items-center">
+            {/* Toggle Button */}
+            <button
+              onClick={() => project.setIsSidebarOpen((prev) => !prev)}
+              className="focus:outline-none"
             >
-              Gilgamesh
-            </h1>
-          </div>
-        )}
+              {project.isSidebarOpen ? (
+                <FiX className="text-2xl" />
+              ) : (
+                <FiMenu className="text-2xl" />
+              )}
+            </button>
 
-        {/* Toggle Button */}
-        <button
-          onClick={() => project.setIsSidebarOpen((prev) => !prev)}
-          className="p-3 focus:outline-none"
-        >
-          {project.isSidebarOpen ? (
-            <FiX className="text-2xl" />
-          ) : (
-            <FiMenu className="text-2xl" />
+            {/* Project Name */}
+            {project.isSidebarOpen && (
+              <h2 className="font-bold text-lg ml-4 whitespace-nowrap overflow-hidden text-ellipsis text-yellow-600">
+                {decodeURIComponent(project.projectName)}
+              </h2>
+            )}
+          </div>
+
+          {/* Right Section: Action Buttons */}
+          {project.isSidebarOpen && (
+            <div className="flex gap-4 pl-4">
+              <FiFilePlus
+                onClick={() => {
+                  modal.renderModal({
+                    modalBody: (
+                      <AddFileFolderModal
+                        newNode={{
+                          id: 0,
+                          text: "",
+                          parent: 0,
+                          droppable: true,
+                          data: {
+                            fileType: "file",
+                            fileName: "",
+                            fileId: "",
+                          },
+                        }}
+                      />
+                    ),
+                  });
+                }}
+                className="text-green-600 cursor-pointer hover:text-green-400 text-xl"
+                title="Add File"
+              />
+              <FiFolderPlus
+                onClick={() => {
+                  modal.renderModal({
+                    modalBody: (
+                      <AddFileFolderModal
+                        newNode={{
+                          id: 0,
+                          text: "",
+                          parent: 0,
+                          droppable: true,
+                          data: {
+                            fileType: "folder",
+                            fileName: "",
+                            fileId: "",
+                          },
+                        }}
+                      />
+                    ),
+                  });
+                }}
+                className="text-blue-600 cursor-pointer hover:text-blue-400 text-xl"
+                title="Add Folder"
+              />
+            </div>
           )}
-        </button>
+        </div>
 
         {/* Sidebar Content */}
         {project.isSidebarOpen ? (
           <div className="p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-lg pr-5">
-                {decodeURIComponent(project.projectName)}
-              </h2>
-              <div className="flex gap-4">
-                <FiFilePlus
-                  onClick={() => {
-                    modal.renderModal({
-                      modalBody: (
-                        <AddFileFolderModal
-                          newNode={{
-                            id: 0,
-                            text: "",
-                            parent: 0,
-                            droppable: true,
-                            data: {
-                              fileType: "file",
-                              fileName: "",
-                              fileId: "",
-                            },
-                          }}
-                        />
-                      ),
-                    });
-                  }}
-                  className="text-green-600 cursor-pointer hover:text-green-400 text-xl"
-                  title="Add File"
-                />
-                <FiFolderPlus
-                  onClick={() => {
-                    modal.renderModal({
-                      modalBody: (
-                        <AddFileFolderModal
-                          newNode={{
-                            id: 0,
-                            text: "",
-                            parent: 0,
-                            droppable: true,
-                            data: {
-                              fileType: "folder",
-                              fileName: "",
-                              fileId: "",
-                            },
-                          }}
-                        />
-                      ),
-                    });
-                  }}
-                  className="text-blue-600 cursor-pointer hover:text-blue-400 text-xl"
-                  title="Add Folder"
-                />
-              </div>
-            </div>
             {project.error ? (
               <p className="text-red-600">{project.error}</p>
             ) : (
