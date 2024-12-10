@@ -29,12 +29,11 @@ const TextEditor: React.FC<TextEditorProps> = ({
   isDrawerExpanded,
 }) => {
   const [content, setContent] = useState(initialContent);
-  const [isFullScreen, setIsFullScreen] = useState(false); // Track full-screen mode
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [fontSize, setFontSize] = useState(16); // Default font size in pixels
   const editorRef = useRef<HTMLDivElement | null>(null);
 
   const project = useProjectContext();
-
-  console.log("selected file:", selectedFile?.data);
 
   useEffect(() => {
     setContent(initialContent);
@@ -49,10 +48,10 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      handleSave(); // Auto-save every minute
+      handleSave();
     }, 60000);
 
-    return () => clearInterval(interval); // Cleanup interval
+    return () => clearInterval(interval);
   }, [handleSave]);
 
   useEffect(() => {
@@ -60,9 +59,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       return text
         .trim()
         .split(/\s+/)
-        .filter(function (n) {
-          return n !== "";
-        }).length;
+        .filter((n) => n !== "").length;
     };
 
     const wordCount = countWords(content || "");
@@ -79,7 +76,6 @@ const TextEditor: React.FC<TextEditorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [content]);
 
-  // Save content on Ctrl+S
   useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key === "s") {
@@ -96,7 +92,6 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
   }, [content, handleSave, selectedFile]);
 
-  // Handle full-screen toggle with F11
   useEffect(() => {
     const handleFullScreenShortcut = (event: KeyboardEvent) => {
       if (event.key === "F11") {
@@ -120,38 +115,63 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
   }, []);
 
+  const handleWheelZoom = (event: WheelEvent) => {
+    if (event.ctrlKey) {
+      event.preventDefault();
+      setFontSize((prevFontSize) => {
+        const newFontSize = prevFontSize + (event.deltaY < 0 ? 1 : -1);
+        return Math.max(10, Math.min(100, newFontSize));
+      });
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener("wheel", handleWheelZoom, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", handleWheelZoom);
+    };
+  }, []);
+
   const modules = useMemo(() => {
     return {
       toolbar: [
-        ["bold", "italic", "underline", "strike"], // Basic formatting
-        [{ list: "ordered" }, { list: "bullet" }], // Lists
-        ["link", "image"], // Link and image
-        ["clean"], // Remove formatting
+        ["bold", "italic", "underline", "strike"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["link", "image"],
+        [{ size: ["small", false, "large", "huge"] }], // Font size options
+        ["clean"],
       ],
     };
   }, []);
+
+  useEffect(() => {
+    const quillEditor = editorRef.current?.querySelector(".ql-editor");
+    if (quillEditor) {
+      (quillEditor as HTMLElement).style.fontSize = `${fontSize}px`;
+    }
+  }, [fontSize]);
 
   return (
     <div
       ref={editorRef}
       className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
-      {/* Save Icon */}
-      {/* Save Icon */}
       <FiSave
         onClick={handleSave}
-        className="save-icon absolute top-2 right-2 text-blue-600 cursor-pointer hover:text-blue-400 text-2xl"
+        className="save-icon absolute top-2 right-2 text-yellow-600 cursor-pointer hover:text-blue-400 text-2xl"
         title="Save"
       />
 
-      {/* Text Editor */}
+      <p className="italic save-icon absolute top-2 right-20 text-gray-600">
+        Ctrl + wheel to zoom
+      </p>
       <ReactQuill
         value={content}
         onChange={setContent}
         style={{
           height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
         }}
-        modules={modules} // Always include toolbar configuration
+        modules={modules}
       />
     </div>
   );

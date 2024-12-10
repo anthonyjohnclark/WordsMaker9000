@@ -37,6 +37,9 @@ body {
 /* Fullscreen editor adjustments */
 .fullscreen-editor .ql-container {
   border: none !important;
+  margin-left: 5em;
+  margin-right: 5em;
+  padding-top: 5em;
 }
 
 .fullscreen-editor .ql-toolbar {
