@@ -13,7 +13,13 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchProjects() {
       const projects = await listProjectsWithMetadata();
-      setProjects(projects);
+      // Sort projects by lastModified in descending order
+      const sortedProjects = projects.sort(
+        (a, b) =>
+          new Date(b.lastModified).getTime() -
+          new Date(a.lastModified).getTime()
+      );
+      setProjects(sortedProjects);
     }
     fetchProjects();
   }, []);
@@ -24,7 +30,13 @@ export default function HomePage() {
       await createProject(trimmedName);
       setNewProjectName("");
       const updatedProjects = await listProjectsWithMetadata();
-      setProjects(updatedProjects);
+      // Sort updated projects by lastModified in descending order
+      const sortedProjects = updatedProjects.sort(
+        (a, b) =>
+          new Date(b.lastModified).getTime() -
+          new Date(a.lastModified).getTime()
+      );
+      setProjects(sortedProjects);
       router.push(`/projects/${trimmedName}`);
     }
   }
