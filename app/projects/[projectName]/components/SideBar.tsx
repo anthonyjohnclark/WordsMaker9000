@@ -40,9 +40,15 @@ const Sidebar: React.FC = () => {
 
             {/* Project Name */}
             {project.isSidebarOpen && (
-              <h2 className="font-bold text-lg ml-4 whitespace-nowrap overflow-hidden text-ellipsis text-yellow-600">
-                {decodeURIComponent(project.projectName)}
-              </h2>
+              <div className="ml-4">
+                <h2 className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis text-yellow-600">
+                  {decodeURIComponent(project.projectName)}
+                </h2>
+                {/* Word Count as Subscript */}
+                <span className="text-sm text-gray-400 block">
+                  words: {project.projectMetadata.wordCount || 0}
+                </span>
+              </div>
             )}
           </div>
 
@@ -63,6 +69,9 @@ const Sidebar: React.FC = () => {
                             fileType: "file",
                             fileName: "",
                             fileId: "",
+                            lastModified: new Date(),
+                            createDate: new Date(),
+                            wordCount: 0,
                           },
                         }}
                       />
@@ -86,6 +95,9 @@ const Sidebar: React.FC = () => {
                             fileType: "folder",
                             fileName: "",
                             fileId: "",
+                            lastModified: new Date(),
+                            createDate: new Date(),
+                            wordCount: 0,
                           },
                         }}
                       />

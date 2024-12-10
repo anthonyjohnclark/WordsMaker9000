@@ -6,13 +6,16 @@ import {
   BaseDirectory,
   remove,
 } from "@tauri-apps/plugin-fs";
-import { ExtendedNodeModel } from "../projects/[projectName]/ProjectPageClient";
+import { ExtendedNodeModel } from "../projects/[projectName]/types/ProjectPageTypes";
 
 const BASE_DIR = "Projects";
 
-interface ProjectMetadata {
+export interface ProjectMetadata {
   projectName: string;
   treeData: ExtendedNodeModel[];
+  lastModified: Date;
+  createDate: Date;
+  wordCount: number;
 }
 
 // Ensure the base directory exists
@@ -29,7 +32,13 @@ export async function createProject(projectName: string) {
   await mkdir(projectPath, { baseDir: BaseDirectory.AppData });
 
   // Initialize metadata for the project
-  const metadata: ProjectMetadata = { projectName: projectName, treeData: [] };
+  const metadata: ProjectMetadata = {
+    projectName: projectName,
+    treeData: [],
+    lastModified: new Date(),
+    createDate: new Date(),
+    wordCount: 0,
+  };
   await writeTextFile(metadataPath, JSON.stringify(metadata), {
     baseDir: BaseDirectory.AppData,
   });
@@ -38,9 +47,28 @@ export async function createProject(projectName: string) {
 }
 
 // List all projects
-export async function listProjects() {
+// List all projects with their metadata
+export async function listProjectsWithMetadata() {
   const projects = await readDir(BASE_DIR, { baseDir: BaseDirectory.AppData });
-  return projects.map((project) => project.name);
+
+  const projectMetadataPromises = projects.map(async (project) => {
+    const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
+
+    try {
+      const content = await readTextFile(metadataPath, {
+        baseDir: BaseDirectory.AppData,
+      });
+      return JSON.parse(content) as ProjectMetadata;
+    } catch (err) {
+      console.error(`Error reading metadata for project ${project.name}:`, err);
+      return null;
+    }
+  });
+
+  const metadataList = await Promise.all(projectMetadataPromises);
+
+  // Filter out any projects where metadata could not be read
+  return metadataList.filter((metadata) => metadata !== null);
 }
 
 // Read metadata for a project

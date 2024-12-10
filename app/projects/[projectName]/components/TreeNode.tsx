@@ -36,7 +36,6 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
           if (node.data?.fileType === "folder") {
             onToggle();
           } else {
-            project.setSelectedFile(node as ExtendedNodeModel);
             project.loadFileContent(node as ExtendedNodeModel);
           }
         }}
@@ -67,6 +66,9 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                           fileId: "",
                           fileName: "",
                           fileType: "file",
+                          lastModified: new Date(),
+                          createDate: new Date(),
+                          wordCount: 0,
                         },
                       }}
                     />
@@ -93,6 +95,9 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                           fileId: "",
                           fileName: "",
                           fileType: "folder",
+                          lastModified: new Date(),
+                          createDate: new Date(),
+                          wordCount: 0,
                         },
                       }}
                     />

@@ -13,6 +13,7 @@ import {
 } from "../../projects/[projectName]/types/ProjectPageTypes";
 import {
   deleteFile,
+  ProjectMetadata,
   readFile,
   readMetadata,
   saveFile,
@@ -25,6 +26,7 @@ import {
 } from "@minoru/react-dnd-treeview";
 
 import { v4 as uuidv4 } from "uuid";
+import { calculateTreeWordCount } from "WordsMaker9000/app/utils/helpers";
 
 interface ProjectContextProps {
   projectName: string;
@@ -53,6 +55,7 @@ interface ProjectContextProps {
   fileSavedMessage: boolean;
   error: string | null;
   handleFileNameChange: (name: string) => void;
+  projectMetadata: ProjectMetadata;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -72,12 +75,17 @@ export const ProjectProvider: React.FC<{
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
+  const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
+    projectName: "",
+    treeData: [],
+    lastModified: new Date(),
+    createDate: new Date(),
+    wordCount: 0,
+  });
 
   // New state for pending metadata
-  const [pendingMetadata, setPendingMetadata] = useState<{
-    projectName: string;
-    treeData: ExtendedNodeModel[];
-  } | null>(null);
+  const [pendingMetadata, setPendingMetadata] =
+    useState<ProjectMetadata | null>(null);
 
   // Save tree data with a delay (debounced effect)
   useEffect(() => {
@@ -105,6 +113,7 @@ export const ProjectProvider: React.FC<{
           throw new Error("Invalid metadata structure.");
         }
         setTreeData(metadata.treeData);
+        setProjectMetadata(metadata);
       } catch (err) {
         console.error(err);
         setError("Failed to load project data.");
@@ -117,7 +126,16 @@ export const ProjectProvider: React.FC<{
   // Handle tree data changes and buffer the save operation
   const handleTreeDataChange = (newTreeData: ExtendedNodeModel[]) => {
     setTreeData(newTreeData);
-    setPendingMetadata({ projectName, treeData: newTreeData });
+
+    const totalWordCount = calculateTreeWordCount(newTreeData);
+
+    setPendingMetadata({
+      ...projectMetadata,
+      projectName,
+      treeData: newTreeData,
+      wordCount: totalWordCount,
+      lastModified: new Date(), // Update word count
+    });
   };
 
   const handleModalOpen = (open: boolean) => {
@@ -189,12 +207,23 @@ export const ProjectProvider: React.FC<{
       }
     }
 
+    // Update treeData by filtering out the deleted node and its descendants
     const deleteIds = [
       id,
       ...getDescendants(treeData, id).map((node) => node.id),
     ];
     const newTree = treeData.filter((node) => !deleteIds.includes(node.id));
-    handleTreeDataChange(newTree); // Use the handler for updates
+    handleTreeDataChange(newTree); // Update state
+
+    // Recalculate word count after treeData is updated
+    const updatedWordCount = calculateTreeWordCount(newTree);
+    setProjectMetadata((prevMetadata) => ({
+      ...prevMetadata,
+      wordCount: updatedWordCount,
+      lastModified: new Date(), // Update lastModified to reflect the change
+    }));
+
+    setSelectedFile(null);
   };
 
   const handleRename = (id: number, newName: string) => {
@@ -222,6 +251,9 @@ export const ProjectProvider: React.FC<{
         fileType: newNode?.data?.fileType ?? "file",
         fileName: newNode.text,
         fileId: uuidv4(),
+        createDate: new Date(),
+        lastModified: new Date(),
+        wordCount: 0,
       },
     };
 
@@ -248,6 +280,8 @@ export const ProjectProvider: React.FC<{
         id: lastId,
       },
     ]);
+
+    setSelectedFile(newItem);
   };
 
   const getLastId = (treeData: ExtendedNodeModel[]): number => {
@@ -303,7 +337,11 @@ export const ProjectProvider: React.FC<{
   useEffect(() => {
     async function saveTreeData() {
       try {
-        const metadata = { projectName, treeData };
+        const metadata = {
+          ...projectMetadata,
+          treeData,
+          lastModified: new Date(),
+        };
         console.log(console.log("saving tree:", treeData));
 
         if (metadata.treeData && metadata.treeData.length !== 0) {
@@ -316,7 +354,7 @@ export const ProjectProvider: React.FC<{
     }
 
     saveTreeData();
-  }, [projectName, treeData]);
+  }, [projectMetadata, projectName, treeData]);
 
   const handleDrop = (newTree: NodeModel<NodeData>[], options: DropOptions) => {
     console.log(newTree);
@@ -387,17 +425,53 @@ export const ProjectProvider: React.FC<{
       if (selectedFile) {
         try {
           await saveFile(projectName, selectedFile.data?.fileId, content);
+
+          setTreeData((prevTreeData) => {
+            const updatedTreeData = prevTreeData.map((node) =>
+              node.id === selectedFile?.id
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      wordCount: selectedFile.data?.wordCount,
+                      lastModified: new Date(),
+                    },
+                  }
+                : node
+            ) as ExtendedNodeModel[];
+
+            // Update project metadata with the updated tree data
+            const projectWordCount = calculateTreeWordCount(updatedTreeData);
+
+            setProjectMetadata((prevMetadata) => ({
+              ...prevMetadata,
+              lastModified: new Date(),
+              wordCount: projectWordCount,
+            }));
+
+            return updatedTreeData;
+          });
+
+          setSelectedFile({
+            ...selectedFile,
+            data: {
+              ...(selectedFile.data as NodeData),
+              lastModified: new Date(),
+            },
+          });
+
           setFileContent(content);
-          setFileSavedMessage(true); // Show success message
-          console.log("File auto-saved.", content);
+          setFileSavedMessage(true);
           setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
+
+          console.log("File auto-saved.", content);
         } catch (err) {
           console.error("Error saving file:", err);
           setError("Failed to save file content.");
         }
       }
     },
-    [projectName, selectedFile, setFileContent, setError]
+    [selectedFile, projectName]
   );
 
   return (
@@ -423,6 +497,7 @@ export const ProjectProvider: React.FC<{
         fileSavedMessage,
         error,
         handleFileNameChange,
+        projectMetadata,
       }}
     >
       {children}

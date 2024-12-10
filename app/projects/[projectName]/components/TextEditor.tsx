@@ -9,8 +9,9 @@ import React, {
 } from "react";
 import { FiSave } from "react-icons/fi";
 import "react-quill-new/dist/quill.snow.css";
-import { ExtendedNodeModel } from "../types/ProjectPageTypes";
+import { ExtendedNodeModel, NodeData } from "../types/ProjectPageTypes";
 import dynamic from "next/dynamic";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 
 type TextEditorProps = {
   initialContent: string;
@@ -31,6 +32,10 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false); // Track full-screen mode
   const editorRef = useRef<HTMLDivElement | null>(null);
 
+  const project = useProjectContext();
+
+  console.log("selected file:", selectedFile?.data);
+
   useEffect(() => {
     setContent(initialContent);
   }, [initialContent]);
@@ -49,6 +54,30 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
     return () => clearInterval(interval); // Cleanup interval
   }, [handleSave]);
+
+  useEffect(() => {
+    const countWords = (text: string): number => {
+      return text
+        .trim()
+        .split(/\s+/)
+        .filter(function (n) {
+          return n !== "";
+        }).length;
+    };
+
+    const wordCount = countWords(content || "");
+
+    if (selectedFile?.data) {
+      project.setSelectedFile({
+        ...project.selectedFile,
+        data: {
+          ...(project.selectedFile?.data as NodeData),
+          wordCount: wordCount,
+        },
+      } as ExtendedNodeModel);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content]);
 
   // Save content on Ctrl+S
   useEffect(() => {

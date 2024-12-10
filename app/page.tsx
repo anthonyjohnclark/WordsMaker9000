@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { listProjects, createProject } from "./utils/fileManager";
+import { listProjectsWithMetadata, createProject } from "./utils/fileManager";
+import { ProjectMetadata } from "./utils/fileManager";
 
 export default function HomePage() {
-  const [projects, setProjects] = useState<string[]>([]);
+  const [projects, setProjects] = useState<ProjectMetadata[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const router = useRouter();
 
   useEffect(() => {
     async function fetchProjects() {
-      const projects = await listProjects();
+      const projects = await listProjectsWithMetadata();
       setProjects(projects);
     }
     fetchProjects();
@@ -22,7 +23,7 @@ export default function HomePage() {
       const trimmedName = newProjectName.trim();
       await createProject(trimmedName);
       setNewProjectName("");
-      const updatedProjects = await listProjects();
+      const updatedProjects = await listProjectsWithMetadata();
       setProjects(updatedProjects);
       router.push(`/projects/${trimmedName}`);
     }
@@ -45,27 +46,53 @@ export default function HomePage() {
         <ul className="mb-6 space-y-4">
           {projects.map((project) => (
             <li
-              key={project}
+              key={project.projectName}
               className="bg-gray-800 rounded-lg shadow-lg p-4 hover:bg-gray-700 transition"
             >
               <a
-                href={`/projects/${project}`}
+                href={`/projects/${project.projectName}`}
                 className="text-xl font-semibold text-blue-400 hover:underline"
               >
-                {project}
+                {project.projectName}
               </a>
               <div className="mt-2 text-sm text-gray-400 flex justify-between">
-                <p>
-                  <span className="font-semibold text-gray-300">
-                    Last Edited:
-                  </span>{" "}
-                  Placeholder
-                </p>
+                <div>
+                  <p>
+                    <span className="font-semibold text-gray-300">
+                      Created:
+                    </span>{" "}
+                    <span className="text-green-600">
+                      {new Date(project.createDate).toLocaleString("en-US", {
+                        month: "numeric",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="font-semibold text-gray-300">
+                      Last Edited:
+                    </span>{" "}
+                    <span className="text-green-600">
+                      {new Date(project.lastModified).toLocaleString("en-US", {
+                        month: "numeric",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                    </span>
+                  </p>
+                </div>
                 <p>
                   <span className="font-semibold text-gray-300">
                     Word Count:
                   </span>{" "}
-                  Placeholder
+                  <span className="text-blue-600">{project.wordCount}</span>
                 </p>
               </div>
             </li>
@@ -84,6 +111,7 @@ export default function HomePage() {
             <button
               onClick={handleCreateProject}
               className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-500 transition"
+              disabled={newProjectName.length === 0}
             >
               Create
             </button>

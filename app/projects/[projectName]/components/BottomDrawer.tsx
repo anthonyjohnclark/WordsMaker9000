@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
+import { formatDateTime } from "WordsMaker9000/app/utils/helpers";
 
 type BottomDrawerProps = {
   onStateChange: (isExpanded: boolean) => void;
@@ -9,6 +11,10 @@ type BottomDrawerProps = {
 
 const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const project = useProjectContext();
+
+  console.log(project.selectedFile?.data?.wordCount);
 
   useEffect(() => {
     onStateChange(isExpanded);
@@ -43,13 +49,31 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
         {/* Right: Last Edited, Word Count, and Toggle Button */}
         <div className="ml-auto flex items-center space-x-4">
           {/* Last Edited & Word Count */}
-          <div className="flex items-center space-x-4">
-            <span className="text-sm">
-              <span className="font-bold">Last Edited:</span> Placeholder
-            </span>
-            <span className="text-sm">
-              <span className="font-bold">Word Count:</span> Placeholder
-            </span>
+          {/* Right: Created, Last Edited, Word Count, and Toggle Button */}
+          <div className="ml-auto flex items-center space-x-4">
+            {/* Created, Last Edited & Word Count */}
+            <div className="flex items-center space-x-4">
+              <span className="text-sm">
+                <span className="font-bold">Created:</span>{" "}
+                <span className="text-green-600">
+                  {project?.selectedFile?.data?.createDate &&
+                    formatDateTime(project.selectedFile.data.createDate)}
+                </span>
+              </span>
+              <span className="text-sm">
+                <span className="font-bold">Last Edited:</span>{" "}
+                <span className="text-green-600">
+                  {project?.selectedFile?.data?.lastModified &&
+                    formatDateTime(project.selectedFile.data.lastModified)}
+                </span>
+              </span>
+              <span className="text-sm">
+                <span className="font-bold">Word Count:</span>{" "}
+                <span className="text-blue-600">
+                  {project.selectedFile?.data?.wordCount}
+                </span>
+              </span>
+            </div>
           </div>
 
           {/* Toggle Button */}
