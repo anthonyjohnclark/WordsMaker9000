@@ -281,7 +281,7 @@ export const ProjectProvider: React.FC<{
       },
     ]);
 
-    setSelectedFile(newItem);
+    if (newItem?.data?.fileType === "file") setSelectedFile(newItem);
   };
 
   const getLastId = (treeData: ExtendedNodeModel[]): number => {

@@ -1,7 +1,7 @@
 "use client";
 import GlobalModal from "WordsMaker9000/app/components/GlobalModal";
 
-export const ProjectsPageWrapper = ({
+export const ProjectsPageModalWrapper = ({
   children,
 }: {
   children: JSX.Element | JSX.Element[];

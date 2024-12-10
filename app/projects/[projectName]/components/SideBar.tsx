@@ -39,17 +39,16 @@ const Sidebar: React.FC = () => {
             </button>
 
             {/* Project Name */}
-            {project.isSidebarOpen && (
+            {/* {project.isSidebarOpen && (
               <div className="ml-4">
                 <h2 className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis text-yellow-600">
                   {decodeURIComponent(project.projectName)}
                 </h2>
-                {/* Word Count as Subscript */}
                 <span className="text-sm text-gray-400 block">
                   words: {project.projectMetadata.wordCount || 0}
                 </span>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Right Section: Action Buttons */}

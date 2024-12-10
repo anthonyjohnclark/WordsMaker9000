@@ -1,8 +1,11 @@
 "use client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import Link from "next/link";
+import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
 
 const TitleBar = () => {
+  const { projectName, wordCount } = useGlobalProjectContext();
+
   const handleClose = () => getCurrentWindow().close();
   const handleMinimize = () => getCurrentWindow().minimize();
   const handleMaximize = () => getCurrentWindow().maximize();
@@ -21,6 +24,21 @@ const TitleBar = () => {
       >
         WordsMaker9000
       </Link>
+      {projectName ? (
+        <>
+          {" "}
+          <h2 className="text-lg font-semibold">
+            <span className="text-yellow-600">
+              {decodeURIComponent(projectName)}
+            </span>
+          </h2>
+          {wordCount !== null && (
+            <span className="text-green-400">({wordCount} words)</span>
+          )}
+        </>
+      ) : (
+        <h2 className="text-lg font-semibold">Welcome!</h2>
+      )}
 
       {/* Window Controls */}
       <div className="flex space-x-2" style={{ WebkitAppRegion: "no-drag" }}>

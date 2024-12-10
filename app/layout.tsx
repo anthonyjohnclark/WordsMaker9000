@@ -1,9 +1,8 @@
+// app/layout.tsx
 import TitleBar from "./components/TitleBar";
-import "./globals.css";
+import RootProvider from "./contexts/global/RootProvider";
 
-export const metadata = {
-  title: "WordsMaker9000",
-};
+import "./globals.css";
 
 export default function RootLayout({
   children,
@@ -13,21 +12,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Add Google Font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
-
       <body>
-        <div className="grid grid-rows-[auto,1fr] h-screen">
-          {/* Title Bar */}
-          <TitleBar />
-
-          {/* Main Content */}
-          <main className="overflow-auto">{children}</main>
-        </div>
+        <RootProvider>
+          {" "}
+          {/* Keeps app-wide contexts like ModalProvider */}
+          <div className="grid grid-rows-[auto,1fr] h-screen">
+            <TitleBar /> {/* Always present */}
+            <main className="overflow-auto">{children}</main>
+          </div>
+        </RootProvider>
       </body>
     </html>
   );
