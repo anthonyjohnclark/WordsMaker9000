@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
 
 const TitleBar = () => {
-  const { projectName, wordCount } = useGlobalProjectContext();
+  const { projectName, wordCount, isLoading } = useGlobalProjectContext();
 
   const handleClose = () => getCurrentWindow().close();
   const handleMinimize = () => getCurrentWindow().minimize();
@@ -24,26 +24,27 @@ const TitleBar = () => {
       >
         WordsMaker9000
       </Link>
-      {projectName ? (
-        <>
-          {" "}
-          <h2 className="text-lg font-semibold">
-            <span className="text-yellow-600">
-              {decodeURIComponent(projectName)}
-            </span>
-          </h2>
-          {wordCount !== null && (
-            <span className="text-green-400">({wordCount} words)</span>
-          )}
-        </>
-      ) : (
-        <h2 className="text-lg font-semibold">Welcome!</h2>
-      )}
+      {!isLoading ? (
+        projectName ? (
+          <>
+            <h2 className="text-lg font-semibold">
+              <span className="text-yellow-600">
+                {decodeURIComponent(projectName)}
+              </span>
+            </h2>
+            {wordCount !== null && (
+              <span className="text-green-600">({wordCount} words)</span>
+            )}
+          </>
+        ) : (
+          <h2 className="text-lg font-semibold">Welcome!</h2>
+        )
+      ) : null}
 
       {/* Window Controls */}
       <div className="flex space-x-2" style={{ WebkitAppRegion: "no-drag" }}>
         <button
-          onClick={() => handleMinimize()}
+          onClick={handleMinimize}
           className="w-8 h-8 flex items-center justify-center hover:bg-gray-600 transition-colors"
           aria-label="Minimize"
         >

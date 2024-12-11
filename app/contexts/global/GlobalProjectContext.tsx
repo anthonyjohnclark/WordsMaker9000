@@ -8,6 +8,8 @@ interface GlobalProjectContextProps {
   setProjectName: (name: string | null) => void;
   wordCount: number | null;
   setWordCount: (count: number | null) => void;
+  isLoading: boolean;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const GlobalProjectContext = createContext<
@@ -21,10 +23,18 @@ export const GlobalProjectProvider = ({
 }) => {
   const [projectName, setProjectName] = useState<string | null>(null);
   const [wordCount, setWordCount] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   return (
     <GlobalProjectContext.Provider
-      value={{ projectName, setProjectName, wordCount, setWordCount }}
+      value={{
+        projectName,
+        setProjectName,
+        wordCount,
+        setWordCount,
+        isLoading,
+        setIsLoading,
+      }}
     >
       {children}
     </GlobalProjectContext.Provider>

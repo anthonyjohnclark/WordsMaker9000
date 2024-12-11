@@ -32,20 +32,26 @@ export default function ProjectLayout({
 
   return (
     <ProjectProvider projectName={projectName}>
-      <WordCountUpdater /> {/* Keeps GlobalProjectContext updated */}
+      <TitleBarUpdater /> {/* Keeps GlobalProjectContext updated */}
       {children}
     </ProjectProvider>
   );
 }
 
 // Component to keep wordCount updated in GlobalProjectContext
-const WordCountUpdater = () => {
-  const { projectMetadata } = useProjectContext();
-  const { setWordCount } = useGlobalProjectContext();
+const TitleBarUpdater = () => {
+  const { projectMetadata, isProjectPageLoading } = useProjectContext();
+  const { setWordCount, setIsLoading } = useGlobalProjectContext();
 
   useEffect(() => {
     setWordCount(projectMetadata.wordCount);
-  }, [projectMetadata.wordCount, setWordCount]);
+    setIsLoading(isProjectPageLoading);
+  }, [
+    projectMetadata.wordCount,
+    setWordCount,
+    setIsLoading,
+    isProjectPageLoading,
+  ]);
 
   return null; // No UI, just updates context
 };

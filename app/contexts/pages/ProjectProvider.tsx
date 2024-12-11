@@ -7,10 +7,12 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
+
 import {
   ExtendedNodeModel,
   NodeData,
 } from "../../projects/[projectName]/types/ProjectPageTypes";
+
 import {
   deleteFile,
   ProjectMetadata,
@@ -19,6 +21,7 @@ import {
   saveFile,
   updateMetadata,
 } from "../../utils/fileManager";
+
 import {
   DropOptions,
   getDescendants,
@@ -26,6 +29,7 @@ import {
 } from "@minoru/react-dnd-treeview";
 
 import { v4 as uuidv4 } from "uuid";
+
 import { calculateTreeWordCount } from "WordsMaker9000/app/utils/helpers";
 
 interface ProjectContextProps {
@@ -56,6 +60,7 @@ interface ProjectContextProps {
   error: string | null;
   handleFileNameChange: (name: string) => void;
   projectMetadata: ProjectMetadata;
+  isProjectPageLoading: boolean;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -75,6 +80,7 @@ export const ProjectProvider: React.FC<{
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
+  const [isProjectPageLoading, setIsProjectPageLoading] = useState(true);
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
     projectName: "",
     treeData: [],
@@ -108,12 +114,16 @@ export const ProjectProvider: React.FC<{
   useEffect(() => {
     async function fetchMetadata() {
       try {
+        // Introduce a delay
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
+
         const metadata = await readMetadata(projectName);
         if (!metadata.projectName || !metadata.treeData) {
           throw new Error("Invalid metadata structure.");
         }
         setTreeData(metadata.treeData);
         setProjectMetadata(metadata);
+        setIsProjectPageLoading(false);
       } catch (err) {
         console.error(err);
         setError("Failed to load project data.");
@@ -314,27 +324,6 @@ export const ProjectProvider: React.FC<{
   };
 
   useEffect(() => {
-    async function fetchMetadata() {
-      try {
-        const metadata = await readMetadata(projectName);
-        if (!metadata.projectName || !metadata.treeData) {
-          throw new Error("Invalid metadata structure.");
-        }
-        console.log(console.log("beginning tree:", metadata.treeData));
-
-        if (metadata.treeData) {
-          setTreeData(metadata.treeData);
-        }
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load project data.");
-      }
-    }
-
-    fetchMetadata();
-  }, [projectName]);
-
-  useEffect(() => {
     async function saveTreeData() {
       try {
         const metadata = {
@@ -498,6 +487,7 @@ export const ProjectProvider: React.FC<{
         error,
         handleFileNameChange,
         projectMetadata,
+        isProjectPageLoading,
       }}
     >
       {children}
