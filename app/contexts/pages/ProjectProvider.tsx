@@ -63,6 +63,8 @@ interface ProjectContextProps {
   isProjectPageLoading: boolean;
   isEditorLoading: boolean;
   setIsEditorLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  fileSaveInProgress: boolean;
+  setFileSaveInProgress: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -84,6 +86,7 @@ export const ProjectProvider: React.FC<{
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
   const [isProjectPageLoading, setIsProjectPageLoading] = useState(true);
   const [isEditorLoading, setIsEditorLoading] = useState(false);
+  const [fileSaveInProgress, setFileSaveInProgress] = useState(false);
 
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
     projectName: "",
@@ -424,7 +427,10 @@ export const ProjectProvider: React.FC<{
     async (content: string) => {
       if (selectedFile) {
         try {
+          setFileSaveInProgress(true);
+
           await saveFile(projectName, selectedFile.data?.fileId, content);
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
 
           setTreeData((prevTreeData) => {
             const updatedTreeData = prevTreeData.map((node) =>
@@ -461,6 +467,8 @@ export const ProjectProvider: React.FC<{
           });
 
           setFileContent(content);
+          setFileSaveInProgress(false);
+
           setFileSavedMessage(true);
           setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
 
@@ -501,6 +509,8 @@ export const ProjectProvider: React.FC<{
         isProjectPageLoading,
         isEditorLoading,
         setIsEditorLoading,
+        fileSaveInProgress,
+        setFileSaveInProgress,
       }}
     >
       {children}
