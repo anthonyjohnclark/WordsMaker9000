@@ -17,7 +17,7 @@ import {
   deleteFile,
   ProjectMetadata,
   readFile,
-  readMetadata,
+  fetchFullMetadata,
   saveFile,
   updateMetadata,
 } from "../../utils/fileManager";
@@ -117,7 +117,7 @@ export const ProjectProvider: React.FC<{
         // Introduce a delay
         await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
 
-        const metadata = await readMetadata(projectName);
+        const metadata = await fetchFullMetadata(projectName);
         if (!metadata.projectName || !metadata.treeData) {
           throw new Error("Invalid metadata structure.");
         }

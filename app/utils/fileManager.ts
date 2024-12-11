@@ -10,12 +10,15 @@ import { ExtendedNodeModel } from "../projects/[projectName]/types/ProjectPageTy
 
 const BASE_DIR = "Projects";
 
-export interface ProjectMetadata {
+export interface ProjectMetadataSummary {
   projectName: string;
-  treeData: ExtendedNodeModel[];
   lastModified: Date;
   createDate: Date;
   wordCount: number;
+}
+
+export interface ProjectMetadata extends ProjectMetadataSummary {
+  treeData?: ExtendedNodeModel[];
 }
 
 // Ensure the base directory exists
@@ -46,6 +49,33 @@ export async function createProject(projectName: string) {
   return projectPath;
 }
 
+export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
+  const projects = await readDir(BASE_DIR, { baseDir: BaseDirectory.AppData });
+
+  const projectSummaries = await Promise.all(
+    projects.map(async (project) => {
+      const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
+
+      try {
+        const content = await readTextFile(metadataPath, {
+          baseDir: BaseDirectory.AppData,
+        });
+        const { projectName, createDate, lastModified, wordCount } =
+          JSON.parse(content);
+        return { projectName, createDate, lastModified, wordCount };
+      } catch (err) {
+        console.error(
+          `Error reading metadata for project ${project.name}:`,
+          err
+        );
+        return null;
+      }
+    })
+  );
+
+  return projectSummaries.filter((metadata) => metadata !== null);
+}
+
 // List all projects
 // List all projects with their metadata
 export async function listProjectsWithMetadata() {
@@ -72,17 +102,18 @@ export async function listProjectsWithMetadata() {
 }
 
 // Read metadata for a project
-export async function readMetadata(
+export async function fetchFullMetadata(
   projectName: string
 ): Promise<ProjectMetadata> {
   const metadataPath = `${BASE_DIR}/${decodeURIComponent(
     projectName
   )}/metadata.json`;
+
   try {
     const content = await readTextFile(metadataPath, {
       baseDir: BaseDirectory.AppData,
     });
-    return JSON.parse(content);
+    return JSON.parse(content) as ProjectMetadata;
   } catch (err) {
     console.error(`Error reading metadata for project ${projectName}:`, err);
     throw err;
@@ -92,13 +123,17 @@ export async function readMetadata(
 // Write metadata for a project
 export async function updateMetadata(
   projectName: string,
-  metadata: ProjectMetadata
+  metadata: Partial<ProjectMetadata>
 ) {
   const metadataPath = `${BASE_DIR}/${decodeURIComponent(
     projectName
   )}/metadata.json`;
+
   try {
-    await writeTextFile(metadataPath, JSON.stringify(metadata), {
+    const existingMetadata = await fetchFullMetadata(projectName);
+    const updatedMetadata = { ...existingMetadata, ...metadata };
+
+    await writeTextFile(metadataPath, JSON.stringify(updatedMetadata), {
       baseDir: BaseDirectory.AppData,
     });
   } catch (err) {

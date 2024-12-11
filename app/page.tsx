@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { listProjectsWithMetadata, createProject } from "./utils/fileManager";
+import {
+  listProjectsWithMetadata,
+  createProject,
+  listProjectsSummary,
+} from "./utils/fileManager";
 import { ProjectMetadata } from "./utils/fileManager";
 
 export default function HomePage() {
@@ -12,7 +16,7 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchProjects() {
-      const projects = await listProjectsWithMetadata();
+      const projects = await listProjectsSummary();
       // Sort projects by lastModified in descending order
       const sortedProjects = projects.sort(
         (a, b) =>
