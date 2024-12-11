@@ -61,6 +61,8 @@ interface ProjectContextProps {
   handleFileNameChange: (name: string) => void;
   projectMetadata: ProjectMetadata;
   isProjectPageLoading: boolean;
+  isEditorLoading: boolean;
+  setIsEditorLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -81,6 +83,8 @@ export const ProjectProvider: React.FC<{
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
   const [isProjectPageLoading, setIsProjectPageLoading] = useState(true);
+  const [isEditorLoading, setIsEditorLoading] = useState(false);
+
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
     projectName: "",
     treeData: [],
@@ -399,10 +403,17 @@ export const ProjectProvider: React.FC<{
 
   async function loadFileContent(node: ExtendedNodeModel) {
     if (node?.data?.fileType === "folder") return; // Skip folders
+
+    setSelectedFile(node);
+
+    setIsEditorLoading(true);
+
     try {
       const content = await readFile(projectName, node?.data?.fileId);
-      setSelectedFile(node);
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
+
       setFileContent(content);
+      setIsEditorLoading(false);
     } catch (err) {
       console.error("Error reading file:", err);
       setError("Failed to load file content.");
@@ -488,6 +499,8 @@ export const ProjectProvider: React.FC<{
         handleFileNameChange,
         projectMetadata,
         isProjectPageLoading,
+        isEditorLoading,
+        setIsEditorLoading,
       }}
     >
       {children}

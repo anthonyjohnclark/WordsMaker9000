@@ -158,11 +158,11 @@ const TextEditor: React.FC<TextEditorProps> = ({
     >
       <FiSave
         onClick={handleSave}
-        className="save-icon absolute top-2 right-2 text-yellow-600 cursor-pointer hover:text-blue-400 text-2xl"
+        className="save-icon absolute top-2 right-2 text-yellow-500 cursor-pointer hover:text-blue-400 text-2xl"
         title="Save"
       />
 
-      <p className="italic save-icon absolute top-2 right-20 text-gray-600">
+      <p className="italic save-icon absolute top-2 right-20 text-gray-500">
         Ctrl + wheel to zoom
       </p>
       <ReactQuill

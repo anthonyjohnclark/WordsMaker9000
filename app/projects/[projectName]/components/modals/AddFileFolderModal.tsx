@@ -29,10 +29,10 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
         value={newNodeText}
         onChange={(e) => setNewNodeText(e.target.value)}
         autoFocus
-        className={`border border-gray-600 bg-gray-700 text-white rounded w-full p-2 mb-4 focus:outline-none focus:ring-2 ${
+        className={`border border-gray-500 bg-gray-700 text-white rounded w-full p-2 mb-4 focus:outline-none focus:ring-2 ${
           newNode?.data?.fileType === "folder"
             ? "focus:ring-blue-500"
-            : "focus:ring-green-600"
+            : "focus:ring-green-500"
         }`}
         placeholder={`Enter ${newNode?.data?.fileType} name`}
       />
@@ -41,7 +41,7 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
           onClick={() => {
             modal.handleClose();
           }}
-          className="px-4 py-2 bg-gray-600 text-gray-200 rounded hover:bg-gray-500"
+          className="px-4 py-2 bg-gray-500 text-gray-200 rounded hover:bg-gray-500"
         >
           Cancel
         </button>
@@ -57,7 +57,7 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
           } ${
             newNode?.data?.fileType === "folder"
               ? "bg-blue-500"
-              : "bg-green-600"
+              : "bg-green-500"
           }`}
         >
           Add

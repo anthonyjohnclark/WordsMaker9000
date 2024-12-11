@@ -41,7 +41,7 @@ const Sidebar: React.FC = () => {
             {/* Project Name */}
             {/* {project.isSidebarOpen && (
               <div className="ml-4">
-                <h2 className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis text-yellow-600">
+                <h2 className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis text-yellow-500">
                   {decodeURIComponent(project.projectName)}
                 </h2>
                 <span className="text-sm text-gray-400 block">
@@ -77,7 +77,7 @@ const Sidebar: React.FC = () => {
                     ),
                   });
                 }}
-                className="text-green-600 cursor-pointer hover:text-green-400 text-xl"
+                className="text-green-500 cursor-pointer hover:text-green-400 text-xl"
                 title="Add File"
               />
               <FiFolderPlus
@@ -103,7 +103,7 @@ const Sidebar: React.FC = () => {
                     ),
                   });
                 }}
-                className="text-blue-600 cursor-pointer hover:text-blue-400 text-xl"
+                className="text-blue-500 cursor-pointer hover:text-blue-400 text-xl"
                 title="Add Folder"
               />
             </div>
@@ -114,7 +114,7 @@ const Sidebar: React.FC = () => {
         {project.isSidebarOpen ? (
           <div className="p-4">
             {project.error ? (
-              <p className="text-red-600">{project.error}</p>
+              <p className="text-red-500">{project.error}</p>
             ) : (
               <DndProvider backend={HTML5Backend}>
                 <Tree

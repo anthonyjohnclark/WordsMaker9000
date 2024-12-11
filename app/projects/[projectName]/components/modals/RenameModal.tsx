@@ -31,13 +31,13 @@ export const RenameModal = ({ node }: IProps) => {
         type="text"
         value={newName}
         onChange={(e) => setNewName(e.target.value)}
-        className="w-full p-3 border border-gray-600 rounded bg-gray-700 text-white text-lg focus:outline-none focus:ring focus:ring-yellow-500"
+        className="w-full p-3 border border-gray-500 rounded bg-gray-700 text-white text-lg focus:outline-none focus:ring focus:ring-yellow-500"
         autoFocus
       />
       <div className="flex justify-end gap-4 mt-4">
         <button
           onClick={() => modal.handleClose()}
-          className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-500"
         >
           Cancel
         </button>

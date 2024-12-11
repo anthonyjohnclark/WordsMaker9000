@@ -55,21 +55,21 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
             <div className="flex items-center space-x-4">
               <span className="text-sm">
                 <span className="font-bold">Created:</span>{" "}
-                <span className="text-green-600">
+                <span className="text-green-500">
                   {project?.selectedFile?.data?.createDate &&
                     formatDateTime(project.selectedFile.data.createDate)}
                 </span>
               </span>
               <span className="text-sm">
                 <span className="font-bold">Last Edited:</span>{" "}
-                <span className="text-green-600">
+                <span className="text-green-500">
                   {project?.selectedFile?.data?.lastModified &&
                     formatDateTime(project.selectedFile.data.lastModified)}
                 </span>
               </span>
               <span className="text-sm">
                 <span className="font-bold">Word Count:</span>{" "}
-                <span className="text-blue-600">
+                <span className="text-blue-500">
                   {project.selectedFile?.data?.wordCount}
                 </span>
               </span>
@@ -79,7 +79,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
           {/* Toggle Button */}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-600 focus:outline-none focus:ring focus:ring-blue-500"
+            className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-500 focus:outline-none focus:ring focus:ring-blue-500"
           >
             {isExpanded ? <FiChevronDown /> : <FiChevronUp />}
           </button>
