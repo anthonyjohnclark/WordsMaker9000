@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import { FiX, FiMenu, FiFilePlus, FiFolderPlus } from "react-icons/fi";
 import { DndProvider, Tree } from "@minoru/react-dnd-treeview";
@@ -12,6 +12,20 @@ import { AddFileFolderModal } from "./modals/AddFileFolderModal";
 const Sidebar: React.FC = () => {
   const project = useProjectContext();
   const modal = useModal();
+
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === "b") {
+        event.preventDefault(); // Prevent browser default behavior (e.g., bold in rich text editors)
+        project.setIsSidebarOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+    };
+  }, [project]);
 
   return (
     <>
@@ -111,46 +125,50 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Sidebar Content */}
-        <div className="p-4">
-          <DndProvider backend={HTML5Backend}>
-            <Tree
-              tree={project.treeData}
-              rootId={0}
-              initialOpen={true}
-              sort={false}
-              enableAnimateExpand={true}
-              insertDroppableFirst={false}
-              onDrop={project.handleDrop}
-              dropTargetOffset={5}
-              canDrop={(tree, { dragSource, dropTarget }) => {
-                if (!dropTarget) return true; // Allow dropping into the root
-                if (
-                  dragSource?.data?.fileType === "folder" &&
-                  dropTarget?.data?.fileType === "file"
-                ) {
-                  return false; // Prevent folders from being dropped into files
-                }
-                return true; // Allow all other drops
-              }}
-              placeholderRender={(node, { depth }) => (
-                <div
-                  style={{
-                    padding: depth,
-                    borderBottom: "2px solid white",
-                  }}
-                ></div>
-              )}
-              render={(node, { depth, isOpen, onToggle }) => (
-                <TreeNode
-                  node={node}
-                  depth={depth}
-                  isOpen={isOpen}
-                  onToggle={onToggle}
-                />
-              )}
-            />
-          </DndProvider>
-        </div>
+        {project.isSidebarOpen ? (
+          <div className="p-4">
+            <DndProvider backend={HTML5Backend}>
+              <Tree
+                tree={project.treeData}
+                rootId={0}
+                initialOpen={true}
+                sort={false}
+                enableAnimateExpand={true}
+                insertDroppableFirst={false}
+                onDrop={project.handleDrop}
+                dropTargetOffset={5}
+                canDrop={(tree, { dragSource, dropTarget }) => {
+                  if (!dropTarget) return true; // Allow dropping into the root
+                  if (
+                    dragSource?.data?.fileType === "folder" &&
+                    dropTarget?.data?.fileType === "file"
+                  ) {
+                    return false; // Prevent folders from being dropped into files
+                  }
+                  return true; // Allow all other drops
+                }}
+                placeholderRender={(node, { depth }) => (
+                  <div
+                    style={{
+                      padding: depth,
+                      borderBottom: "2px solid white",
+                    }}
+                  ></div>
+                )}
+                render={(node, { depth, isOpen, onToggle }) => (
+                  <TreeNode
+                    node={node}
+                    depth={depth}
+                    isOpen={isOpen}
+                    onToggle={onToggle}
+                  />
+                )}
+              />
+            </DndProvider>
+          </div>
+        ) : (
+          <div className="p-4 text-center text-sm"></div>
+        )}
       </div>
     </>
   );
