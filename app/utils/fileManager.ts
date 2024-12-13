@@ -36,12 +36,13 @@ export async function createProject(projectName: string) {
 
   // Initialize metadata for the project
   const metadata: ProjectMetadata = {
-    projectName: projectName,
+    projectName,
     treeData: [],
     lastModified: new Date(),
     createDate: new Date(),
     wordCount: 0,
   };
+
   await writeTextFile(metadataPath, JSON.stringify(metadata), {
     baseDir: BaseDirectory.AppData,
   });
@@ -49,27 +50,19 @@ export async function createProject(projectName: string) {
   return projectPath;
 }
 
+// List project summaries
 export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
   const projects = await readDir(BASE_DIR, { baseDir: BaseDirectory.AppData });
 
   const projectSummaries = await Promise.all(
     projects.map(async (project) => {
       const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
-
-      try {
-        const content = await readTextFile(metadataPath, {
-          baseDir: BaseDirectory.AppData,
-        });
-        const { projectName, createDate, lastModified, wordCount } =
-          JSON.parse(content);
-        return { projectName, createDate, lastModified, wordCount };
-      } catch (err) {
-        console.error(
-          `Error reading metadata for project ${project.name}:`,
-          err
-        );
-        return null;
-      }
+      const content = await readTextFile(metadataPath, {
+        baseDir: BaseDirectory.AppData,
+      });
+      const { projectName, createDate, lastModified, wordCount } =
+        JSON.parse(content);
+      return { projectName, createDate, lastModified, wordCount };
     })
   );
 
@@ -83,16 +76,10 @@ export async function listProjectsWithMetadata() {
 
   const projectMetadataPromises = projects.map(async (project) => {
     const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
-
-    try {
-      const content = await readTextFile(metadataPath, {
-        baseDir: BaseDirectory.AppData,
-      });
-      return JSON.parse(content) as ProjectMetadata;
-    } catch (err) {
-      console.error(`Error reading metadata for project ${project.name}:`, err);
-      return null;
-    }
+    const content = await readTextFile(metadataPath, {
+      baseDir: BaseDirectory.AppData,
+    });
+    return JSON.parse(content) as ProjectMetadata;
   });
 
   const metadataList = await Promise.all(projectMetadataPromises);
@@ -109,15 +96,11 @@ export async function fetchFullMetadata(
     projectName
   )}/metadata.json`;
 
-  try {
-    const content = await readTextFile(metadataPath, {
-      baseDir: BaseDirectory.AppData,
-    });
-    return JSON.parse(content) as ProjectMetadata;
-  } catch (err) {
-    console.error(`Error reading metadata for project ${projectName}:`, err);
-    throw err;
-  }
+  const content = await readTextFile(metadataPath, {
+    baseDir: BaseDirectory.AppData,
+  });
+
+  return JSON.parse(content) as ProjectMetadata;
 }
 
 // Write metadata for a project
@@ -129,21 +112,15 @@ export async function updateMetadata(
     projectName
   )}/metadata.json`;
 
-  try {
-    const existingMetadata = await fetchFullMetadata(projectName);
-    const updatedMetadata = { ...existingMetadata, ...metadata };
+  const existingMetadata = await fetchFullMetadata(projectName);
+  const updatedMetadata = { ...existingMetadata, ...metadata };
 
-    await writeTextFile(metadataPath, JSON.stringify(updatedMetadata), {
-      baseDir: BaseDirectory.AppData,
-    });
-  } catch (err) {
-    console.error(`Error updating metadata for project ${projectName}:`, err);
-    throw err;
-  }
+  await writeTextFile(metadataPath, JSON.stringify(updatedMetadata), {
+    baseDir: BaseDirectory.AppData,
+  });
 }
 
-// Read file content from metadata
-// Read file content from a JSON file
+// Read file content
 export async function readFile(
   projectName: string,
   fileId: string | undefined
@@ -151,19 +128,16 @@ export async function readFile(
   const filePath = `${BASE_DIR}/${decodeURIComponent(
     projectName
   )}/${fileId}.json`;
-  try {
-    const fileContent = await readTextFile(filePath, {
-      baseDir: BaseDirectory.AppData,
-    });
-    const parsedContent = JSON.parse(fileContent);
-    return parsedContent.content || ""; // Return content field from JSON
-  } catch (err) {
-    console.error(`Error reading file content: ${filePath}`, err);
-    return ""; // Return an empty string if file is missing
-  }
+
+  const fileContent = await readTextFile(filePath, {
+    baseDir: BaseDirectory.AppData,
+  });
+
+  const parsedContent = JSON.parse(fileContent);
+  return parsedContent.content || ""; // Return content field from JSON
 }
 
-// Save file content to metadata
+// Save file content
 export async function saveFile(
   projectName: string,
   fileId: string | undefined,
@@ -173,16 +147,11 @@ export async function saveFile(
     projectName
   )}/${fileId}.json`;
 
-  try {
-    const fileData = JSON.stringify({ content }); // Save content in a JSON structure
-    await writeTextFile(filePath, fileData, { baseDir: BaseDirectory.AppData });
-  } catch (err) {
-    console.error(`Error saving file content: ${filePath}`, err);
-    throw err;
-  }
+  const fileData = JSON.stringify({ content });
+  await writeTextFile(filePath, fileData, { baseDir: BaseDirectory.AppData });
 }
 
-// Delete an item (file/folder) from the project
+// Delete a file
 export async function deleteFile(
   projectName: string,
   fileId: string | undefined
@@ -191,11 +160,5 @@ export async function deleteFile(
     projectName
   )}/${fileId}.json`;
 
-  try {
-    await remove(filePath, { baseDir: BaseDirectory.AppData });
-    console.log(`File ${filePath} deleted successfully.`);
-  } catch (err) {
-    console.error(`Failed to delete file: ${err}`);
-    throw new Error("Failed to delete the file.");
-  }
+  await remove(filePath, { baseDir: BaseDirectory.AppData });
 }

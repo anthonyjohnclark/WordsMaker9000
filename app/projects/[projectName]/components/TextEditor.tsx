@@ -170,6 +170,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
         onChange={setContent}
         style={{
           height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+          fontFamily: "monospace",
+          font: "Consola",
         }}
         modules={modules}
       />

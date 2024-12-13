@@ -1,5 +1,5 @@
 "use client";
-// context/ProjectContext.tsx
+
 import React, {
   createContext,
   useContext,
@@ -29,8 +29,8 @@ import {
 } from "@minoru/react-dnd-treeview";
 
 import { v4 as uuidv4 } from "uuid";
-
 import { calculateTreeWordCount } from "WordsMaker9000/app/utils/helpers";
+import { useErrorContext } from "../global/ErrorContext";
 
 interface ProjectContextProps {
   projectName: string;
@@ -57,7 +57,6 @@ interface ProjectContextProps {
   fileContent: string | null;
   isModalOpen: boolean;
   fileSavedMessage: boolean;
-  error: string | null;
   handleFileNameChange: (name: string) => void;
   projectMetadata: ProjectMetadata;
   isProjectPageLoading: boolean;
@@ -80,7 +79,6 @@ export const ProjectProvider: React.FC<{
     null
   );
   const [fileContent, setFileContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
@@ -100,6 +98,8 @@ export const ProjectProvider: React.FC<{
   const [pendingMetadata, setPendingMetadata] =
     useState<ProjectMetadata | null>(null);
 
+  const { showError } = useErrorContext();
+
   // Save tree data with a delay (debounced effect)
   useEffect(() => {
     if (!pendingMetadata) return;
@@ -107,23 +107,19 @@ export const ProjectProvider: React.FC<{
     const timeout = setTimeout(async () => {
       try {
         await updateMetadata(pendingMetadata.projectName, pendingMetadata);
-        setPendingMetadata(null); // Clear pending metadata after save
-      } catch (err) {
-        console.error("Error saving metadata:", err);
-        setError("Failed to save project data.");
+        setPendingMetadata(null);
+      } catch (error) {
+        showError(error, "updating metadata");
       }
-    }, 300); // Adjust delay as needed
+    }, 300);
 
-    return () => clearTimeout(timeout); // Cleanup timeout on unmount or updates
-  }, [pendingMetadata]);
+    return () => clearTimeout(timeout);
+  }, [pendingMetadata, showError]);
 
-  // Load metadata on initial render
   useEffect(() => {
     async function fetchMetadata() {
       try {
-        // Introduce a delay
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
-
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         const metadata = await fetchFullMetadata(projectName);
         if (!metadata.projectName || !metadata.treeData) {
           throw new Error("Invalid metadata structure.");
@@ -131,14 +127,13 @@ export const ProjectProvider: React.FC<{
         setTreeData(metadata.treeData);
         setProjectMetadata(metadata);
         setIsProjectPageLoading(false);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load project data.");
+      } catch (error) {
+        showError(error, "fetching metadata");
       }
     }
 
     fetchMetadata();
-  }, [projectName]);
+  }, [projectName, showError]);
 
   // Handle tree data changes and buffer the save operation
   const handleTreeDataChange = (newTreeData: ExtendedNodeModel[]) => {
@@ -199,50 +194,38 @@ export const ProjectProvider: React.FC<{
     fileId: string | undefined,
     type: "file" | "folder" | undefined
   ) => {
-    if (type === "file") {
-      try {
+    try {
+      if (type === "file") {
         await deleteFile(projectName, fileId);
-      } catch (err) {
-        console.error("Failed to delete file:", err);
-        setError("Failed to delete file.");
-      }
-    } else if (type === "folder") {
-      const descendants = getDescendants(treeData, id);
-
-      for (const descendant of descendants) {
-        if (descendant?.data?.fileType === "file") {
-          try {
+      } else if (type === "folder") {
+        const descendants = getDescendants(treeData, id);
+        for (const descendant of descendants) {
+          if (descendant?.data?.fileType === "file") {
             await deleteFile(projectName, descendant.data.fileId);
-          } catch (err) {
-            console.error(`Failed to delete file ${descendant.text}:`, err);
-            setError(`Failed to delete file ${descendant.text}.`);
+          } else if (descendant?.data?.fileType === "folder") {
+            await handleDelete(descendant.id as number, undefined, "folder");
           }
-        } else if (descendant?.data?.fileType === "folder") {
-          // Recursively delete the folder and its contents
-          await handleDelete(descendant.id as number, undefined, "folder");
         }
       }
+      const deleteIds = [
+        id,
+        ...getDescendants(treeData, id).map((node) => node.id),
+      ];
+      const newTree = treeData.filter((node) => !deleteIds.includes(node.id));
+      handleTreeDataChange(newTree); // Update state
+
+      // Recalculate word count after treeData is updated
+      const updatedWordCount = calculateTreeWordCount(newTree);
+      setProjectMetadata((prevMetadata) => ({
+        ...prevMetadata,
+        wordCount: updatedWordCount,
+        lastModified: new Date(), // Update lastModified to reflect the change
+      }));
+      setSelectedFile(null);
+    } catch (error) {
+      showError(error, "in deletion");
     }
-
-    // Update treeData by filtering out the deleted node and its descendants
-    const deleteIds = [
-      id,
-      ...getDescendants(treeData, id).map((node) => node.id),
-    ];
-    const newTree = treeData.filter((node) => !deleteIds.includes(node.id));
-    handleTreeDataChange(newTree); // Update state
-
-    // Recalculate word count after treeData is updated
-    const updatedWordCount = calculateTreeWordCount(newTree);
-    setProjectMetadata((prevMetadata) => ({
-      ...prevMetadata,
-      wordCount: updatedWordCount,
-      lastModified: new Date(), // Update lastModified to reflect the change
-    }));
-
-    setSelectedFile(null);
   };
-
   const handleRename = (id: number, newName: string) => {
     handleTreeDataChange(
       treeData.map((node) =>
@@ -279,9 +262,8 @@ export const ProjectProvider: React.FC<{
     if (newNode?.data?.fileType === "file") {
       try {
         await saveFile(projectName, newItem?.data?.fileId, "");
-      } catch (err) {
-        console.error("Failed to add item:", err);
-        setError("Failed to add item.");
+      } catch (error) {
+        showError(error, "saving file");
       }
     }
 
@@ -343,14 +325,13 @@ export const ProjectProvider: React.FC<{
         if (metadata.treeData && metadata.treeData.length !== 0) {
           updateMetadata(projectName, metadata);
         }
-      } catch (err) {
-        console.error(err);
-        setError("Failed to save project data.");
+      } catch (error) {
+        showError(error, "updating tree metadata");
       }
     }
 
     saveTreeData();
-  }, [projectMetadata, projectName, treeData]);
+  }, [projectMetadata, projectName, showError, treeData]);
 
   const handleDrop = (newTree: NodeModel<NodeData>[], options: DropOptions) => {
     console.log(newTree);
@@ -408,27 +389,22 @@ export const ProjectProvider: React.FC<{
     if (node?.data?.fileType === "folder") return; // Skip folders
 
     setSelectedFile(node);
-
     setIsEditorLoading(true);
-
     try {
       const content = await readFile(projectName, node?.data?.fileId);
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
-
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setFileContent(content);
       setIsEditorLoading(false);
-    } catch (err) {
-      console.error("Error reading file:", err);
-      setError("Failed to load file content.");
+    } catch (error) {
+      showError(error, "reading file");
     }
   }
 
   const saveFileContent = useCallback(
     async (content: string) => {
       if (selectedFile) {
+        setFileSaveInProgress(true);
         try {
-          setFileSaveInProgress(true);
-
           await saveFile(projectName, selectedFile.data?.fileId, content);
           await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
 
@@ -473,13 +449,12 @@ export const ProjectProvider: React.FC<{
           setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
 
           console.log("File auto-saved.", content);
-        } catch (err) {
-          console.error("Error saving file:", err);
-          setError("Failed to save file content.");
+        } catch (error) {
+          showError(error, "saving file content");
         }
       }
     },
-    [selectedFile, projectName]
+    [selectedFile, projectName, showError]
   );
 
   return (
@@ -503,7 +478,6 @@ export const ProjectProvider: React.FC<{
         fileContent,
         isModalOpen,
         fileSavedMessage,
-        error,
         handleFileNameChange,
         projectMetadata,
         isProjectPageLoading,

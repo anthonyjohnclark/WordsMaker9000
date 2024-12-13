@@ -9,6 +9,7 @@ import {
 } from "./utils/fileManager";
 import { ProjectMetadata } from "./utils/fileManager";
 import Loadable from "./components/Loadable";
+import { formatDateTime } from "./utils/helpers";
 
 export default function HomePage() {
   const [projects, setProjects] = useState<ProjectMetadata[]>([]);
@@ -74,7 +75,7 @@ export default function HomePage() {
                   href={`/projects/${project.projectName}`}
                   className="text-xl font-semibold text-blue-400 hover:underline"
                 >
-                  {project.projectName}
+                  {decodeURIComponent(project.projectName)}
                 </a>
                 <div className="mt-2 text-sm text-gray-400 flex justify-between">
                   <div>
@@ -83,14 +84,7 @@ export default function HomePage() {
                         Created:
                       </span>{" "}
                       <span className="text-green-500">
-                        {new Date(project.createDate).toLocaleString("en-US", {
-                          month: "numeric",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
+                        {formatDateTime(project.createDate)}
                       </span>
                     </p>
                     <p>
@@ -98,17 +92,7 @@ export default function HomePage() {
                         Last Edited:
                       </span>{" "}
                       <span className="text-green-500">
-                        {new Date(project.lastModified).toLocaleString(
-                          "en-US",
-                          {
-                            month: "numeric",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          }
-                        )}
+                        {formatDateTime(project.lastModified)}
                       </span>
                     </p>
                   </div>

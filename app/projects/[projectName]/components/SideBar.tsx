@@ -111,54 +111,46 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Sidebar Content */}
-        {project.isSidebarOpen ? (
-          <div className="p-4">
-            {project.error ? (
-              <p className="text-red-500">{project.error}</p>
-            ) : (
-              <DndProvider backend={HTML5Backend}>
-                <Tree
-                  tree={project.treeData}
-                  rootId={0}
-                  initialOpen={true}
-                  sort={false}
-                  enableAnimateExpand={true}
-                  insertDroppableFirst={false}
-                  onDrop={project.handleDrop}
-                  dropTargetOffset={5}
-                  canDrop={(tree, { dragSource, dropTarget }) => {
-                    if (!dropTarget) return true; // Allow dropping into the root
-                    if (
-                      dragSource?.data?.fileType === "folder" &&
-                      dropTarget?.data?.fileType === "file"
-                    ) {
-                      return false; // Prevent folders from being dropped into files
-                    }
-                    return true; // Allow all other drops
+        <div className="p-4">
+          <DndProvider backend={HTML5Backend}>
+            <Tree
+              tree={project.treeData}
+              rootId={0}
+              initialOpen={true}
+              sort={false}
+              enableAnimateExpand={true}
+              insertDroppableFirst={false}
+              onDrop={project.handleDrop}
+              dropTargetOffset={5}
+              canDrop={(tree, { dragSource, dropTarget }) => {
+                if (!dropTarget) return true; // Allow dropping into the root
+                if (
+                  dragSource?.data?.fileType === "folder" &&
+                  dropTarget?.data?.fileType === "file"
+                ) {
+                  return false; // Prevent folders from being dropped into files
+                }
+                return true; // Allow all other drops
+              }}
+              placeholderRender={(node, { depth }) => (
+                <div
+                  style={{
+                    padding: depth,
+                    borderBottom: "2px solid white",
                   }}
-                  placeholderRender={(node, { depth }) => (
-                    <div
-                      style={{
-                        padding: depth,
-                        borderBottom: "2px solid white",
-                      }}
-                    ></div>
-                  )}
-                  render={(node, { depth, isOpen, onToggle }) => (
-                    <TreeNode
-                      node={node}
-                      depth={depth}
-                      isOpen={isOpen}
-                      onToggle={onToggle}
-                    />
-                  )}
+                ></div>
+              )}
+              render={(node, { depth, isOpen, onToggle }) => (
+                <TreeNode
+                  node={node}
+                  depth={depth}
+                  isOpen={isOpen}
+                  onToggle={onToggle}
                 />
-              </DndProvider>
-            )}
-          </div>
-        ) : (
-          <div className="p-4 text-center text-sm"></div>
-        )}
+              )}
+            />
+          </DndProvider>
+        </div>
       </div>
     </>
   );

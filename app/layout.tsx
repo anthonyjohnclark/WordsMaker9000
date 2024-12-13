@@ -16,6 +16,10 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
           rel="stylesheet"
         />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Consolas:wght500;800&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body>
         <RootProvider>
