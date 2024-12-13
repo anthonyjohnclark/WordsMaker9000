@@ -21,7 +21,7 @@ const ErrorModal: React.FC = () => {
           Error {errorAction}
         </h2>
         <div className="flex-1 overflow-y-auto">
-          <p className="text-white">{error.message}</p>
+          <p className="text-white">{error as string}</p>
         </div>
         <div className="flex justify-end mt-4">
           <button

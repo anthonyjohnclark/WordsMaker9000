@@ -50,6 +50,38 @@ export async function createProject(projectName: string) {
   return projectPath;
 }
 
+// // Delete an entire project
+// async function deleteDirectoryRecursively(path: string) {
+//   const entries = await readDir(path, { baseDir: BaseDirectory.AppData });
+
+//   console.log(entries);
+
+//   for (const entry of entries) {
+//     if (entry.isDirectory) {
+//       // If it's a directory, recursively delete its contents
+//       await deleteDirectoryRecursively(entry.name);
+//     } else {
+//       // If it's a file, remove it
+//       await remove(entry.name, { baseDir: BaseDirectory.AppData });
+//     }
+//   }
+
+//   console.log(path);
+
+//   // Once all contents are deleted, remove the directory itself
+//   await remove(path, { baseDir: BaseDirectory.AppData });
+// }
+
+// Delete an entire project
+export async function deleteProject(projectName: string) {
+  const projectPath = `${BASE_DIR}/${decodeURIComponent(projectName)}`;
+
+  await remove(projectPath, {
+    baseDir: BaseDirectory.AppData,
+    recursive: true,
+  });
+}
+
 // List project summaries
 export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
   const projects = await readDir(BASE_DIR, { baseDir: BaseDirectory.AppData });

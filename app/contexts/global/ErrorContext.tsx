@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState } from "react";
 
 interface ErrorContextProps {
-  error: Error | null;
+  error: Error | null | string;
   showError: (error: unknown, errorAction: string) => void;
   clearError: () => void;
   errorAction: string | null;
@@ -13,16 +13,12 @@ const ErrorContext = createContext<ErrorContextProps | undefined>(undefined);
 export const ErrorProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState<Error | null | string>(null);
   const [errorAction, setErrorAction] = useState<string | null>(null);
 
   const showError = (error: unknown, errorAction: string) => {
-    if (error instanceof Error) {
-      setError(error);
-      setErrorAction(errorAction);
-    } else {
-      setError(new Error("An unexpected error occurred")); // Handle non-Error types
-    }
+    setError(error as string);
+    setErrorAction(errorAction);
   };
 
   const clearError = () => setError(null);
