@@ -51,7 +51,7 @@ const TitleBarUpdater = () => {
     setWordCount(projectMetadata.wordCount);
     setIsLoading(isProjectPageLoading);
     setIsBackingUp(isBackingUp);
-    setLastBackupTime(projectMetadata.lastBackedUp);
+    setLastBackupTime(lastBackupTime ?? projectMetadata.lastBackedUp);
   }, [
     projectMetadata.wordCount,
     isProjectPageLoading,

@@ -13,29 +13,26 @@ import { join } from "path";
 const BASE_DIR = "Projects";
 const BACKUP_DIR = "WordsMaker3000Backups";
 
+export type ProjectType = "novel" | "collection" | "serial" | "novella";
+
 export interface ProjectMetadataSummary {
   projectName: string;
   lastModified: Date | null;
   createDate: Date;
   wordCount: number;
   lastBackedUp: Date | null;
+  projectType: ProjectType | "";
 }
 
 export interface ProjectMetadata extends ProjectMetadataSummary {
   treeData?: ExtendedNodeModel[];
 }
 
-// Ensure the base directory exists
-export async function ensureBaseDirectory() {
-  await mkdir(BASE_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
-}
-
-export async function ensureBaseBackupDirectory() {
-  await mkdir(BACKUP_DIR, { baseDir: BaseDirectory.Document, recursive: true });
-}
-
 // Create a new project
-export async function createProject(projectName: string) {
+export async function createProject(
+  projectName: string,
+  projectType: ProjectType | ""
+) {
   const projectPath = `${BASE_DIR}/${projectName}`;
   const metadataPath = `${projectPath}/metadata.json`;
 
@@ -45,6 +42,7 @@ export async function createProject(projectName: string) {
   // Initialize metadata for the project
   const metadata: ProjectMetadata = {
     projectName,
+    projectType: projectType, // Include projectType
     treeData: [],
     lastModified: null,
     createDate: new Date(),
@@ -79,9 +77,22 @@ export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
       const content = await readTextFile(metadataPath, {
         baseDir: BaseDirectory.AppData,
       });
-      const { projectName, createDate, lastModified, wordCount, lastBackedUp } =
-        JSON.parse(content);
-      return { projectName, createDate, lastModified, wordCount, lastBackedUp };
+      const {
+        projectName,
+        createDate,
+        lastModified,
+        wordCount,
+        lastBackedUp,
+        projectType,
+      } = JSON.parse(content);
+      return {
+        projectName,
+        createDate,
+        lastModified,
+        wordCount,
+        lastBackedUp,
+        projectType,
+      };
     })
   );
 

@@ -13,9 +13,6 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const project = useProjectContext();
-
-  console.log(project.selectedFile?.data?.wordCount);
-
   useEffect(() => {
     onStateChange(isExpanded);
   }, [isExpanded, onStateChange]);

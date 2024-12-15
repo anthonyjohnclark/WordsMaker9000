@@ -6,6 +6,7 @@ import {
   listProjectsWithMetadata,
   createProject,
   listProjectsSummary,
+  ProjectType,
 } from "./utils/fileManager";
 import { ProjectMetadata } from "./utils/fileManager";
 import Loadable from "./components/Loadable";
@@ -22,6 +23,17 @@ export default function HomePage() {
   const [projects, setProjects] = useState<ProjectMetadata[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [projectType, setProjectType] = useState<ProjectType | "">(""); // Default to blank
+
+  const isCreateDisabled = !newProjectName.trim() || !projectType; // Disable if either field is invalid
+
+  const projectTypes: ProjectType[] = [
+    "novel",
+    "collection",
+    "serial",
+    "novella",
+  ];
+
   const modal = useModal();
   const router = useRouter();
 
@@ -46,8 +58,9 @@ export default function HomePage() {
     try {
       if (newProjectName.trim()) {
         const trimmedName = newProjectName.trim();
-        await createProject(trimmedName);
+        await createProject(trimmedName, projectType); // Pass projectType
         setNewProjectName("");
+        setProjectType("novel"); // Reset to default type
         const updatedProjects = await listProjectsWithMetadata();
         // Sort updated projects by lastModified in descending order
         const sortedProjects = updatedProjects.sort((a, b) => {
@@ -86,7 +99,9 @@ export default function HomePage() {
         {/* Main Content */}
         <Loadable isLoading={isLoadingProjects}>
           <main className="flex-1 container mx-auto p-6">
-            <h2 className="text-3xl font-bold mb-6">Projects</h2>
+            <h2 className="text-3xl font-bold mb-6 futuristic-font">
+              Projects
+            </h2>
             <ul className="mb-6 space-y-4">
               {projects.map((project) => (
                 <li
@@ -96,12 +111,20 @@ export default function HomePage() {
                   {/* Project Link */}
                   <a
                     href={`/projects/${project.projectName}`}
-                    className="text-xl font-semibold text-blue-400 hover:underline"
+                    className="text-xl font-semibold text-blue-400 hover:underline futuristic-font"
                   >
                     {decodeURIComponent(project.projectName)}
                   </a>
                   <div className="mt-2 text-sm text-gray-400 flex justify-between">
                     <div>
+                      <p>
+                        <span className="font-semibold text-gray-300">
+                          Type:
+                        </span>{" "}
+                        <span className="text-yellow-500">
+                          {project.projectType}
+                        </span>
+                      </p>
                       <p>
                         <span className="font-semibold text-gray-300">
                           Created:
@@ -157,10 +180,32 @@ export default function HomePage() {
                   placeholder="New project name"
                   className="flex-1 border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
                 />
+                <select
+                  value={projectType}
+                  onChange={(e) =>
+                    setProjectType(e.target.value as ProjectType)
+                  }
+                  className="border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                >
+                  <option value="" disabled>
+                    Select a project type
+                  </option>
+                  {projectTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}{" "}
+                      {/* Capitalize */}
+                    </option>
+                  ))}
+                </select>
+
                 <button
                   onClick={handleCreateProject}
-                  className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-500 transition"
-                  disabled={newProjectName.length === 0}
+                  className={`bg-blue-500 text-white py-2 px-4 rounded transition ${
+                    isCreateDisabled
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-blue-400"
+                  }`}
+                  disabled={isCreateDisabled}
                 >
                   Create
                 </button>

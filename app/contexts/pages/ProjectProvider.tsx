@@ -98,6 +98,7 @@ export const ProjectProvider: React.FC<{
     createDate: new Date(),
     wordCount: 0,
     lastBackedUp: null,
+    projectType: "",
   });
 
   // New state for pending metadata
@@ -113,18 +114,17 @@ export const ProjectProvider: React.FC<{
           projectMetadata.lastModified.getTime() -
             new Date(projectMetadata.lastBackedUp).getTime() >
             15000
-        : false; // 10 minutes
+        : false;
 
       if (shouldBackup) {
         try {
           setIsBackingUp(true);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           await backupProject(decodeURIComponent(projectName));
           setLastBackupTime(new Date());
-          setProjectMetadata((prev) => {
-            return {
-              ...prev,
-              lastBackedUp: new Date(),
-            };
+          updateMetadata(decodeURIComponent(projectName), {
+            ...projectMetadata,
+            lastBackedUp: new Date(),
           });
         } catch (error) {
           showError(error, "backing up project");
@@ -133,13 +133,7 @@ export const ProjectProvider: React.FC<{
         }
       }
     }
-  }, [
-    isBackingUp,
-    projectMetadata.lastBackedUp,
-    projectMetadata.lastModified,
-    projectName,
-    showError,
-  ]);
+  }, [isBackingUp, projectMetadata, projectName, showError]);
 
   useEffect(() => {
     // Automatic backup logic
