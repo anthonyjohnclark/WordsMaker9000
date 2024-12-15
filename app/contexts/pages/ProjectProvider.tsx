@@ -20,6 +20,7 @@ import {
   fetchFullMetadata,
   saveFile,
   updateMetadata,
+  backupProject,
 } from "../../utils/fileManager";
 
 import {
@@ -64,6 +65,8 @@ interface ProjectContextProps {
   setIsEditorLoading: React.Dispatch<React.SetStateAction<boolean>>;
   fileSaveInProgress: boolean;
   setFileSaveInProgress: React.Dispatch<React.SetStateAction<boolean>>;
+  isBackingUp: boolean;
+  lastBackupTime: Date | null;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -85,6 +88,8 @@ export const ProjectProvider: React.FC<{
   const [isProjectPageLoading, setIsProjectPageLoading] = useState(true);
   const [isEditorLoading, setIsEditorLoading] = useState(false);
   const [fileSaveInProgress, setFileSaveInProgress] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false); // Track backup status
+  const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
 
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
     projectName: "",
@@ -92,6 +97,7 @@ export const ProjectProvider: React.FC<{
     lastModified: new Date(),
     createDate: new Date(),
     wordCount: 0,
+    lastBackedUp: null,
   });
 
   // New state for pending metadata
@@ -99,6 +105,50 @@ export const ProjectProvider: React.FC<{
     useState<ProjectMetadata | null>(null);
 
   const { showError } = useErrorContext();
+
+  const handleBackup = useCallback(async () => {
+    if (!isBackingUp) {
+      const shouldBackup = projectMetadata.lastModified
+        ? !projectMetadata.lastBackedUp ||
+          projectMetadata.lastModified.getTime() -
+            new Date(projectMetadata.lastBackedUp).getTime() >
+            15000
+        : false; // 10 minutes
+
+      if (shouldBackup) {
+        try {
+          setIsBackingUp(true);
+          await backupProject(decodeURIComponent(projectName));
+          setLastBackupTime(new Date());
+          setProjectMetadata((prev) => {
+            return {
+              ...prev,
+              lastBackedUp: new Date(),
+            };
+          });
+        } catch (error) {
+          showError(error, "backing up project");
+        } finally {
+          setIsBackingUp(false);
+        }
+      }
+    }
+  }, [
+    isBackingUp,
+    projectMetadata.lastBackedUp,
+    projectMetadata.lastModified,
+    projectName,
+    showError,
+  ]);
+
+  useEffect(() => {
+    // Automatic backup logic
+    const backupInterval = setInterval(async () => {
+      handleBackup();
+    }, 15000);
+
+    return () => clearInterval(backupInterval);
+  }, [handleBackup]);
 
   // Save tree data with a delay (debounced effect)
   useEffect(() => {
@@ -322,6 +372,8 @@ export const ProjectProvider: React.FC<{
         };
         console.log(console.log("saving tree:", treeData));
 
+        console.log("here I am updating the metadata:", metadata.lastBackedUp);
+
         if (metadata.treeData && metadata.treeData.length !== 0) {
           updateMetadata(projectName, metadata);
         }
@@ -485,6 +537,8 @@ export const ProjectProvider: React.FC<{
         setIsEditorLoading,
         fileSaveInProgress,
         setFileSaveInProgress,
+        isBackingUp,
+        lastBackupTime,
       }}
     >
       {children}

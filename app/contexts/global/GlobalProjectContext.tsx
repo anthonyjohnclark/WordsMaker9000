@@ -10,6 +10,10 @@ interface GlobalProjectContextProps {
   setWordCount: (count: number | null) => void;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  isBackingUp: boolean;
+  setLastBackupTime: React.Dispatch<React.SetStateAction<Date | null>>;
+  setIsBackingUp: React.Dispatch<React.SetStateAction<boolean>>;
+  lastBackupTime: Date | null;
 }
 
 const GlobalProjectContext = createContext<
@@ -24,6 +28,8 @@ export const GlobalProjectProvider = ({
   const [projectName, setProjectName] = useState<string | null>(null);
   const [wordCount, setWordCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBackingUp, setIsBackingUp] = useState<boolean>(false);
+  const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
 
   return (
     <GlobalProjectContext.Provider
@@ -34,6 +40,10 @@ export const GlobalProjectProvider = ({
         setWordCount,
         isLoading,
         setIsLoading,
+        isBackingUp,
+        setLastBackupTime,
+        setIsBackingUp,
+        lastBackupTime,
       }}
     >
       {children}

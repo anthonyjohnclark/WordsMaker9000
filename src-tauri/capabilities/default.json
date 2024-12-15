@@ -20,6 +20,24 @@
       ]
     },
     {
+      "identifier": "fs:allow-document-read-recursive",
+      "allow": [
+        { "path": "$DOCUMENT/WordsMaker3000Backups/*" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-document-meta-recursive",
+      "allow": [
+        { "path": "$DOCUMENT/WordsMaker3000Backups/*" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-document-write-recursive",
+      "allow": [
+        { "path": "$DOCUMENT/WordsMaker3000Backups/*" }
+      ]
+    },
+    {
       "identifier": "core:window:allow-minimize",
       "windows": ["main"]
     },

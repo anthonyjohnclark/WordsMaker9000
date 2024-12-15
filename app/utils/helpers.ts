@@ -8,6 +8,10 @@ export function calculateTreeWordCount(treeData: ExtendedNodeModel[]): number {
 }
 
 export const formatDateTime = (dateString: string | Date): string => {
+  if (!dateString) {
+    return ""; // Placeholder for null
+  }
+
   const date = new Date(dateString);
   return date.toLocaleString("en-US", {
     month: "numeric",

@@ -71,7 +71,7 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
           </button>
           <button
             onClick={handleAdd}
-            disabled={newNode.text.length === 0}
+            disabled={newNodeText.length === 0}
             className={`px-4 py-2 text-white rounded hover:${
               newNode?.data?.fileType === "folder"
                 ? "bg-blue-400"

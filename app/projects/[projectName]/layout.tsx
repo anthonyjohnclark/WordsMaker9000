@@ -18,7 +18,8 @@ export default function ProjectLayout({
 }) {
   const params = use(asyncParams); // Await the params
   const { projectName } = params;
-  const { setProjectName, setWordCount } = useGlobalProjectContext();
+  const { setProjectName, setWordCount, setLastBackupTime } =
+    useGlobalProjectContext();
 
   useEffect(() => {
     setProjectName(projectName);
@@ -27,8 +28,9 @@ export default function ProjectLayout({
     return () => {
       setProjectName(null);
       setWordCount(null); // Reset word count when navigating away
+      setLastBackupTime(null);
     };
-  }, [projectName, setProjectName, setWordCount]);
+  }, [projectName, setLastBackupTime, setProjectName, setWordCount]);
 
   return (
     <ProjectProvider projectName={projectName}>
@@ -40,17 +42,26 @@ export default function ProjectLayout({
 
 // Component to keep wordCount updated in GlobalProjectContext
 const TitleBarUpdater = () => {
-  const { projectMetadata, isProjectPageLoading } = useProjectContext();
-  const { setWordCount, setIsLoading } = useGlobalProjectContext();
+  const { projectMetadata, isProjectPageLoading, isBackingUp, lastBackupTime } =
+    useProjectContext();
+  const { setWordCount, setIsLoading, setIsBackingUp, setLastBackupTime } =
+    useGlobalProjectContext();
 
   useEffect(() => {
     setWordCount(projectMetadata.wordCount);
     setIsLoading(isProjectPageLoading);
+    setIsBackingUp(isBackingUp);
+    setLastBackupTime(projectMetadata.lastBackedUp);
   }, [
     projectMetadata.wordCount,
+    isProjectPageLoading,
+    isBackingUp,
+    lastBackupTime,
     setWordCount,
     setIsLoading,
-    isProjectPageLoading,
+    setIsBackingUp,
+    setLastBackupTime,
+    projectMetadata.lastBackedUp,
   ]);
 
   return null; // No UI, just updates context

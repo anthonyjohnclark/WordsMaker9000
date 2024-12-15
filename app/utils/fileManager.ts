@@ -5,16 +5,20 @@ import {
   readDir,
   BaseDirectory,
   remove,
+  copyFile,
 } from "@tauri-apps/plugin-fs";
 import { ExtendedNodeModel } from "../projects/[projectName]/types/ProjectPageTypes";
+import { join } from "path";
 
 const BASE_DIR = "Projects";
+const BACKUP_DIR = "WordsMaker3000Backups";
 
 export interface ProjectMetadataSummary {
   projectName: string;
-  lastModified: Date;
+  lastModified: Date | null;
   createDate: Date;
   wordCount: number;
+  lastBackedUp: Date | null;
 }
 
 export interface ProjectMetadata extends ProjectMetadataSummary {
@@ -24,6 +28,10 @@ export interface ProjectMetadata extends ProjectMetadataSummary {
 // Ensure the base directory exists
 export async function ensureBaseDirectory() {
   await mkdir(BASE_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+}
+
+export async function ensureBaseBackupDirectory() {
+  await mkdir(BACKUP_DIR, { baseDir: BaseDirectory.Document, recursive: true });
 }
 
 // Create a new project
@@ -38,9 +46,10 @@ export async function createProject(projectName: string) {
   const metadata: ProjectMetadata = {
     projectName,
     treeData: [],
-    lastModified: new Date(),
+    lastModified: null,
     createDate: new Date(),
     wordCount: 0,
+    lastBackedUp: null,
   };
 
   await writeTextFile(metadataPath, JSON.stringify(metadata), {
@@ -49,28 +58,6 @@ export async function createProject(projectName: string) {
 
   return projectPath;
 }
-
-// // Delete an entire project
-// async function deleteDirectoryRecursively(path: string) {
-//   const entries = await readDir(path, { baseDir: BaseDirectory.AppData });
-
-//   console.log(entries);
-
-//   for (const entry of entries) {
-//     if (entry.isDirectory) {
-//       // If it's a directory, recursively delete its contents
-//       await deleteDirectoryRecursively(entry.name);
-//     } else {
-//       // If it's a file, remove it
-//       await remove(entry.name, { baseDir: BaseDirectory.AppData });
-//     }
-//   }
-
-//   console.log(path);
-
-//   // Once all contents are deleted, remove the directory itself
-//   await remove(path, { baseDir: BaseDirectory.AppData });
-// }
 
 // Delete an entire project
 export async function deleteProject(projectName: string) {
@@ -92,9 +79,9 @@ export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
       const content = await readTextFile(metadataPath, {
         baseDir: BaseDirectory.AppData,
       });
-      const { projectName, createDate, lastModified, wordCount } =
+      const { projectName, createDate, lastModified, wordCount, lastBackedUp } =
         JSON.parse(content);
-      return { projectName, createDate, lastModified, wordCount };
+      return { projectName, createDate, lastModified, wordCount, lastBackedUp };
     })
   );
 
@@ -135,6 +122,41 @@ export async function fetchFullMetadata(
   return JSON.parse(content) as ProjectMetadata;
 }
 
+// Recursive function to copy files and directories
+async function copyDirectoryContents(
+  sourcePath: string,
+  destinationPath: string
+) {
+  const entries = await readDir(sourcePath, { baseDir: BaseDirectory.AppData });
+
+  for (const entry of entries) {
+    const sourceEntryPath = await join(sourcePath, entry.name);
+    const destinationEntryPath = await join(destinationPath, entry.name);
+
+    if (entry.isDirectory) {
+      await mkdir(destinationEntryPath, { baseDir: BaseDirectory.AppData });
+      await copyDirectoryContents(sourceEntryPath, destinationEntryPath);
+    } else {
+      await copyFile(sourceEntryPath, destinationEntryPath, {
+        fromPathBaseDir: BaseDirectory.AppData,
+        toPathBaseDir: BaseDirectory.Document,
+      });
+    }
+  }
+}
+
+// Backup a project
+export async function backupProject(projectName: string) {
+  const projectPath = `${BASE_DIR}/${projectName}`;
+  const backupPath = `${BACKUP_DIR}/${projectName}`;
+
+  // Ensure the backup directory exists
+  await mkdir(backupPath, { baseDir: BaseDirectory.Document, recursive: true });
+
+  // Copy the contents of the project directory to the backup directory
+  await copyDirectoryContents(projectPath, backupPath);
+}
+
 // Write metadata for a project
 export async function updateMetadata(
   projectName: string,
@@ -145,6 +167,9 @@ export async function updateMetadata(
   )}/metadata.json`;
 
   const existingMetadata = await fetchFullMetadata(projectName);
+
+  console.log(metadata.lastBackedUp);
+
   const updatedMetadata = { ...existingMetadata, ...metadata };
 
   await writeTextFile(metadataPath, JSON.stringify(updatedMetadata), {

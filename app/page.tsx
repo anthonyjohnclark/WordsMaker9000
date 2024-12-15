@@ -13,8 +13,12 @@ import { formatDateTime } from "./utils/helpers";
 import { useModal } from "./contexts/global/ModalContext";
 import DeleteProjectConfirmationModal from "./components/DeleteProjectConfirmationModal";
 import GlobalModal from "./components/GlobalModal";
+import { useErrorContext } from "./contexts/global/ErrorContext";
+import ErrorModal from "./components/ErrorModal";
 
 export default function HomePage() {
+  const { showError } = useErrorContext();
+
   const [projects, setProjects] = useState<ProjectMetadata[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
@@ -27,11 +31,11 @@ export default function HomePage() {
       await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
 
       // Sort projects by lastModified in descending order
-      const sortedProjects = projects.sort(
-        (a, b) =>
-          new Date(b.lastModified).getTime() -
-          new Date(a.lastModified).getTime()
-      );
+      const sortedProjects = projects.sort((a, b) => {
+        const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+        const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        return dateB - dateA;
+      });
       setProjects(sortedProjects);
       setIsLoadingProjects(false);
     }
@@ -39,19 +43,23 @@ export default function HomePage() {
   }, []);
 
   async function handleCreateProject() {
-    if (newProjectName.trim()) {
-      const trimmedName = newProjectName.trim();
-      await createProject(trimmedName);
-      setNewProjectName("");
-      const updatedProjects = await listProjectsWithMetadata();
-      // Sort updated projects by lastModified in descending order
-      const sortedProjects = updatedProjects.sort(
-        (a, b) =>
-          new Date(b.lastModified).getTime() -
-          new Date(a.lastModified).getTime()
-      );
-      setProjects(sortedProjects);
-      router.push(`/projects/${trimmedName}`);
+    try {
+      if (newProjectName.trim()) {
+        const trimmedName = newProjectName.trim();
+        await createProject(trimmedName);
+        setNewProjectName("");
+        const updatedProjects = await listProjectsWithMetadata();
+        // Sort updated projects by lastModified in descending order
+        const sortedProjects = updatedProjects.sort((a, b) => {
+          const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+          const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+          return dateB - dateA;
+        });
+        setProjects(sortedProjects);
+        router.push(`/projects/${trimmedName}`);
+      }
+    } catch (error) {
+      showError(error, "creating project");
     }
   }
 
@@ -64,6 +72,7 @@ export default function HomePage() {
   return (
     <>
       <GlobalModal />
+      <ErrorModal />
 
       <div className="flex flex-col h-full bg-black text-white overflow-x-hidden">
         {/* Header */}
@@ -106,7 +115,7 @@ export default function HomePage() {
                           Last Edited:
                         </span>{" "}
                         <span className="text-green-500">
-                          {formatDateTime(project.lastModified)}
+                          {formatDateTime(project.lastModified ?? "")}
                         </span>
                       </p>
                     </div>

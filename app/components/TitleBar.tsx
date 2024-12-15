@@ -2,9 +2,12 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import Link from "next/link";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
+import { FiCheckCircle } from "react-icons/fi";
+import { formatDateTime } from "../utils/helpers";
 
 const TitleBar = () => {
-  const { projectName, wordCount, isLoading } = useGlobalProjectContext();
+  const { projectName, wordCount, isLoading, isBackingUp, lastBackupTime } =
+    useGlobalProjectContext();
 
   const handleClose = () => getCurrentWindow().close();
   const handleMinimize = () => getCurrentWindow().minimize();
@@ -19,12 +22,10 @@ const TitleBar = () => {
       <Link
         href="/"
         passHref
-        className="text-sm font-semibold futuristic-font"
+        className="text-sm font-semibold futuristic-font text-yellow-500"
         style={{
           WebkitAppRegion: "no-drag",
           cursor: "pointer",
-          WebkitTextStroke: ".3px #fbbf24", // Yellow outline
-          color: "white", // Ensures text fill remains white
         }}
       >
         WordsMaker9000
@@ -32,13 +33,27 @@ const TitleBar = () => {
       {!isLoading ? (
         projectName ? (
           <>
-            <h2 className="text-lg font-semibold">
-              <span className="text-yellow-500">
+            <h2 className="text-lg font-semibold futuristic-font">
+              <span className="text-white">
                 {decodeURIComponent(projectName)}
               </span>
             </h2>
+            <div className="text-sm flex items-center space-x-2">
+              {isBackingUp ? (
+                <span className="text-gray-500">Backing up...</span>
+              ) : lastBackupTime ? (
+                <>
+                  <span className="text-gray-400">
+                    Backed up at {formatDateTime(lastBackupTime)}
+                  </span>
+                  <FiCheckCircle className="text-green-500" />
+                </>
+              ) : (
+                <span className="text-red-500">No backups yet</span>
+              )}
+            </div>
             {wordCount !== null && (
-              <span className="text-green-500">({wordCount} words)</span>
+              <span className="text-blue-500">({wordCount} words)</span>
             )}
           </>
         ) : (
