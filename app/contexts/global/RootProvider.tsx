@@ -4,13 +4,16 @@ import { ProvideModal } from "../global/ModalContext";
 import { GlobalProjectProvider } from "./GlobalProjectContext";
 import ErrorModal from "WordsMaker9000/app/components/ErrorModal";
 import { ErrorProvider } from "./ErrorContext";
+import { UserSettingsProvider } from "./UserSettingsContext";
 
 const RootProvider = ({ children }: { children: ReactNode }) => {
   return (
     <ErrorProvider>
       <GlobalProjectProvider>
-        <ErrorModal />
-        <ProvideModal>{children}</ProvideModal>
+        <UserSettingsProvider>
+          <ErrorModal />
+          <ProvideModal>{children}</ProvideModal>
+        </UserSettingsProvider>
       </GlobalProjectProvider>
     </ErrorProvider>
   );

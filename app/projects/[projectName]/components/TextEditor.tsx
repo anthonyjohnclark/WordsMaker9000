@@ -12,6 +12,7 @@ import "react-quill-new/dist/quill.snow.css";
 import { ExtendedNodeModel, NodeData } from "../types/ProjectPageTypes";
 import dynamic from "next/dynamic";
 import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
+import { useUserSettings } from "WordsMaker9000/app/contexts/global/UserSettingsContext";
 
 type TextEditorProps = {
   initialContent: string;
@@ -28,9 +29,11 @@ const TextEditor: React.FC<TextEditorProps> = ({
   selectedFile,
   isDrawerExpanded,
 }) => {
+  const { settings } = useUserSettings();
+
   const [content, setContent] = useState(initialContent);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [fontSize, setFontSize] = useState(16); // Default font size in pixels
+  const [fontSize, setFontSize] = useState(settings?.defaultFontZoom); // Default font size in pixels
   const editorRef = useRef<HTMLDivElement | null>(null);
 
   const project = useProjectContext();
@@ -49,10 +52,10 @@ const TextEditor: React.FC<TextEditorProps> = ({
   useEffect(() => {
     const interval = setInterval(() => {
       handleSave();
-    }, 60000);
+    }, settings?.defaultSaveInterval ?? 60000);
 
     return () => clearInterval(interval);
-  }, [handleSave]);
+  }, [handleSave, settings?.defaultSaveInterval]);
 
   useEffect(() => {
     const countWords = (text: string): number => {
@@ -119,7 +122,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     if (event.ctrlKey) {
       event.preventDefault();
       setFontSize((prevFontSize) => {
-        const newFontSize = prevFontSize + (event.deltaY < 0 ? 1 : -1);
+        const newFontSize = prevFontSize ?? 16 + (event.deltaY < 0 ? 1 : -1);
         return Math.max(10, Math.min(100, newFontSize));
       });
     }

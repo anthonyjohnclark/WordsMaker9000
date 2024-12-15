@@ -53,7 +53,7 @@ const TitleBar = () => {
               )}
             </div>
             {wordCount !== null && (
-              <span className="text-blue-500">({wordCount} words)</span>
+              <span className="text-blue-500">{wordCount} words</span>
             )}
           </>
         ) : (

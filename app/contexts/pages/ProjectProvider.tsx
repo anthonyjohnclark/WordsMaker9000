@@ -32,6 +32,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { calculateTreeWordCount } from "WordsMaker9000/app/utils/helpers";
 import { useErrorContext } from "../global/ErrorContext";
+import { useUserSettings } from "../global/UserSettingsContext";
 
 interface ProjectContextProps {
   projectName: string;
@@ -91,6 +92,8 @@ export const ProjectProvider: React.FC<{
   const [isBackingUp, setIsBackingUp] = useState(false); // Track backup status
   const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
 
+  const { settings } = useUserSettings();
+
   const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
     projectName: "",
     treeData: [],
@@ -113,7 +116,7 @@ export const ProjectProvider: React.FC<{
         ? !projectMetadata.lastBackedUp ||
           projectMetadata.lastModified.getTime() -
             new Date(projectMetadata.lastBackedUp).getTime() >
-            15000
+            (settings?.defaultSaveInterval ?? 3600000)
         : false;
 
       if (shouldBackup) {
@@ -133,16 +136,22 @@ export const ProjectProvider: React.FC<{
         }
       }
     }
-  }, [isBackingUp, projectMetadata, projectName, showError]);
+  }, [
+    isBackingUp,
+    projectMetadata,
+    projectName,
+    settings?.defaultSaveInterval,
+    showError,
+  ]);
 
   useEffect(() => {
     // Automatic backup logic
     const backupInterval = setInterval(async () => {
       handleBackup();
-    }, 15000);
+    }, settings?.defaultSaveInterval ?? 3600000);
 
     return () => clearInterval(backupInterval);
-  }, [handleBackup]);
+  }, [handleBackup, settings?.defaultSaveInterval]);
 
   // Save tree data with a delay (debounced effect)
   useEffect(() => {

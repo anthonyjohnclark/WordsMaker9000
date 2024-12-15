@@ -16,6 +16,8 @@ import DeleteProjectConfirmationModal from "./components/DeleteProjectConfirmati
 import GlobalModal from "./components/GlobalModal";
 import { useErrorContext } from "./contexts/global/ErrorContext";
 import ErrorModal from "./components/ErrorModal";
+import { UserSettingsModal } from "./components/UserSettingsModal";
+import { FaCog } from "react-icons/fa";
 
 export default function HomePage() {
   const { showError } = useErrorContext();
@@ -99,8 +101,21 @@ export default function HomePage() {
         {/* Main Content */}
         <Loadable isLoading={isLoadingProjects}>
           <main className="flex-1 container mx-auto p-6">
-            <h2 className="text-3xl font-bold mb-6 futuristic-font">
+            <h2 className="text-3xl font-bold mb-6 futuristic-font flex items-center justify-between">
               Projects
+              <button
+                onClick={() =>
+                  modal.renderModal({
+                    modalBody: (
+                      <UserSettingsModal onClose={modal.handleClose} />
+                    ),
+                  })
+                }
+                className="text-white hover:text-gray-200 ml-4"
+                title="Settings"
+              >
+                <FaCog size={24} />
+              </button>
             </h2>
             <ul className="mb-6 space-y-4">
               {projects.map((project) => (

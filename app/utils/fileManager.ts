@@ -6,12 +6,22 @@ import {
   BaseDirectory,
   remove,
   copyFile,
+  exists,
 } from "@tauri-apps/plugin-fs";
 import { ExtendedNodeModel } from "../projects/[projectName]/types/ProjectPageTypes";
 import { join } from "path";
 
+export interface UserSettings {
+  defaultFontZoom: number;
+  defaultSaveInterval: number; // milliseconds
+  defaultBackupInterval: number; // milliseconds
+  aiSuiteEnabled: boolean;
+}
+
 const BASE_DIR = "Projects";
 const BACKUP_DIR = "WordsMaker3000Backups";
+const USER_DIR = "User";
+const SETTINGS_FILE = "settings.json";
 
 export type ProjectType = "novel" | "collection" | "serial" | "novella";
 
@@ -26,6 +36,47 @@ export interface ProjectMetadataSummary {
 
 export interface ProjectMetadata extends ProjectMetadataSummary {
   treeData?: ExtendedNodeModel[];
+}
+
+export async function saveSettings(settings: UserSettings) {
+  try {
+    // Ensure the user directory exists
+    await mkdir(USER_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+
+    // Save settings to file
+    const filePath = `${USER_DIR}/${SETTINGS_FILE}`;
+    await writeTextFile(filePath, JSON.stringify(settings), {
+      baseDir: BaseDirectory.AppData,
+    });
+  } catch (error) {
+    console.error("Error saving settings:", error);
+  }
+}
+
+export async function retrieveSettings(): Promise<UserSettings> {
+  const defaultSettings: UserSettings = {
+    defaultFontZoom: 16,
+    defaultSaveInterval: 60000, // 1 minute
+    defaultBackupInterval: 3600000, // 1 hour
+    aiSuiteEnabled: false,
+  };
+
+  const filePath = `${USER_DIR}/${SETTINGS_FILE}`;
+
+  const settingsExist = await exists(filePath, {
+    baseDir: BaseDirectory.AppData,
+  });
+
+  console.log(settingsExist);
+
+  if (!settingsExist) {
+    await saveSettings(defaultSettings);
+  }
+
+  const content = await readTextFile(filePath, {
+    baseDir: BaseDirectory.AppData,
+  });
+  return JSON.parse(content) as UserSettings;
 }
 
 // Create a new project

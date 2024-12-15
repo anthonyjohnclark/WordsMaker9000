@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { useUserSettings } from "WordsMaker9000/app/contexts/global/UserSettingsContext";
 import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import { formatDateTime } from "WordsMaker9000/app/utils/helpers";
 
@@ -11,6 +12,8 @@ type BottomDrawerProps = {
 
 const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const { settings } = useUserSettings();
 
   const project = useProjectContext();
   useEffect(() => {
@@ -26,7 +29,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
       {/* Top Section (Last Edited, Word Count, and Toggle Button) */}
       <div className="flex items-center justify-between p-2 border-t border-gray-700 relative h-12">
         {/* Left: AI Suite (Visible only when expanded) */}
-        {isExpanded && (
+        {isExpanded && settings?.aiSuiteEnabled && (
           <div className="absolute left-2 top-3/4 transform -translate-y-1/2 pt-5 z-50">
             <h3 className="text-lg font-semibold mb-2">AI Suite</h3>
             <div className="flex space-x-4">
@@ -74,12 +77,14 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
           </div>
 
           {/* Toggle Button */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-500 focus:outline-none focus:ring focus:ring-blue-500"
-          >
-            {isExpanded ? <FiChevronDown /> : <FiChevronUp />}
-          </button>
+          {settings?.aiSuiteEnabled && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-500 focus:outline-none focus:ring focus:ring-blue-500"
+            >
+              {isExpanded ? <FiChevronDown /> : <FiChevronUp />}
+            </button>
+          )}
         </div>
       </div>
 

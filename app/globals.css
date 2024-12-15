@@ -5,6 +5,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --editor-font-size: 16px; /* Default font size */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -56,9 +57,10 @@ body {
 }
 
 .ql-editor {
+  font-family: Consolas, monospace;
+  font-size: var(--editor-font-size); /* Use CSS variable */
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
-  font-family: Consolas, monospace;
 }
 
 .futuristic-font {
