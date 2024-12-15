@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
 import { FiCheckCircle } from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
+import { usePathname } from "next/navigation";
 
 const TitleBar = () => {
   const { projectName, wordCount, isLoading, isBackingUp, lastBackupTime } =
@@ -13,53 +14,65 @@ const TitleBar = () => {
   const handleMinimize = () => getCurrentWindow().minimize();
   const handleMaximize = () => getCurrentWindow().maximize();
 
+  const pathname = usePathname(); // Get the current route
+
+  console.log(pathname);
+  console.log(projectName);
   return (
     <div
       className="h-8 bg-gray-800 text-white flex items-center justify-between px-2 select-none"
       style={{ WebkitAppRegion: "drag" }}
     >
-      {/* App Title */}
-      <Link
-        href="/"
-        passHref
-        className="text-sm font-semibold futuristic-font text-yellow-500"
-        style={{
-          WebkitAppRegion: "no-drag",
-          cursor: "pointer",
-        }}
+      {/* App Logo and Title */}
+      <div
+        className="flex items-center space-x-2"
+        style={{ WebkitAppRegion: "no-drag" }}
       >
-        WordsMaker9000
-      </Link>
-      {!isLoading ? (
-        projectName ? (
-          <>
-            <h2 className="text-lg font-semibold futuristic-font">
-              <span className="text-white">
-                {decodeURIComponent(projectName)}
-              </span>
-            </h2>
-            <div className="text-sm flex items-center space-x-2">
-              {isBackingUp ? (
-                <span className="text-gray-500">Backing up...</span>
-              ) : lastBackupTime ? (
-                <>
-                  <span className="text-gray-400">
-                    Backed up at {formatDateTime(lastBackupTime)}
-                  </span>
-                  <FiCheckCircle className="text-green-500" />
-                </>
-              ) : (
-                <span className="text-red-500">No backups yet</span>
-              )}
-            </div>
-            {wordCount !== null && (
-              <span className="text-blue-500">{wordCount} words</span>
+        {pathname !== "/" && ( // Only show the link if not at the home page
+          <Link
+            href="/"
+            passHref
+            className="text-sm font-semibold futuristic-font text-yellow-500"
+            style={{
+              WebkitAppRegion: "no-drag",
+              cursor: "pointer",
+            }}
+          >
+            WordsMaker9000
+          </Link>
+        )}
+      </div>
+
+      {/* Render "Welcome!" if on the home page */}
+      {pathname === "/" && <h2 className="text-lg font-semibold">Welcome!</h2>}
+
+      {/* Render project-related info if not on the home page */}
+      {pathname !== "/" && !isLoading && projectName && (
+        <>
+          <h2 className="text-lg font-semibold futuristic-font">
+            <span className="text-white">
+              {decodeURIComponent(projectName)}
+            </span>
+          </h2>
+          <div className="text-sm flex items-center space-x-2">
+            {isBackingUp ? (
+              <span className="text-gray-500">Backing up...</span>
+            ) : lastBackupTime ? (
+              <>
+                <span className="text-gray-400">
+                  Backed up at {formatDateTime(lastBackupTime)}
+                </span>
+                <FiCheckCircle className="text-green-500" />
+              </>
+            ) : (
+              <span className="text-red-500">No backups yet</span>
             )}
-          </>
-        ) : (
-          <h2 className="text-lg font-semibold">Welcome!</h2>
-        )
-      ) : null}
+          </div>
+          {wordCount !== null && (
+            <span className="text-blue-500">{wordCount} words</span>
+          )}
+        </>
+      )}
 
       {/* Window Controls */}
       <div className="flex space-x-2" style={{ WebkitAppRegion: "no-drag" }}>

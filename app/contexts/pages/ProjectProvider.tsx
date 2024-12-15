@@ -116,7 +116,7 @@ export const ProjectProvider: React.FC<{
         ? !projectMetadata.lastBackedUp ||
           projectMetadata.lastModified.getTime() -
             new Date(projectMetadata.lastBackedUp).getTime() >
-            (settings?.defaultSaveInterval ?? 3600000)
+            (settings?.defaultBackupInterval ?? 3600000)
         : false;
 
       if (shouldBackup) {
@@ -140,7 +140,7 @@ export const ProjectProvider: React.FC<{
     isBackingUp,
     projectMetadata,
     projectName,
-    settings?.defaultSaveInterval,
+    settings?.defaultBackupInterval,
     showError,
   ]);
 

@@ -120,7 +120,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             </button>
             <button
               type="submit"
-              className="bg-yellow-500 px-4 py-2 rounded text-white"
+              className="bg-green-500 px-4 py-2 rounded text-white"
             >
               Save
             </button>
