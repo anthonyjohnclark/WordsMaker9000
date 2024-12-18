@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { NodeModel } from "@minoru/react-dnd-treeview";
 import Loadable from "WordsMaker9000/app/components/Loadable";
+import { useErrorContext } from "WordsMaker9000/app/contexts/global/ErrorContext";
 
 interface IProps {
   node: ExtendedNodeModel | NodeModel<NodeData>;
@@ -14,6 +15,8 @@ export const RenameModal = ({ node }: IProps) => {
   const [newName, setNewName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const { showError } = useErrorContext();
+
   const project = useProjectContext();
 
   const handleRenameSubmit = async (
@@ -22,17 +25,13 @@ export const RenameModal = ({ node }: IProps) => {
     if (newName.trim()) {
       setIsLoading(true);
       try {
-        // Simulate a delay for the async operation
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
-        // Perform the rename operation
         project.handleRename(node.id as number, newName.trim());
 
-        // Close the modal after successful rename
         modal.handleClose();
       } catch (error) {
-        console.error("Failed to rename:", error);
-        // Optionally handle error (e.g., show a notification)
+        showError(error, "renaming the file");
       } finally {
         setIsLoading(false);
       }

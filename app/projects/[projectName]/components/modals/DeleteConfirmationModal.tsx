@@ -4,6 +4,7 @@ import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { NodeModel } from "@minoru/react-dnd-treeview";
 import Loadable from "WordsMaker9000/app/components/Loadable";
 import React, { useState } from "react";
+import { useErrorContext } from "WordsMaker9000/app/contexts/global/ErrorContext";
 
 interface IProps {
   node: ExtendedNodeModel | NodeModel<NodeData>;
@@ -14,6 +15,8 @@ export const DeleteConfirmationModal = ({ node }: IProps) => {
   const project = useProjectContext();
 
   const [isLoading, setIsLoading] = useState(false);
+
+  const { showError } = useErrorContext();
 
   const handleDeleteConfirm = async () => {
     setIsLoading(true);
@@ -31,7 +34,7 @@ export const DeleteConfirmationModal = ({ node }: IProps) => {
       // Close the modal after successful deletion
       modal.handleClose();
     } catch (error) {
-      console.error("Failed to delete:", error);
+      showError(error, "deleting a modal");
       // Optionally handle error (e.g., show a notification)
     } finally {
       setIsLoading(false);

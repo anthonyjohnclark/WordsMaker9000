@@ -4,6 +4,7 @@ import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProv
 import { ExtendedNodeModel } from "../../types/ProjectPageTypes";
 import { useModal } from "WordsMaker9000/app/contexts/global/ModalContext";
 import Loadable from "WordsMaker9000/app/components/Loadable";
+import { useErrorContext } from "WordsMaker9000/app/contexts/global/ErrorContext";
 
 interface IProps {
   newNode: ExtendedNodeModel;
@@ -13,15 +14,14 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
   const project = useProjectContext();
   const modal = useModal();
 
+  const { showError } = useErrorContext();
+
   const [newNodeText, setNewNodeText] = useState<string>(newNode.text);
   const [isLoading, setIsLoading] = useState(false);
-
-  console.log(newNode.text.length);
 
   const handleAdd = async () => {
     setIsLoading(true);
     try {
-      // Simulate delay for async operation
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Submit the new node to the project context
@@ -30,7 +30,7 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
       // Close the modal after successful submission
       modal.handleClose();
     } catch (error) {
-      console.error("Failed to add file/folder:", error);
+      showError(error, "adding a folder or file");
       // Optionally handle error, e.g., show a notification
     } finally {
       setIsLoading(false);

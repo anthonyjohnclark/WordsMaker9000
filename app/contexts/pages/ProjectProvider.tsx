@@ -112,23 +112,47 @@ export const ProjectProvider: React.FC<{
 
   const handleBackup = useCallback(async () => {
     if (!isBackingUp) {
-      const shouldBackup = projectMetadata.lastModified
-        ? !projectMetadata.lastBackedUp ||
-          projectMetadata.lastModified.getTime() -
-            new Date(projectMetadata.lastBackedUp).getTime() >
-            (settings?.defaultBackupInterval ?? 3600000)
-        : false;
+      const shouldBackup = () => {
+        const now = new Date();
 
-      if (shouldBackup) {
+        const lastBackedUpDate =
+          projectMetadata.lastBackedUp !== null
+            ? new Date(projectMetadata.lastBackedUp)
+            : null;
+
+        // Check if the interval between lastModified and lastBackedUp exceeds the backup interval
+        const defaultBackupInterval =
+          settings?.defaultBackupInterval ?? 3600000; // Default: 1 hour
+
+        if (!lastBackedUpDate) {
+          console.log("no last backed up date!");
+          return true;
+        } else if (
+          now.getTime() - lastBackedUpDate?.getTime() >
+          defaultBackupInterval
+        ) {
+          console.log(
+            "past interval:",
+            now.getTime() - lastBackedUpDate?.getTime()
+          );
+
+          console.log("lastBackedUpDate:", lastBackedUpDate);
+
+          return true;
+        }
+
+        return false;
+      };
+
+      console.log("should we back it up?", shouldBackup());
+
+      // Use the updated shouldBackup function
+      if (shouldBackup()) {
         try {
           setIsBackingUp(true);
           await new Promise((resolve) => setTimeout(resolve, 1000));
           await backupProject(decodeURIComponent(projectName));
           setLastBackupTime(new Date());
-          updateMetadata(decodeURIComponent(projectName), {
-            ...projectMetadata,
-            lastBackedUp: new Date(),
-          });
         } catch (error) {
           showError(error, "backing up project");
         } finally {
@@ -148,10 +172,10 @@ export const ProjectProvider: React.FC<{
     // Automatic backup logic
     const backupInterval = setInterval(async () => {
       handleBackup();
-    }, settings?.defaultSaveInterval ?? 3600000);
+    }, 60000);
 
     return () => clearInterval(backupInterval);
-  }, [handleBackup, settings?.defaultSaveInterval]);
+  }, [handleBackup, settings?.defaultBackupInterval]);
 
   // Save tree data with a delay (debounced effect)
   useEffect(() => {
@@ -279,6 +303,7 @@ export const ProjectProvider: React.FC<{
       showError(error, "in deletion");
     }
   };
+
   const handleRename = (id: number, newName: string) => {
     handleTreeDataChange(
       treeData.map((node) =>
@@ -319,12 +344,6 @@ export const ProjectProvider: React.FC<{
         showError(error, "saving file");
       }
     }
-
-    console.log({
-      ...newItem,
-      id: lastId,
-    });
-
     setTreeData([
       ...treeData,
       {
@@ -333,7 +352,13 @@ export const ProjectProvider: React.FC<{
       },
     ]);
 
-    if (newItem?.data?.fileType === "file") setSelectedFile(newItem);
+    if (newItem?.data?.fileType === "file") {
+      setFileContent("");
+      setSelectedFile({
+        ...newItem,
+        id: lastId,
+      });
+    }
   };
 
   const getLastId = (treeData: ExtendedNodeModel[]): number => {
@@ -374,8 +399,6 @@ export const ProjectProvider: React.FC<{
           lastModified: new Date(),
         };
         console.log(console.log("saving tree:", treeData));
-
-        console.log("here I am updating the metadata:", metadata.lastBackedUp);
 
         if (metadata.treeData && metadata.treeData.length !== 0) {
           updateMetadata(projectName, metadata);

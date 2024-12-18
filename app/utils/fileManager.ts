@@ -27,7 +27,7 @@ export type ProjectType = "novel" | "collection" | "serial" | "novella";
 
 export interface ProjectMetadataSummary {
   projectName: string;
-  lastModified: Date | null;
+  lastModified: Date | string | null;
   createDate: Date;
   wordCount: number;
   lastBackedUp: Date | null;
@@ -217,6 +217,13 @@ export async function backupProject(projectName: string) {
 
   // Copy the contents of the project directory to the backup directory
   await copyDirectoryContents(projectPath, backupPath);
+
+  const existingMetadata = await fetchFullMetadata(projectName);
+
+  updateMetadata(decodeURIComponent(projectName), {
+    ...existingMetadata,
+    lastBackedUp: new Date(),
+  });
 }
 
 // Write metadata for a project

@@ -33,6 +33,7 @@ const Editor: React.FC = () => {
               }}
             >
               <TextEditor
+                key={project.selectedFile?.id}
                 initialContent={project.fileContent || ""}
                 onSave={project.saveFileContent}
                 selectedFile={project.selectedFile}

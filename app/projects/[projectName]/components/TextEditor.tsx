@@ -33,8 +33,9 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   const [content, setContent] = useState(initialContent);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [fontSize, setFontSize] = useState(settings?.defaultFontZoom); // Default font size in pixels
+  const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const [lastSavedContent, setLastSavedContent] = useState(initialContent); // Track last saved content
 
   const project = useProjectContext();
 
@@ -42,20 +43,26 @@ const TextEditor: React.FC<TextEditorProps> = ({
     setContent(initialContent);
   }, [initialContent]);
 
+  useEffect(() => {
+    setContent(initialContent);
+    setLastSavedContent(initialContent); // Reset lastSavedContent when initial content changes
+  }, [initialContent]);
+
   const handleSave = useCallback(() => {
-    if (content !== null) {
-      onSave(content);
-      console.log("File auto-saved:", content);
-    }
+    onSave(content);
+    setLastSavedContent(content); // Update last saved content
+    console.log("File auto-saved:", content);
   }, [content, onSave]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      handleSave();
+      if (content !== lastSavedContent) {
+        handleSave();
+      }
     }, settings?.defaultSaveInterval ?? 60000);
 
     return () => clearInterval(interval);
-  }, [handleSave, settings?.defaultSaveInterval]);
+  }, [content, handleSave, lastSavedContent, settings?.defaultSaveInterval]);
 
   useEffect(() => {
     const countWords = (text: string): number => {
@@ -122,7 +129,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     if (event.ctrlKey) {
       event.preventDefault();
       setFontSize((prevFontSize) => {
-        const newFontSize = prevFontSize ?? 16 + (event.deltaY < 0 ? 1 : -1);
+        const newFontSize = prevFontSize + (event.deltaY < 0 ? 1 : -1);
         return Math.max(10, Math.min(100, newFontSize));
       });
     }
@@ -133,7 +140,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("wheel", handleWheelZoom);
     };
-  }, []);
+  }, [fontSize]);
 
   const modules = useMemo(() => {
     return {
