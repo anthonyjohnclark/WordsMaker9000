@@ -29,7 +29,6 @@ const DeleteProjectConfirmationModal: React.FC<
       await new Promise((resolve) => setTimeout(resolve, 1000));
       handleSetNewProjects(projectName);
     } catch (error) {
-      console.log(error);
       showError(error, "deleting file");
     }
     modal.handleClose();

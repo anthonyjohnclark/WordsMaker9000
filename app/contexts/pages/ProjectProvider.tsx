@@ -125,26 +125,16 @@ export const ProjectProvider: React.FC<{
           settings?.defaultBackupInterval ?? 3600000; // Default: 1 hour
 
         if (!lastBackedUpDate) {
-          console.log("no last backed up date!");
           return true;
         } else if (
           now.getTime() - lastBackedUpDate?.getTime() >
           defaultBackupInterval
         ) {
-          console.log(
-            "past interval:",
-            now.getTime() - lastBackedUpDate?.getTime()
-          );
-
-          console.log("lastBackedUpDate:", lastBackedUpDate);
-
           return true;
         }
 
         return false;
       };
-
-      console.log("should we back it up?", shouldBackup());
 
       // Use the updated shouldBackup function
       if (shouldBackup()) {
@@ -398,7 +388,6 @@ export const ProjectProvider: React.FC<{
           treeData,
           lastModified: new Date(),
         };
-        console.log(console.log("saving tree:", treeData));
 
         if (metadata.treeData && metadata.treeData.length !== 0) {
           updateMetadata(projectName, metadata);
@@ -412,7 +401,6 @@ export const ProjectProvider: React.FC<{
   }, [projectMetadata, projectName, showError, treeData]);
 
   const handleDrop = (newTree: NodeModel<NodeData>[], options: DropOptions) => {
-    console.log(newTree);
     const { dragSourceId, dropTargetId, destinationIndex } = options;
     if (
       typeof dragSourceId === "undefined" ||
@@ -525,8 +513,6 @@ export const ProjectProvider: React.FC<{
 
           setFileSavedMessage(true);
           setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
-
-          console.log("File auto-saved.", content);
         } catch (error) {
           showError(error, "saving file content");
         }

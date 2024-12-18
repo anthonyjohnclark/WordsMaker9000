@@ -16,8 +16,6 @@ const TitleBar = () => {
 
   const pathname = usePathname(); // Get the current route
 
-  console.log(pathname);
-  console.log(projectName);
   return (
     <div
       className="h-8 bg-gray-800 text-white flex items-center justify-between px-2 select-none"

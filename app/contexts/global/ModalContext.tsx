@@ -62,8 +62,6 @@ export const useProvideModal = () => {
     setPrevModalContent(modalContent);
 
     setModalContent(newModalContent);
-
-    console.log("inside render modal");
   };
 
   const resetModal = () => {

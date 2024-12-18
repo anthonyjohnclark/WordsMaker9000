@@ -45,13 +45,12 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   useEffect(() => {
     setContent(initialContent);
-    setLastSavedContent(initialContent); // Reset lastSavedContent when initial content changes
+    setLastSavedContent(initialContent);
   }, [initialContent]);
 
   const handleSave = useCallback(() => {
     onSave(content);
-    setLastSavedContent(content); // Update last saved content
-    console.log("File auto-saved:", content);
+    setLastSavedContent(content);
   }, [content, onSave]);
 
   useEffect(() => {

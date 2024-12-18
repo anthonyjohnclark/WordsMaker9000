@@ -67,8 +67,6 @@ export async function retrieveSettings(): Promise<UserSettings> {
     baseDir: BaseDirectory.AppData,
   });
 
-  console.log(settingsExist);
-
   if (!settingsExist) {
     await saveSettings(defaultSettings);
   }
@@ -236,8 +234,6 @@ export async function updateMetadata(
   )}/metadata.json`;
 
   const existingMetadata = await fetchFullMetadata(projectName);
-
-  console.log(metadata.lastBackedUp);
 
   const updatedMetadata = { ...existingMetadata, ...metadata };
 
