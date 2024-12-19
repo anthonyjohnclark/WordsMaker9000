@@ -42,7 +42,7 @@ export default function ProjectLayout({
 
 // Component to keep wordCount updated in GlobalProjectContext
 const TitleBarUpdater = () => {
-  const { projectMetadata, isProjectPageLoading, isBackingUp, lastBackupTime } =
+  const { projectMetadata, isProjectPageLoading, isBackingUp } =
     useProjectContext();
   const { setWordCount, setIsLoading, setIsBackingUp, setLastBackupTime } =
     useGlobalProjectContext();
@@ -51,12 +51,11 @@ const TitleBarUpdater = () => {
     setWordCount(projectMetadata.wordCount);
     setIsLoading(isProjectPageLoading);
     setIsBackingUp(isBackingUp);
-    setLastBackupTime(lastBackupTime ?? projectMetadata.lastBackedUp);
+    setLastBackupTime(projectMetadata.lastBackedUp);
   }, [
     projectMetadata.wordCount,
     isProjectPageLoading,
     isBackingUp,
-    lastBackupTime,
     setWordCount,
     setIsLoading,
     setIsBackingUp,

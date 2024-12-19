@@ -67,7 +67,6 @@ interface ProjectContextProps {
   fileSaveInProgress: boolean;
   setFileSaveInProgress: React.Dispatch<React.SetStateAction<boolean>>;
   isBackingUp: boolean;
-  lastBackupTime: Date | null;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -90,7 +89,6 @@ export const ProjectProvider: React.FC<{
   const [isEditorLoading, setIsEditorLoading] = useState(false);
   const [fileSaveInProgress, setFileSaveInProgress] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false); // Track backup status
-  const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
 
   const { settings } = useUserSettings();
 
@@ -142,11 +140,14 @@ export const ProjectProvider: React.FC<{
           setIsBackingUp(true);
           await new Promise((resolve) => setTimeout(resolve, 1000));
           await backupProject(decodeURIComponent(projectName));
-          setLastBackupTime(new Date());
         } catch (error) {
           showError(error, "backing up project");
         } finally {
           setIsBackingUp(false);
+          setProjectMetadata((prevMetadata) => ({
+            ...prevMetadata,
+            lastBackedUp: new Date(),
+          }));
         }
       }
     }
@@ -550,7 +551,6 @@ export const ProjectProvider: React.FC<{
         fileSaveInProgress,
         setFileSaveInProgress,
         isBackingUp,
-        lastBackupTime,
       }}
     >
       {children}

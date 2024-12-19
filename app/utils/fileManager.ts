@@ -182,6 +182,12 @@ export async function fetchFullMetadata(
   return JSON.parse(content) as ProjectMetadata;
 }
 
+// Helper function to get current timestamp
+function getCurrentTimestamp() {
+  const now = new Date();
+  return now.toISOString().replace(/[:.-]/g, "").slice(0, 15);
+}
+
 // Recursive function to copy files and directories
 async function copyDirectoryContents(
   sourcePath: string,
@@ -208,20 +214,44 @@ async function copyDirectoryContents(
 // Backup a project
 export async function backupProject(projectName: string) {
   const projectPath = `${BASE_DIR}/${projectName}`;
-  const backupPath = `${BACKUP_DIR}/${projectName}`;
+  const backupDirPath = `${BACKUP_DIR}`;
+  const timestamp = getCurrentTimestamp();
+  const newBackupPath = `${backupDirPath}/${projectName}_${timestamp}`;
 
   // Ensure the backup directory exists
-  await mkdir(backupPath, { baseDir: BaseDirectory.Document, recursive: true });
-
-  // Copy the contents of the project directory to the backup directory
-  await copyDirectoryContents(projectPath, backupPath);
-
-  const existingMetadata = await fetchFullMetadata(projectName);
-
-  updateMetadata(decodeURIComponent(projectName), {
-    ...existingMetadata,
-    lastBackedUp: new Date(),
+  await mkdir(backupDirPath, {
+    baseDir: BaseDirectory.Document,
+    recursive: true,
   });
+
+  // Get existing backups for this project
+  const entries = await readDir(backupDirPath, {
+    baseDir: BaseDirectory.Document,
+  });
+  const projectBackups = entries.filter(
+    (entry) => entry.name.startsWith(`${projectName}_`) && entry.isDirectory
+  );
+
+  // Sort backups by timestamp (ascending order)
+  projectBackups.sort((a, b) => a.name.localeCompare(b.name));
+
+  // Delete the oldest backup if there are already 5 backups
+  if (projectBackups.length >= 5) {
+    const oldestBackup = projectBackups[0];
+    await remove(`${backupDirPath}/${oldestBackup.name}`, {
+      baseDir: BaseDirectory.Document,
+      recursive: true,
+    });
+  }
+
+  // Create a new backup directory with the timestamp
+  await mkdir(newBackupPath, {
+    baseDir: BaseDirectory.Document,
+    recursive: true,
+  });
+
+  // Copy the contents of the project directory to the new backup directory
+  await copyDirectoryContents(projectPath, newBackupPath);
 }
 
 // Write metadata for a project
