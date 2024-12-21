@@ -5,13 +5,14 @@ import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProv
 import TextEditor from "WordsMaker9000/app/projects/[projectName]/components/TextEditor";
 import BottomDrawer from "./BottomDrawer";
 import Loadable from "WordsMaker9000/app/components/Loadable";
+import { AIProvider } from "WordsMaker9000/app/contexts/pages/AIContext";
 
 const Editor: React.FC = () => {
   const project = useProjectContext();
   const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
 
   return (
-    <>
+    <AIProvider>
       <Loadable isLoading={project.isEditorLoading}>
         <div className="relative flex flex-col h-full">
           {/* Header */}
@@ -34,8 +35,6 @@ const Editor: React.FC = () => {
             >
               <TextEditor
                 key={project.selectedFile?.id}
-                initialContent={project.fileContent || ""}
-                onSave={project.saveFileContent}
                 selectedFile={project.selectedFile}
                 isDrawerExpanded={isDrawerExpanded}
               />
@@ -45,7 +44,7 @@ const Editor: React.FC = () => {
           <BottomDrawer onStateChange={setIsDrawerExpanded} />
         </div>
       </Loadable>
-    </>
+    </AIProvider>
   );
 };
 

@@ -458,6 +458,7 @@ export const ProjectProvider: React.FC<{
     setSelectedFile(node);
     setIsEditorLoading(true);
     try {
+      setFileContent("");
       const content = await readFile(projectName, node?.data?.fileId);
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setFileContent(content);
@@ -469,6 +470,7 @@ export const ProjectProvider: React.FC<{
 
   const saveFileContent = useCallback(
     async (content: string) => {
+      console.log(content);
       if (selectedFile) {
         setFileSaveInProgress(true);
         try {

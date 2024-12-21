@@ -1,22 +1,17 @@
 "use client";
 
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { FiSave } from "react-icons/fi";
 import "react-quill-new/dist/quill.snow.css";
 import { ExtendedNodeModel, NodeData } from "../types/ProjectPageTypes";
 import dynamic from "next/dynamic";
 import { useProjectContext } from "WordsMaker9000/app/contexts/pages/ProjectProvider";
 import { useUserSettings } from "WordsMaker9000/app/contexts/global/UserSettingsContext";
+import { useAIContext } from "WordsMaker9000/app/contexts/pages/AIContext";
+import DiffView from "WordsMaker9000/app/components/DiffView";
+import { convertToCurlyQuotes } from "WordsMaker9000/app/utils/helpers";
 
 type TextEditorProps = {
-  initialContent: string;
-  onSave: (content: string) => void;
   selectedFile: ExtendedNodeModel | null;
   isDrawerExpanded: boolean;
 };
@@ -24,44 +19,29 @@ type TextEditorProps = {
 const ReactQuill = dynamic(() => import("react-quill-new"), { ssr: false });
 
 const TextEditor: React.FC<TextEditorProps> = ({
-  initialContent,
-  onSave,
   selectedFile,
   isDrawerExpanded,
 }) => {
   const { settings } = useUserSettings();
+  const { content, setContent } = useAIContext();
 
-  const [content, setContent] = useState(initialContent);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const [lastSavedContent, setLastSavedContent] = useState(initialContent); // Track last saved content
+
+  console.log(content);
+
+  const {
+    proofreadContent,
+    diff,
+    isProcessing,
+    acceptDiff,
+    rejectDiff,
+    showDiff,
+    setShowDiff,
+  } = useAIContext();
 
   const project = useProjectContext();
-
-  useEffect(() => {
-    setContent(initialContent);
-  }, [initialContent]);
-
-  useEffect(() => {
-    setContent(initialContent);
-    setLastSavedContent(initialContent);
-  }, [initialContent]);
-
-  const handleSave = useCallback(() => {
-    onSave(content);
-    setLastSavedContent(content);
-  }, [content, onSave]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (content !== lastSavedContent) {
-        handleSave();
-      }
-    }, settings?.defaultSaveInterval ?? 60000);
-
-    return () => clearInterval(interval);
-  }, [content, handleSave, lastSavedContent, settings?.defaultSaveInterval]);
 
   useEffect(() => {
     const countWords = (text: string): number => {
@@ -90,7 +70,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       if (event.ctrlKey && event.key === "s") {
         event.preventDefault();
         if (selectedFile && content !== null) {
-          handleSave();
+          project.saveFileContent(content);
         }
       }
     };
@@ -99,7 +79,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleSaveShortcut);
     };
-  }, [content, handleSave, selectedFile]);
+  }, [content, project.saveFileContent, selectedFile]);
 
   useEffect(() => {
     const handleFullScreenShortcut = (event: KeyboardEvent) => {
@@ -166,7 +146,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
       <FiSave
-        onClick={handleSave}
+        onClick={() => project.saveFileContent(content)}
         className="save-icon absolute top-2 right-2 text-yellow-500 cursor-pointer hover:text-blue-400 text-2xl"
         title="Save"
       />
@@ -174,16 +154,28 @@ const TextEditor: React.FC<TextEditorProps> = ({
       <p className="italic save-icon absolute top-2 right-20 text-gray-500">
         Ctrl + wheel to zoom
       </p>
-      <ReactQuill
-        value={content}
-        onChange={setContent}
-        style={{
-          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
-          fontFamily: "monospace",
-          font: "Consola",
-        }}
-        modules={modules}
-      />
+
+      {showDiff ? (
+        <DiffView
+        // original={content}
+        // updated={proofreadContent}
+        // onAccept={handleAccept}
+        />
+      ) : (
+        <ReactQuill
+          value={convertToCurlyQuotes(content)}
+          onChange={(newContent) => {
+            const processedContent = convertToCurlyQuotes(newContent); // Process for curly quotes/apostrophes
+            setContent(processedContent);
+          }}
+          style={{
+            height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+            fontFamily: "monospace",
+            font: "Consola",
+          }}
+          modules={modules}
+        />
+      )}
     </div>
   );
 };

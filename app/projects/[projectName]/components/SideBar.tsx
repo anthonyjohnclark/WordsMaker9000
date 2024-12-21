@@ -15,7 +15,7 @@ const Sidebar: React.FC = () => {
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.key.toLowerCase() === "b") {
+      if (event.ctrlKey && event.key === "+") {
         event.preventDefault(); // Prevent browser default behavior (e.g., bold in rich text editors)
         project.setIsSidebarOpen((prev) => !prev);
       }
