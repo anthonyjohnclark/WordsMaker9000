@@ -1,19 +1,23 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 import { useAIContext } from "../contexts/pages/AIContext";
 import { stripHtmlTags } from "../utils/helpers";
 
 const DiffView: React.FC = () => {
   const { setMergedContent, diff, setDiff } = useAIContext();
 
-  useEffect(() => {
+  const updateMergedContent = useCallback(() => {
     const merged = diff
       .filter((part) => part.accepted)
       .map((part) => part.value)
       .join("");
     setMergedContent(merged);
-  }, [diff]);
+  }, [diff, setMergedContent]);
 
-  const handleToggle = (index) => {
+  useEffect(() => {
+    updateMergedContent();
+  }, [updateMergedContent]);
+
+  const handleToggle = (index: number) => {
     const updatedChanges = [...diff];
     const clickedPart = updatedChanges[index];
 

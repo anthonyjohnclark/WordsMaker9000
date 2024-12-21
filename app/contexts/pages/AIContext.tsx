@@ -13,11 +13,14 @@ import { useProjectContext } from "./ProjectProvider";
 import { useUserSettings } from "../global/UserSettingsContext";
 import { useErrorContext } from "../global/ErrorContext";
 
-type DiffPart = {
+export type DiffPart = {
   value: string;
   added?: boolean;
   removed?: boolean;
   accepted?: boolean; // Tracks whether the user has accepted the change
+  linkedToIndex?: number | null;
+  unclickable?: boolean;
+  lastRemovedIndex?: number;
 };
 
 // Define types for AI Context state
@@ -25,8 +28,8 @@ type AIContextType = {
   isProcessing: boolean;
   proofreadContent: string;
   handleProofread: (content: string | null) => Promise<void>;
-  handleSuggestions: (content: string) => Promise<void>;
-  handleReview: (content: string) => Promise<void>;
+  // handleSuggestions: (content: string) => Promise<void>;
+  // handleReview: (content: string) => Promise<void>;
   diff: DiffPart[];
   computeDiff: (original: string, updated: string) => void;
   acceptDiff: () => void;
@@ -140,21 +143,21 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   };
 
   // Placeholder for suggestions
-  const handleSuggestions = async (content: string) => {
-    setIsProcessing(true);
-    try {
-      // Similar to handleProofread but for suggestions
-    } catch (err) {
-      console.error("Error during suggestions:", err);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  // const handleSuggestions = async (content: string) => {
+  //   setIsProcessing(true);
+  //   try {
+  //     // Similar to handleProofread but for suggestions
+  //   } catch (err) {
+  //     console.error("Error during suggestions:", err);
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
 
-  const processDiff = (diff) => {
-    let lastRemovedIndex = null;
+  const processDiff = (diff: DiffPart[]) => {
+    let lastRemovedIndex: number | null = null;
 
-    return diff.map((part, index) => {
+    return diff.map((part: DiffPart, index: number) => {
       if (part.removed) {
         lastRemovedIndex = index; // Track the index of the last removed part
         return { ...part, linkedToIndex: null }; // Initialize with no link
@@ -186,18 +189,18 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   };
 
   // Placeholder for review
-  const handleReview = async (content: string) => {
-    setIsProcessing(true);
-    try {
-      // Similar to handleProofread but for review
-    } catch (err) {
-      console.error("Error during review:", err);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  // const handleReview = async (content: string) => {
+  //   setIsProcessing(true);
+  //   try {
+  //     // Similar to handleProofread but for review
+  //   } catch (err) {
+  //     console.error("Error during review:", err);
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
 
-  const computeDiff = (original, updated) => {
+  const computeDiff = (original: string, updated: string) => {
     const rawDiff = diffWords(original, updated, {
       ignoreWhitespace: false,
     }).map((part) => ({
@@ -240,8 +243,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         computeDiff,
         acceptDiff,
         rejectDiff,
-        handleSuggestions,
-        handleReview,
+        // handleSuggestions,
+        // handleReview,
         showDiff,
         setShowDiff,
       }}

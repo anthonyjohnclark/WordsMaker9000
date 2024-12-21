@@ -31,15 +31,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   console.log(content);
 
-  const {
-    proofreadContent,
-    diff,
-    isProcessing,
-    acceptDiff,
-    rejectDiff,
-    showDiff,
-    setShowDiff,
-  } = useAIContext();
+  const { showDiff } = useAIContext();
 
   const project = useProjectContext();
 
@@ -79,7 +71,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleSaveShortcut);
     };
-  }, [content, project.saveFileContent, selectedFile]);
+  }, [content, project, project.saveFileContent, selectedFile]);
 
   useEffect(() => {
     const handleFullScreenShortcut = (event: KeyboardEvent) => {

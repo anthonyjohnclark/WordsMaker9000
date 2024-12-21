@@ -15,8 +15,8 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const {
     handleProofread,
-    handleSuggestions,
-    handleReview,
+    // handleSuggestions,
+    // handleReview,
     isProcessing,
     content,
     handleAccept,
@@ -87,14 +87,14 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
             </button>
             <button
               className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-400"
-              onClick={() => handleSuggestions("Your text here")}
+              // onClick={() => handleSuggestions("Your text here")}
               disabled={isProcessing}
             >
               Suggestions
             </button>
             <button
               className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-400"
-              onClick={() => handleReview("Your text here")}
+              // onClick={() => handleReview("Your text here")}
               disabled={isProcessing}
             >
               Review
