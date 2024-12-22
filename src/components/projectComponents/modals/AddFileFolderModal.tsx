@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { FiFile, FiFolder } from "react-icons/fi";
 import { useProjectContext } from "../../../contexts/pages/ProjectProvider";
 import { ExtendedNodeModel } from "../../../types/ProjectPageTypes";

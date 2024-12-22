@@ -133,7 +133,7 @@ const Sidebar: React.FC = () => {
                 insertDroppableFirst={false}
                 onDrop={project.handleDrop}
                 dropTargetOffset={5}
-                canDrop={(tree, { dragSource, dropTarget }) => {
+                canDrop={(_tree, { dragSource, dropTarget }) => {
                   if (!dropTarget) return true; // Allow dropping into the root
                   if (
                     dragSource?.data?.fileType === "folder" &&
@@ -143,7 +143,7 @@ const Sidebar: React.FC = () => {
                   }
                   return true; // Allow all other drops
                 }}
-                placeholderRender={(node, { depth }) => (
+                placeholderRender={(_node, { depth }) => (
                   <div
                     style={{
                       padding: depth,
