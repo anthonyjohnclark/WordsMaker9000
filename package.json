@@ -1,22 +1,25 @@
 {
-  "name": "WordsMaker9000",
-  "version": "0.1.0",
+  "name": "wordsmaker9000",
   "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
     "tauri": "tauri"
   },
   "dependencies": {
     "@minoru/react-dnd-treeview": "^3.4.4",
     "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/cli": "^2.1.0",
     "@tauri-apps/plugin-fs": "^2.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
     "diff": "^7.0.0",
     "fs-extra": "^11.2.0",
-    "next": "15.0.3",
     "openai": "^4.77.0",
+    "path-browserify": "^1.0.1",
     "react": "^18.0.2",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
@@ -24,20 +27,21 @@
     "react-hook-form": "^7.54.1",
     "react-icons": "^5.3.0",
     "react-quill-new": "^3.3.3",
-    "react-sidebar": "^3.0.2",
+    "react-router-dom": "^6.27.0",
     "tailwind-scrollbar-hide": "^1.1.7",
     "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@types/diff": "^6.0.0",
     "@types/node": "^20",
+    "@types/path-browserify": "^1.0.3",
     "@types/react": "^18.0.15",
     "@types/react-dom": "^18.0.10",
-    "@types/react-sidebar": "^3.0.4",
+    "autoprefixer": "^10.4.20",
     "eslint": "^8",
     "eslint-config-next": "15.0.3",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }
 }
