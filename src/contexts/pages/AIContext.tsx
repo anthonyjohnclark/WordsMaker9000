@@ -12,6 +12,7 @@ import { diffWords } from "diff";
 import { useProjectContext } from "./ProjectProvider";
 import { useUserSettings } from "../global/UserSettingsContext";
 import { useErrorContext } from "../global/ErrorContext";
+import { aiProofreadContent } from "../../agents/aiAgent";
 
 export type DiffPart = {
   value: string;
@@ -118,25 +119,23 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   }, [content, handleSave, lastSavedContent, settings?.defaultSaveInterval]);
 
   const handleProofread = async (content: string | null) => {
-    console.log("this is what is passed to the AI:", content);
-    setIsProcessing(true);
-    try {
-      const response = await fetch("/api/proofread", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
+    if (!content) return;
 
-      const data = await response.json();
-      if (response.ok && data.proofreadContent) {
-        console.log(data.proofreadContent);
-        const plainText = data.proofreadContent;
+    console.log("This is what is passed to the AI:", content);
+    setIsProcessing(true);
+
+    try {
+      const proofreadResult = await aiProofreadContent(content);
+
+      if (proofreadResult) {
+        console.log(proofreadResult);
+        const plainText = proofreadResult;
         setProofreadContent(plainText.replace(/<p>&nbsp;<\/p>/g, "<br>"));
-        computeDiff(content || "", plainText);
+        computeDiff(content, plainText);
         setShowDiff(true); // Show the diff view
       }
     } catch (err) {
-      showError(err, "retrieving proofread version from OpenAI");
+      showError(err, "Retrieving proofread version from OpenAI");
     } finally {
       setIsProcessing(false);
     }
@@ -149,6 +148,18 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   //     // Similar to handleProofread but for suggestions
   //   } catch (err) {
   //     console.error("Error during suggestions:", err);
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
+
+  // Placeholder for review
+  // const handleReview = async (content: string) => {
+  //   setIsProcessing(true);
+  //   try {
+  //     // Similar to handleProofread but for review
+  //   } catch (err) {
+  //     console.error("Error during review:", err);
   //   } finally {
   //     setIsProcessing(false);
   //   }
@@ -187,18 +198,6 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       return { ...part, linkedToIndex: null }; // Unmodified parts
     });
   };
-
-  // Placeholder for review
-  // const handleReview = async (content: string) => {
-  //   setIsProcessing(true);
-  //   try {
-  //     // Similar to handleProofread but for review
-  //   } catch (err) {
-  //     console.error("Error during review:", err);
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
-  // };
 
   const computeDiff = (original: string, updated: string) => {
     const rawDiff = diffWords(original, updated, {

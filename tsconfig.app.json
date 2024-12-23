@@ -14,7 +14,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["react", "react-dom"], // Include Tauri types
+    "types": ["react", "react-dom", "@types/node"], // Include Tauri types
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
 

@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { FiSave } from "react-icons/fi";
-import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
-import ReactQuill from "react-quill-new";
 import { useUserSettings } from "../../contexts/global/UserSettingsContext";
 import { useAIContext } from "../../contexts/pages/AIContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
+import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { convertToCurlyQuotes } from "../../utils/helpers";
 import DiffView from "../DiffView";
+import ReactQuill from "react-quill-new";
+import "../../styles/quill.snow.css";
 
 type TextEditorProps = {
   selectedFile: ExtendedNodeModel | null;
@@ -143,7 +144,11 @@ const TextEditor: React.FC<TextEditorProps> = ({
       </p>
 
       {showDiff ? (
-        <DiffView />
+        <DiffView
+        // original={content}
+        // updated={proofreadContent}
+        // onAccept={handleAccept}
+        />
       ) : (
         <ReactQuill
           value={convertToCurlyQuotes(content)}

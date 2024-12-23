@@ -10,7 +10,8 @@
     "beforeBuildCommand": "npm run build"
   },
   "plugins": {
-    "fs":  {        "requireLiteralLeadingDot": false }
+    "fs":  {        "requireLiteralLeadingDot": false },
+    "env": {}
   },
   "app": {
     "windows": [
