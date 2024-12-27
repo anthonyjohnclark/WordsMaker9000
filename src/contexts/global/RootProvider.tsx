@@ -1,4 +1,3 @@
-" ";
 import { ReactNode } from "react";
 import { ProvideModal } from "../global/ModalContext";
 import { GlobalProjectProvider } from "./GlobalProjectContext";

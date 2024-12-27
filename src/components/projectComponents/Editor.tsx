@@ -1,5 +1,3 @@
-" ";
-
 import React, { useState } from "react";
 import { AIProvider } from "../../contexts/pages/AIContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";

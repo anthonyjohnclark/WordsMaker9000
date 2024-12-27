@@ -1,5 +1,3 @@
-" ";
-
 import React, {
   createContext,
   useContext,
@@ -51,7 +49,7 @@ const AIContext = createContext<AIContextType | undefined>(undefined);
 
 // AI Provider component
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { fileContent, saveFileContent } = useProjectContext();
+  const { fileContent, saveFileContent, loadFileContent } = useProjectContext();
 
   const { showError } = useErrorContext();
 
@@ -61,24 +59,21 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [showDiff, setShowDiff] = useState(false);
   const [proofreadContent, setProofreadContent] = useState("");
   const [content, setContent] = useState("");
-  const [lastSavedContent, setLastSavedContent] = useState(""); // Track last saved content
+  const [lastSavedContent, setLastSavedContent] = useState("");
   const [mergedContent, setMergedContent] = useState(content);
 
   const [diff, setDiff] = useState<DiffPart[]>([]);
-
-  console.log("MergedContent:", mergedContent);
-
-  console.log("Diff:", diff);
-
-  console.log(content);
 
   useEffect(() => {
     setContent(fileContent ?? "");
   }, [fileContent]);
 
+  useEffect(() => {
+    setShowDiff(false); // Hide the diff view when the content changes
+  }, [loadFileContent]);
+
   const handleAccept = () => {
     if (mergedContent.trim() === "") {
-      console.warn("Merged content is empty. Retaining original content.");
       setContent(content); // Retain original content if merged is empty
     } else {
       setContent(mergedContent); // Apply the updated content
@@ -90,27 +85,21 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const declineAllChanges = () => {
     // Reset to the original content
-    setContent(fileContent || ""); // Reset content to the original
-    setMergedContent(""); // Clear merged content
-    setDiff([]); // Clear the diff
-    setShowDiff(false); // Hide the diff view
+    setContent(fileContent || "");
+    setMergedContent("");
+    setDiff([]);
+    setShowDiff(false);
   };
 
   const handleSave = useCallback(() => {
-    console.log("Hey  I should save this:", content);
     saveFileContent(content);
     setLastSavedContent(content);
   }, [content, saveFileContent]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log("Hey should we save?:", content !== lastSavedContent);
-
-      console.log("HEre is the content:", content);
-
-      console.log("HEre is the lastSavedContent:", lastSavedContent);
-
       if (content !== lastSavedContent) {
+        console.log("Auto-saving content...", showDiff);
         handleSave();
       }
     }, settings?.defaultSaveInterval ?? 60000);
@@ -121,14 +110,12 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const handleProofread = async (content: string | null) => {
     if (!content) return;
 
-    console.log("This is what is passed to the AI:", content);
     setIsProcessing(true);
 
     try {
       const proofreadResult = await aiProofreadContent(content);
 
       if (proofreadResult) {
-        console.log(proofreadResult);
         const plainText = proofreadResult;
         setProofreadContent(plainText.replace(/<p>&nbsp;<\/p>/g, "<br>"));
         computeDiff(content, plainText);
@@ -212,12 +199,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   };
   // Accept all changes
   const acceptDiff = () => {
-    // const merged = diff
-    //   .filter((part) => part.accepted)
-    //   .map((part) => part.value)
-    //   .join("");
-    setContent(mergedContent); // Persist the merged content to the editor
-    setShowDiff(false); // Hide the diff view
+    setContent(mergedContent);
+    setShowDiff(false);
   };
 
   // Reject all changes

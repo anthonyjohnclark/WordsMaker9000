@@ -12,7 +12,8 @@ export const convertToCurlyQuotes = (text: string) => {
     .replace(/"([^"]*)"/g, "“$1”") // Double quotes
     .replace(/'([^']*)'/g, "‘$1’") // Single quotes
     .replace(/\b'\b/g, "’") // Standalone apostrophes
-    .replace(/(\w)'(\w)/g, "$1’$2"); // Apostrophes in contractions and possessives
+    .replace(/(\w)'(\w)/g, "$1’$2") // Apostrophes in contractions and possessives
+    .replace(/--/g, "—"); // Replace double dashes with em-dash
 };
 
 export const stripHtmlTags = (html: string) => {

@@ -25,8 +25,6 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
   const editorRef = useRef<HTMLDivElement | null>(null);
 
-  console.log(content);
-
   const { showDiff } = useAIContext();
 
   const project = useProjectContext();
@@ -114,7 +112,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       toolbar: [
         ["bold", "italic", "underline", "strike"],
         [{ list: "ordered" }, { list: "bullet" }],
-        ["link", "image"],
+        ["link"],
         [{ size: ["small", false, "large", "huge"] }], // Font size options
         ["clean"],
       ],
@@ -133,22 +131,22 @@ const TextEditor: React.FC<TextEditorProps> = ({
       ref={editorRef}
       className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
-      <FiSave
-        onClick={() => project.saveFileContent(content)}
-        className="save-icon absolute top-2 right-2 text-yellow-500 cursor-pointer hover:text-blue-400 text-2xl"
-        title="Save"
-      />
+      {!showDiff && (
+        <>
+          <FiSave
+            onClick={() => project.saveFileContent(content)}
+            className="save-icon absolute top-2 right-2 text-yellow-500 cursor-pointer hover:text-blue-400 text-2xl"
+            title="Save"
+          />
 
-      <p className="italic save-icon absolute top-2 right-20 text-gray-500">
-        Ctrl + wheel to zoom
-      </p>
+          <p className="italic save-icon absolute top-2 right-20 text-gray-500">
+            Ctrl + wheel to zoom
+          </p>
+        </>
+      )}
 
       {showDiff ? (
-        <DiffView
-        // original={content}
-        // updated={proofreadContent}
-        // onAccept={handleAccept}
-        />
+        <DiffView />
       ) : (
         <ReactQuill
           value={convertToCurlyQuotes(content)}

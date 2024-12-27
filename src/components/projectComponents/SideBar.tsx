@@ -1,5 +1,3 @@
-" ";
-
 import React, { useEffect } from "react";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import { FiX, FiMenu, FiFilePlus, FiFolderPlus } from "react-icons/fi";
@@ -32,12 +30,11 @@ const Sidebar: React.FC = () => {
       {" "}
       <div
         className={`${
-          project.isSidebarOpen ? "min-w-[16rem]" : "w-12"
-        } bg-gray-800 text-white transition-all duration-300 flex flex-col`}
-        style={{ width: "fit-content" }} // Ensures the sidebar expands to fit its content
+          project.isSidebarOpen ? "w-[16rem]" : "w-12"
+        } bg-gray-800 text-white flex flex-col transition-all duration-300 ease-in-out`}
       >
         {/* Header with Toggle Button, Project Name, and Action Buttons */}
-        <div className="flex items-center justify-between p-3 pb-0">
+        <div className="flex items-center justify-between p-3 pb-0  ">
           {/* Left Section: Toggle Button and Project Name */}
           <div className="flex items-center">
             {/* Toggle Button */}

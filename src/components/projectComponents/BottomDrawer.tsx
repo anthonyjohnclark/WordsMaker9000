@@ -1,5 +1,3 @@
-" ";
-
 import React, { useState, useEffect } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { useUserSettings } from "../../contexts/global/UserSettingsContext";
@@ -63,7 +61,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
               {project?.selectedFile?.data?.wordCount}
             </span>
           </span>
-          {settings?.aiSuiteEnabled && (
+          {settings?.aiSuiteEnabled && !showDiff && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-500 focus:outline-none focus:ring focus:ring-blue-500"

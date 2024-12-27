@@ -75,7 +75,6 @@ export async function retrieveSettings(): Promise<UserSettings> {
     baseDir: BaseDirectory.AppData,
   });
 
-  console.log(content);
   return JSON.parse(content) as UserSettings;
 }
 

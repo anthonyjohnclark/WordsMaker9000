@@ -1,5 +1,3 @@
-" ";
-
 import React from "react";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import Editor from "./Editor";

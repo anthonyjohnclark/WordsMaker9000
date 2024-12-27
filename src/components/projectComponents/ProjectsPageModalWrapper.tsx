@@ -1,4 +1,3 @@
-" ";
 import GlobalModal from "../../components/GlobalModal";
 import Loader from "../../components/Loader";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
