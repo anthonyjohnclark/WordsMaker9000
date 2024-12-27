@@ -29,16 +29,15 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
             : "transparent",
       }}
       className="p-2 cursor-pointer flex items-center gap-2 group"
+      onClick={() => {
+        if (node.data?.fileType === "folder") {
+          onToggle();
+        } else {
+          project.loadFileContent(node as ExtendedNodeModel);
+        }
+      }}
     >
-      <span
-        onClick={() => {
-          if (node.data?.fileType === "folder") {
-            onToggle();
-          } else {
-            project.loadFileContent(node as ExtendedNodeModel);
-          }
-        }}
-      >
+      <span>
         {node.data?.fileType === "folder"
           ? isOpen
             ? "📂 " + node.text

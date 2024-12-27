@@ -63,6 +63,10 @@ body {
   scrollbar-width: none; /* Firefox */
 }
 
+.ql-editor p {
+  padding-bottom: 20px !important;
+}
+
 .futuristic-font {
   font-family: "Orbitron", sans-serif;
 }
