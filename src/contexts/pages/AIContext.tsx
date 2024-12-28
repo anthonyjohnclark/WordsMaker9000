@@ -10,7 +10,11 @@ import { diffWords } from "diff";
 import { useProjectContext } from "./ProjectProvider";
 import { useUserSettings } from "../global/UserSettingsContext";
 import { useErrorContext } from "../global/ErrorContext";
-import { aiProofreadContent } from "../../agents/aiAgent";
+import {
+  aiGetReview,
+  aiGetSuggestions,
+  aiProofreadContent,
+} from "../../agents/aiAgent";
 
 export type DiffPart = {
   value: string;
@@ -26,9 +30,9 @@ export type DiffPart = {
 type AIContextType = {
   isProcessing: boolean;
   proofreadContent: string;
-  handleProofread: (content: string | null) => Promise<void>;
-  // handleSuggestions: (content: string) => Promise<void>;
-  // handleReview: (content: string) => Promise<void>;
+  handleProofread: (content: string) => void;
+  handleSuggestions: (content: string) => Promise<string | undefined>;
+  handleReview: (content: string) => Promise<string | undefined>;
   diff: DiffPart[];
   computeDiff: (original: string, updated: string) => void;
   acceptDiff: () => void;
@@ -57,7 +61,9 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
+
   const [proofreadContent, setProofreadContent] = useState("");
+
   const [content, setContent] = useState("");
   const [lastSavedContent, setLastSavedContent] = useState("");
   const [mergedContent, setMergedContent] = useState(content);
@@ -107,13 +113,15 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     return () => clearInterval(interval);
   }, [content, handleSave, lastSavedContent, settings?.defaultSaveInterval]);
 
-  const handleProofread = async (content: string | null) => {
+  const handleProofread = async (content: string) => {
     if (!content) return;
 
     setIsProcessing(true);
 
     try {
       const proofreadResult = await aiProofreadContent(content);
+
+      console.log("Proofread result:", proofreadResult);
 
       if (proofreadResult) {
         const plainText = proofreadResult;
@@ -128,29 +136,35 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }
   };
 
-  // Placeholder for suggestions
-  // const handleSuggestions = async (content: string) => {
-  //   setIsProcessing(true);
-  //   try {
-  //     // Similar to handleProofread but for suggestions
-  //   } catch (err) {
-  //     console.error("Error during suggestions:", err);
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
-  // };
+  const handleSuggestions = async (content: string) => {
+    if (!content) return;
 
-  // Placeholder for review
-  // const handleReview = async (content: string) => {
-  //   setIsProcessing(true);
-  //   try {
-  //     // Similar to handleProofread but for review
-  //   } catch (err) {
-  //     console.error("Error during review:", err);
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
-  // };
+    setIsProcessing(true);
+
+    try {
+      const suggestions = await aiGetSuggestions(content);
+      return suggestions ?? "";
+    } catch (err) {
+      showError(err, "Retrieving suggestions from OpenAI");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReview = async (content: string) => {
+    if (!content) return;
+
+    setIsProcessing(true);
+
+    try {
+      const reviewFeedback = await aiGetReview(content);
+      return reviewFeedback ?? "";
+    } catch (err) {
+      showError(err, "Retrieving review feedback from OpenAI");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const processDiff = (diff: DiffPart[]) => {
     let lastRemovedIndex: number | null = null;
@@ -212,6 +226,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     <AIContext.Provider
       value={{
         setDiff,
+        handleProofread,
+        handleSuggestions,
         declineAllChanges,
         mergedContent,
         setMergedContent,
@@ -221,12 +237,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         isProcessing,
         proofreadContent,
         diff,
-        handleProofread,
         computeDiff,
         acceptDiff,
         rejectDiff,
-        // handleSuggestions,
-        // handleReview,
+        handleReview,
         showDiff,
         setShowDiff,
       }}

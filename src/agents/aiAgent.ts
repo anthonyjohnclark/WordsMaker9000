@@ -2,24 +2,38 @@ import { invoke } from "@tauri-apps/api/core";
 
 export const aiProofreadContent = async (content: string): Promise<string> => {
   try {
-    const response = await invoke<{ proofreadContent: string }>(
-      "proofread_content",
-      { content }
-    );
-    return response.proofreadContent;
+    const response = await invoke<{ result: string }>("proofread_content", {
+      content,
+    });
+    return response.result;
   } catch (error) {
     console.error("Error in proofreadContent function:", error);
     throw new Error("Failed to proofread the content");
   }
 };
 
-// Placeholder functions for suggestions and review
-export const getSuggestions = async (_content: string): Promise<string> => {
-  // Implement similar logic for suggestions
-  return "Suggestions function not implemented";
+export const aiGetSuggestions = async (content: string): Promise<string> => {
+  try {
+    const response = await invoke<{ result: string }>("ai_suggestions", {
+      content,
+    });
+
+    console.log(response.result);
+    return response.result;
+  } catch (error) {
+    console.error("Error in aiGetSuggestions function:", error);
+    throw new Error("Failed to fetch suggestions");
+  }
 };
 
-export const getReview = async (_content: string): Promise<string> => {
-  // Implement similar logic for review
-  return "Review function not implemented";
+export const aiGetReview = async (content: string): Promise<string> => {
+  try {
+    const response = await invoke<{ result: string }>("ai_review", {
+      content,
+    });
+    return response.result;
+  } catch (error) {
+    console.error("Error in aiGetReview function:", error);
+    throw new Error("Failed to fetch review feedback");
+  }
 };

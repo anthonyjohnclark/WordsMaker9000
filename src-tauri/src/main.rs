@@ -10,7 +10,73 @@ use tauri_plugin_fs; // To access environment variables
 // Define the structure for the response from the Tauri command
 #[derive(Serialize, Deserialize)]
 struct OpenAIResponse {
-    proofreadContent: String,
+    result: String,
+}
+
+// AI Suggestions
+#[tauri::command]
+async fn ai_suggestions(content: String) -> Result<OpenAIResponse, String> {
+    let api_key = env::var("OPENAI_API_KEY").map_err(|_| "API key not set")?;
+
+    let client = Client::new();
+    let body = serde_json::json!({
+        "model": "gpt-3.5-turbo",
+        "messages": [
+            { "role": "system", "content": "You are an expert writing assistant. Provide suggestions for improvement to the following content:" },
+            { "role": "user", "content": content }
+        ]
+    });
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let suggestions = json["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    Ok(OpenAIResponse {
+        result: suggestions,
+    })
+}
+
+// AI Review
+#[tauri::command]
+async fn ai_review(content: String) -> Result<OpenAIResponse, String> {
+    let api_key = env::var("OPENAI_API_KEY").map_err(|_| "API key not set")?;
+
+    let client = Client::new();
+    let body = serde_json::json!({
+        "model": "gpt-3.5-turbo",
+        "messages": [
+            { "role": "system", "content": "You are an expert content reviewer. Provide detailed feedback on the following content:" },
+            { "role": "user", "content": content }
+        ]
+    });
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let review_feedback = json["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    Ok(OpenAIResponse {
+        result: review_feedback,
+    })
 }
 
 // Define the Tauri command to interact with OpenAI
@@ -46,7 +112,7 @@ async fn proofread_content(content: String) -> Result<OpenAIResponse, String> {
         .to_string();
 
     Ok(OpenAIResponse {
-        proofreadContent: proofread_content,
+        result: proofread_content,
     })
 }
 
@@ -56,8 +122,11 @@ fn main() {
     tauri::Builder::default()
         // Initialize the tauri-plugin-fs plugin
         .plugin(tauri_plugin_fs::init())
-        // Register the Tauri command
-        .invoke_handler(tauri::generate_handler![proofread_content])
+        .invoke_handler(tauri::generate_handler![
+            proofread_content,
+            ai_suggestions,
+            ai_review
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

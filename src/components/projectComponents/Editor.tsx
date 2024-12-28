@@ -28,7 +28,7 @@ const Editor: React.FC = () => {
             <div
               className="flex-1 overflow-y-scroll relative h-full scrollbar-hide"
               style={{
-                marginBottom: isDrawerExpanded ? "16rem" : "3rem", // Padding ensures the child adjusts dynamically
+                marginBottom: isDrawerExpanded ? "24rem" : "3rem", // Padding ensures the child adjusts dynamically
               }}
             >
               <TextEditor
