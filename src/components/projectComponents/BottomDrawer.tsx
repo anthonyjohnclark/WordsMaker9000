@@ -33,6 +33,35 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
     onStateChange(isExpanded);
   }, [isExpanded, onStateChange]);
 
+  // Key listener for Ctrl + Up Arrow and Ctrl + Down Arrow
+  useEffect(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (
+        event.ctrlKey &&
+        settings?.aiSuiteEnabled &&
+        !showDiff &&
+        !isProcessing
+      ) {
+        if (event.key === "ArrowUp") {
+          event.preventDefault(); // Prevent default browser behavior
+          if (!isExpanded) {
+            setIsExpanded(true); // Expand the drawer
+          }
+        } else if (event.key === "ArrowDown") {
+          event.preventDefault(); // Prevent default browser behavior
+          if (isExpanded) {
+            setIsExpanded(false); // Collapse the drawer
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+    };
+  }, [settings?.aiSuiteEnabled, showDiff, isProcessing, isExpanded]);
+
   const handleAiAction = async (action: () => Promise<string | undefined>) => {
     setAiResponse(null); // Clear previous response
     try {

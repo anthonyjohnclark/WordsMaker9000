@@ -13,9 +13,16 @@ const Sidebar: React.FC = () => {
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.key === "+") {
-        event.preventDefault(); // Prevent browser default behavior (e.g., bold in rich text editors)
-        project.setIsSidebarOpen((prev) => !prev);
+      if (event.ctrlKey) {
+        if (event.key === "ArrowRight") {
+          // Ctrl + Right Arrow toggles the sidebar
+          event.preventDefault();
+          project.setIsSidebarOpen((prev) => !prev);
+        } else if (event.key === "ArrowLeft" && project.isSidebarOpen) {
+          // Ctrl + Left Arrow collapses the sidebar if expanded
+          event.preventDefault();
+          project.setIsSidebarOpen(false);
+        }
       }
     };
 
@@ -27,14 +34,13 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
-      {" "}
       <div
         className={`${
           project.isSidebarOpen ? "w-[16rem]" : "w-12"
         } bg-gray-800 text-white flex flex-col transition-all duration-300 ease-in-out`}
       >
         {/* Header with Toggle Button, Project Name, and Action Buttons */}
-        <div className="flex items-center justify-between p-3 pb-0  ">
+        <div className="flex items-center justify-between p-3 pb-0">
           {/* Left Section: Toggle Button and Project Name */}
           <div className="flex items-center">
             {/* Toggle Button */}
