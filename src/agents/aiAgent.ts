@@ -5,6 +5,11 @@ export const aiProofreadContent = async (content: string): Promise<string> => {
     const response = await invoke<{ result: string }>("proofread_content", {
       content,
     });
+
+    console.log(response);
+
+    console.log(response.result);
+
     return response.result;
   } catch (error) {
     console.error("Error in proofreadContent function:", error);
