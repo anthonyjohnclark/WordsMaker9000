@@ -125,7 +125,7 @@ const Sidebar: React.FC = () => {
 
         {/* Sidebar Content */}
         {project.isSidebarOpen ? (
-          <div className="p-4">
+          <div className="p-4 h-full overflow-y-auto scrollbar-hide">
             <DndProvider backend={HTML5Backend}>
               <Tree
                 tree={project.treeData}
