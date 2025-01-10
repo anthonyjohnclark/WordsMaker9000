@@ -67,6 +67,10 @@ body {
   padding-bottom: 20px !important;
 }
 
+.ql-editor span {
+  padding-bottom: 20px !important;
+}
+
 .futuristic-font {
   font-family: "Orbitron", sans-serif;
 }

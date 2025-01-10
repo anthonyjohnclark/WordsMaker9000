@@ -27,7 +27,7 @@ const DeleteProjectConfirmationModal: React.FC<
       await new Promise((resolve) => setTimeout(resolve, 1000));
       handleSetNewProjects(projectName);
     } catch (error) {
-      showError(error, "deleting file");
+      showError(error, "deleting project");
     }
     modal.handleClose();
   };
@@ -38,8 +38,10 @@ const DeleteProjectConfirmationModal: React.FC<
         <h2 className="text-xl font-bold mb-4 text-red-500">Delete Project</h2>
         <p className="mb-4 text-white">
           Type the project name{" "}
-          <strong>{decodeURIComponent(projectName)}</strong> to confirm
-          deletion:
+          <strong className="text-red-500">
+            {decodeURIComponent(projectName)}
+          </strong>{" "}
+          to confirm deletion:
         </p>
         <input
           type="text"

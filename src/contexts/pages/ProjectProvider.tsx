@@ -468,7 +468,6 @@ export const ProjectProvider: React.FC<{
 
   const saveFileContent = useCallback(
     async (content: string) => {
-      console.log(content);
       if (selectedFile) {
         setFileSaveInProgress(true);
         try {

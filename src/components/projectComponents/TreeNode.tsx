@@ -117,11 +117,12 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
           </>
         )}
         <FiTrash2
-          onClick={() =>
+          onClick={(e) => {
             modal.renderModal({
               modalBody: <DeleteConfirmationModal node={node} />,
-            })
-          }
+            });
+            e.stopPropagation();
+          }}
           className="text-red-500 cursor-pointer hover:text-red-300"
           title="Delete"
         />

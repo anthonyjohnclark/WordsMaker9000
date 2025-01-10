@@ -104,7 +104,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (content !== lastSavedContent) {
+      if (content !== lastSavedContent && !showDiff) {
         console.log("Auto-saving content...", showDiff);
         handleSave();
       }

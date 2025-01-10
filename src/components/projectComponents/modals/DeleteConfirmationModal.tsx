@@ -34,7 +34,7 @@ export const DeleteConfirmationModal = ({ node }: IProps) => {
       // Close the modal after successful deletion
       modal.handleClose();
     } catch (error) {
-      showError(error, "deleting a modal");
+      showError(error, "deleting a file/folder");
       // Optionally handle error (e.g., show a notification)
     } finally {
       setIsLoading(false);

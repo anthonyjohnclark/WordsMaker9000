@@ -127,6 +127,47 @@ export default function HomePage() {
                 <FaCog size={24} />
               </button>
             </h2>
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+              <h3 className="text-xl font-bold mb-4">Create New Project</h3>
+              <div className="flex items-center space-x-4">
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="New project name"
+                  className="flex-1 border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                />
+                <select
+                  value={projectType}
+                  onChange={(e) =>
+                    setProjectType(e.target.value as ProjectType)
+                  }
+                  className="border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                >
+                  <option value="" disabled>
+                    Select a project type
+                  </option>
+                  {projectTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}{" "}
+                      {/* Capitalize */}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={handleCreateProject}
+                  className={`bg-blue-500 text-white py-2 px-4 rounded transition ${
+                    isCreateDisabled
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-blue-400"
+                  }`}
+                  disabled={isCreateDisabled}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
             <ul className="mb-6 space-y-4">
               {projects.map((project) => (
                 <li
@@ -195,47 +236,6 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-bold mb-4">Create New Project</h3>
-              <div className="flex items-center space-x-4">
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="New project name"
-                  className="flex-1 border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
-                />
-                <select
-                  value={projectType}
-                  onChange={(e) =>
-                    setProjectType(e.target.value as ProjectType)
-                  }
-                  className="border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
-                >
-                  <option value="" disabled>
-                    Select a project type
-                  </option>
-                  {projectTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}{" "}
-                      {/* Capitalize */}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  onClick={handleCreateProject}
-                  className={`bg-blue-500 text-white py-2 px-4 rounded transition ${
-                    isCreateDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-blue-400"
-                  }`}
-                  disabled={isCreateDisabled}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
           </main>
         </Loadable>
         {/* Footer */}

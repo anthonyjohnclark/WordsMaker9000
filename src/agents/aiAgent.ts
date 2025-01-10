@@ -6,10 +6,6 @@ export const aiProofreadContent = async (content: string): Promise<string> => {
       content,
     });
 
-    console.log(response);
-
-    console.log(response.result);
-
     return response.result;
   } catch (error) {
     console.error("Error in proofreadContent function:", error);
@@ -23,7 +19,6 @@ export const aiGetSuggestions = async (content: string): Promise<string> => {
       content,
     });
 
-    console.log(response.result);
     return response.result;
   } catch (error) {
     console.error("Error in aiGetSuggestions function:", error);
