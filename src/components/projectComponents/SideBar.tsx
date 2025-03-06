@@ -139,10 +139,12 @@ const Sidebar: React.FC = () => {
                 canDrop={(_tree, { dragSource, dropTarget }) => {
                   if (!dropTarget) return true; // Allow dropping into the root
                   if (
-                    dragSource?.data?.fileType === "folder" &&
-                    dropTarget?.data?.fileType === "file"
+                    (dragSource?.data?.fileType === "folder" &&
+                      dropTarget?.data?.fileType === "file") ||
+                    (dragSource?.data?.fileType === "file" &&
+                      dropTarget?.data?.fileType === "file")
                   ) {
-                    return false; // Prevent folders from being dropped into files
+                    return false; // Prevent folders and files from being dropped into files
                   }
                   return true; // Allow all other drops
                 }}

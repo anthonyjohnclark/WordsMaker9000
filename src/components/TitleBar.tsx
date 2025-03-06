@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
-import { FiCheckCircle } from "react-icons/fi";
+import { FiCheckCircle, FiHome } from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
 import { Link, useLocation } from "react-router-dom";
 
@@ -29,13 +29,14 @@ const TitleBar = () => {
         {pathname !== "/" && ( // Only show the link if not at the home page
           <Link
             to="/" // Use `to` for navigation in React Router
-            className="text-sm font-semibold futuristic-font text-yellow-500"
+            className="text-sm font-semibold futuristic-font text-yellow-500 flex items-center space-x-1"
             style={{
               WebkitAppRegion: "no-drag",
               cursor: "pointer",
             }}
           >
-            WordsMaker9000
+            <FiHome /> {/* Add the home icon here */}
+            <span>WordsMaker9000</span>
           </Link>
         )}
       </div>
