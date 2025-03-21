@@ -18,7 +18,7 @@ const TitleBar = () => {
 
   return (
     <div
-      className="h-8 bg-gray-800 text-white flex items-center justify-between px-2 select-none"
+      className="h-8 bg-gray-900 text-white flex items-center justify-between px-2 select-none"
       style={{ WebkitAppRegion: "drag" }}
     >
       {/* App Logo and Title */}

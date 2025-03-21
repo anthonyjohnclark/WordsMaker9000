@@ -56,7 +56,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
   return (
     <Loadable isLoading={isLoading}>
-      <div className="bg-gray-800 p-6 rounded-lg text-white">
+      <div className="bg-gray-900 p-6 rounded-lg text-white">
         <h2 className="text-xl font-bold mb-4">User Settings</h2>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="mb-4">

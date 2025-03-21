@@ -34,7 +34,7 @@ const DeleteProjectConfirmationModal: React.FC<
 
   return (
     <Loadable isLoading={deletionLoading}>
-      <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full">
+      <div className="bg-gray-900 rounded-lg p-6 max-w-sm w-full">
         <h2 className="text-xl font-bold mb-4 text-red-500">Delete Project</h2>
         <p className="mb-4 text-white">
           Type the project name{" "}

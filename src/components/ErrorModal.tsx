@@ -12,7 +12,7 @@ const ErrorModal: React.FC = () => {
       onClick={clearError}
     >
       <div
-        className="bg-gray-800 p-6 rounded shadow-lg w-3/5 h-1/3 flex flex-col overflow-hidden"
+        className="bg-gray-900 p-6 rounded shadow-lg w-3/5 h-1/3 flex flex-col overflow-hidden"
         onClick={(e) => {
           e.stopPropagation();
         }}

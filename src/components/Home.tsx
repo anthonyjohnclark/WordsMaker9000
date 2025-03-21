@@ -127,7 +127,7 @@ export default function HomePage() {
                 <FaCog size={24} />
               </button>
             </h2>
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+            <div className="bg-gray-900 p-6 rounded-lg shadow-lg mb-6">
               <h3 className="text-xl font-bold mb-4">Create New Project</h3>
               <div className="flex items-center space-x-4">
                 <input
@@ -172,7 +172,7 @@ export default function HomePage() {
               {projects.map((project) => (
                 <li
                   key={project.projectName}
-                  className="bg-gray-800 rounded-lg shadow-lg p-4 relative hover:bg-gray-700 transition"
+                  className="bg-gray-900 rounded-lg shadow-lg p-4 relative hover:bg-gray-700 transition"
                 >
                   {/* Project Link */}
                   <a
@@ -239,7 +239,7 @@ export default function HomePage() {
           </main>
         </Loadable>
         {/* Footer */}
-        <footer className="bg-gray-800 text-gray-400 py-4">
+        <footer className="bg-gray-900 text-gray-400 py-4">
           <div className="container mx-auto text-center">
             © {new Date().getFullYear()} WordsMaker9000 - All Rights Reserved
           </div>

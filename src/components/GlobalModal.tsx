@@ -12,7 +12,7 @@ const GlobalModal = (): JSX.Element => {
           onClick={modal.handleClose}
         >
           <div
-            className="bg-gray-800 p-6 rounded shadow-lg w-96"
+            className="bg-gray-900 p-6 rounded shadow-lg w-96"
             onClick={(e) => e.stopPropagation()} // Prevent backdrop click from closing
           >
             {modalContent.modalBody}

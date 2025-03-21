@@ -37,7 +37,7 @@ const Sidebar: React.FC = () => {
       <div
         className={`${
           project.isSidebarOpen ? "w-[16rem]" : "w-12"
-        } bg-gray-800 text-white flex flex-col transition-all duration-300 ease-in-out`}
+        } bg-gray-900 text-white flex flex-col transition-all duration-300 ease-in-out`}
       >
         {/* Header with Toggle Button, Project Name, and Action Buttons */}
         <div className="flex items-center justify-between p-3 pb-0">

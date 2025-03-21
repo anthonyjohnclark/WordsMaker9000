@@ -74,7 +74,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
 
   return (
     <div
-      className={`absolute bottom-0 left-0 right-0 bg-gray-800 text-white transition-all duration-300 ${
+      className={`absolute bottom-0 left-0 right-0 bg-gray-900 text-white transition-all duration-300 ${
         isExpanded ? "h-96" : "h-12"
       } overflow-hidden`}
     >
@@ -157,7 +157,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
           {/* Additional Content */}
           <div className="border-t border-gray-600 pt-4">
             {isProcessing ? (
-              <div className="bg-gray-800 text-gray-400 font-mono text-sm p-4 rounded">
+              <div className="bg-gray-900 text-gray-400 font-mono text-sm p-4 rounded">
                 <pre>
                   <code>Asking the AI...</code>
                 </pre>
