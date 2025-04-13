@@ -184,13 +184,13 @@ export async function fetchFullMetadata(
 }
 
 // Helper function to get current timestamp
-function getCurrentTimestamp() {
+export function getCurrentTimestamp() {
   const now = new Date();
   return now.toISOString().replace(/[:.-]/g, "").slice(0, 15);
 }
 
 // Recursive function to copy files and directories
-async function copyDirectoryContents(
+export async function copyDirectoryContents(
   sourcePath: string,
   destinationPath: string
 ) {
@@ -201,7 +201,10 @@ async function copyDirectoryContents(
     const destinationEntryPath = await join(destinationPath, entry.name);
 
     if (entry.isDirectory) {
-      await mkdir(destinationEntryPath, { baseDir: BaseDirectory.AppData });
+      await mkdir(destinationEntryPath, {
+        baseDir: BaseDirectory.AppData,
+        recursive: true,
+      });
       await copyDirectoryContents(sourceEntryPath, destinationEntryPath);
     } else {
       await copyFile(sourceEntryPath, destinationEntryPath, {
