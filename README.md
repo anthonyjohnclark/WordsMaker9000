@@ -8,7 +8,7 @@ More than that, I wanted more custom control over the AI prompts used to look at
 
 It's a simple app, but it's mine!
 
-![Wordsmaker9000](./Wordsmaker9000.PNG)
+![Wordsmaker9000](./wordsmaker9000.PNG)
 
 ![the editor in action](./heywow.PNG)
 
