@@ -55,9 +55,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     const handleSaveShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key === "s") {
         event.preventDefault();
-        if (selectedFile && content !== null) {
-          project.saveFileContent(content);
-        }
+        handleSave(); // Trigger save on Ctrl+S
       }
     };
 
@@ -65,7 +63,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleSaveShortcut);
     };
-  }, [content, project, project.saveFileContent, selectedFile]);
+  }, [content, selectedFile]);
 
   useEffect(() => {
     const handleFullScreenShortcut = (event: KeyboardEvent) => {
@@ -112,9 +110,6 @@ const TextEditor: React.FC<TextEditorProps> = ({
       toolbar: [
         ["bold", "italic", "underline", "strike"],
         [{ list: "ordered" }, { list: "bullet" }],
-        ["link"],
-        [{ size: ["small", false, "large", "huge"] }], // Font size options
-        ["clean"],
       ],
     };
   }, []);
@@ -126,6 +121,33 @@ const TextEditor: React.FC<TextEditorProps> = ({
     }
   }, [fontSize]);
 
+  const handleContentChange = (newContent: string) => {
+    setContent(newContent); // Save raw content without processing
+  };
+
+  const handleSave = () => {
+    if (content) {
+      // Create a temporary DOM element to parse the HTML content
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = content;
+
+      // Process only the text nodes to preserve HTML structure
+      const processTextNodes = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          node.textContent = convertToCurlyQuotes(node.textContent || "");
+        } else if (node.nodeType === Node.ELEMENT_NODE && node.childNodes) {
+          node.childNodes.forEach(processTextNodes);
+        }
+      };
+
+      processTextNodes(tempDiv);
+
+      // Save the processed HTML content
+      const processedContent = tempDiv.innerHTML;
+      project.saveFileContent(processedContent);
+    }
+  };
+
   return (
     <div
       ref={editorRef}
@@ -134,7 +156,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       {!showDiff && (
         <>
           <FiSave
-            onClick={() => project.saveFileContent(content)}
+            onClick={handleSave}
             className="save-icon absolute top-2 right-2 text-yellow-500 cursor-pointer hover:text-blue-400 text-2xl"
             title="Save"
           />
@@ -149,11 +171,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
         <DiffView />
       ) : (
         <ReactQuill
-          value={convertToCurlyQuotes(content)}
-          onChange={(newContent) => {
-            const processedContent = convertToCurlyQuotes(newContent); // Process for curly quotes/apostrophes
-            setContent(processedContent);
-          }}
+          value={content}
+          onChange={handleContentChange}
           style={{
             height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
             fontFamily: "monospace",
