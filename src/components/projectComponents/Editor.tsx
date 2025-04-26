@@ -7,7 +7,11 @@ import TextEditor from "./TextEditor";
 
 const Editor: React.FC = () => {
   const project = useProjectContext();
-  const [isDrawerExpanded, setIsDrawerExpanded] = useState(false);
+  const [drawerHeight, setDrawerHeight] = useState(48); // Default height for collapsed drawer
+
+  const handleDrawerStateChange = (_: boolean, height: number) => {
+    setDrawerHeight(height); // Update the drawer height dynamically
+  };
 
   return (
     <AIProvider>
@@ -28,18 +32,18 @@ const Editor: React.FC = () => {
             <div
               className="flex-1 overflow-y-scroll relative h-full scrollbar-hide"
               style={{
-                marginBottom: isDrawerExpanded ? "24rem" : "3rem", // Padding ensures the child adjusts dynamically
+                marginBottom: `${drawerHeight}px`, // Use dynamic drawer height
               }}
             >
               <TextEditor
                 key={project.selectedFile?.id}
                 selectedFile={project.selectedFile}
-                isDrawerExpanded={isDrawerExpanded}
+                isDrawerExpanded={drawerHeight > 48} // Example condition
               />
             </div>
           </div>
           {/* Fixed Bottom Drawer */}
-          <BottomDrawer onStateChange={setIsDrawerExpanded} />
+          <BottomDrawer onStateChange={handleDrawerStateChange} />
         </div>
       </Loadable>
     </AIProvider>

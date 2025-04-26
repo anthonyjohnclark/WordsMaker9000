@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import React, { useState, useEffect, useRef } from "react";
+import { FiChevronDown, FiChevronUp, FiSlash } from "react-icons/fi"; // Import the clear icon
 import { useUserSettings } from "../../contexts/global/UserSettingsContext";
 import { useAIContext } from "../../contexts/pages/AIContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
@@ -8,11 +8,12 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize"; // For sanitizing the HTML output
 
 type BottomDrawerProps = {
-  onStateChange: (isExpanded: boolean) => void;
+  onStateChange: (isExpanded: boolean, height: number) => void;
 };
 
 const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
 
   const {
@@ -30,7 +31,22 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   const project = useProjectContext();
 
   useEffect(() => {
-    onStateChange(isExpanded);
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const height = entry.contentRect.height;
+        onStateChange(isExpanded, height); // Notify parent of height changes
+      }
+    });
+
+    if (drawerRef.current) {
+      observer.observe(drawerRef.current);
+    }
+
+    return () => {
+      if (drawerRef.current) {
+        observer.unobserve(drawerRef.current);
+      }
+    };
   }, [isExpanded, onStateChange]);
 
   // Key listener for Ctrl + Up Arrow and Ctrl + Down Arrow
@@ -74,8 +90,9 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
 
   return (
     <div
+      ref={drawerRef}
       className={`absolute bottom-0 left-0 right-0 bg-gray-900 text-white transition-all duration-300 ${
-        isExpanded ? "h-96" : "h-12"
+        isExpanded ? "min-h-10" : "h-12"
       } overflow-hidden`}
     >
       {/* Header Row */}
@@ -118,40 +135,50 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
       {isExpanded && (
         <div className="p-4">
           {/* Button Row */}
-          <div className="flex space-x-4 mb-4">
-            <button
-              className={`bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-400 transition ${
-                isProcessing
-                  ? "opacity-50 cursor-not-allowed hover:bg-blue-500"
-                  : ""
-              }`}
-              onClick={() => handleProofread(content)}
-              disabled={isProcessing}
-            >
-              Proofreading
-            </button>
-            <button
-              className={`bg-green-500 text-white px-4 py-2 rounded hover:bg-green-400 transition ${
-                isProcessing
-                  ? "opacity-50 cursor-not-allowed hover:bg-green-500"
-                  : ""
-              }`}
-              onClick={() => handleAiAction(() => handleSuggestions(content))}
-              disabled={isProcessing || showDiff}
-            >
-              Suggestions
-            </button>
-            <button
-              className={`bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-400 transition ${
-                isProcessing
-                  ? "opacity-50 cursor-not-allowed hover:bg-yellow-500"
-                  : ""
-              }`}
-              onClick={() => handleAiAction(() => handleReview(content))}
-              disabled={isProcessing || showDiff}
-            >
-              Review
-            </button>
+          <div className="flex justify-between items-center space-x-4 mb-4">
+            <div className="flex space-x-4">
+              <button
+                className={`bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-400 transition ${
+                  isProcessing
+                    ? "opacity-50 cursor-not-allowed hover:bg-blue-500"
+                    : ""
+                }`}
+                onClick={() => handleProofread(content)}
+                disabled={isProcessing}
+              >
+                Proofreading
+              </button>
+              <button
+                className={`bg-green-500 text-white px-4 py-2 rounded hover:bg-green-400 transition ${
+                  isProcessing || showDiff
+                    ? "opacity-50 cursor-not-allowed hover:bg-green-500"
+                    : ""
+                }`}
+                onClick={() => handleAiAction(() => handleSuggestions(content))}
+                disabled={isProcessing || showDiff}
+              >
+                Suggestions
+              </button>
+              <button
+                className={`bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-400 transition ${
+                  isProcessing || showDiff
+                    ? "opacity-50 cursor-not-allowed hover:bg-yellow-500"
+                    : ""
+                }`}
+                onClick={() => handleAiAction(() => handleReview(content))}
+                disabled={isProcessing || showDiff}
+              >
+                Review
+              </button>
+            </div>
+            {aiResponse && (
+              <button
+                className="flex items-center bg-red-500 text-white px-4 py-2 rounded hover:bg-red-400 transition focus:outline-none focus:ring focus:ring-red-300"
+                onClick={() => setAiResponse(null)} // Clear the AI response
+              >
+                <FiSlash />
+              </button>
+            )}
           </div>
 
           {/* Additional Content */}
@@ -161,22 +188,6 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
                 <pre>
                   <code>Asking the AI...</code>
                 </pre>
-              </div>
-            ) : aiResponse ? (
-              <div className="bg-gray-900 text-gray-100 text-sm p-4 rounded overflow-y-auto max-h-60">
-                <ReactMarkdown
-                  rehypePlugins={[rehypeSanitize]}
-                  components={{
-                    li: ({ children }) => (
-                      <li className="list-disc ml-4 p-2">{children}</li>
-                    ),
-                    strong: ({ children }) => (
-                      <strong className="text-blue-500">{children}</strong>
-                    ),
-                  }}
-                >
-                  {aiResponse}
-                </ReactMarkdown>
               </div>
             ) : showDiff ? (
               <div className="flex space-x-2">
@@ -197,6 +208,22 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
                 >
                   Decline All Changes
                 </button>
+              </div>
+            ) : aiResponse ? (
+              <div className="bg-gray-900 text-gray-100 text-sm p-4 rounded overflow-y-auto max-h-60">
+                <ReactMarkdown
+                  rehypePlugins={[rehypeSanitize]}
+                  components={{
+                    li: ({ children }) => (
+                      <li className="list-disc ml-4 p-2">{children}</li>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className="text-blue-500">{children}</strong>
+                    ),
+                  }}
+                >
+                  {aiResponse}
+                </ReactMarkdown>
               </div>
             ) : null}
           </div>
