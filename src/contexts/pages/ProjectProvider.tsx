@@ -135,14 +135,14 @@ export const ProjectProvider: React.FC<{
           setIsBackingUp(true);
           await new Promise((resolve) => setTimeout(resolve, 1000));
           await backupProject(decodeURIComponent(projectName));
-        } catch (error) {
-          showError(error, "backing up project");
-        } finally {
-          setIsBackingUp(false);
           setProjectMetadata((prevMetadata) => ({
             ...prevMetadata,
             lastBackedUp: new Date(),
           }));
+        } catch (error) {
+          showError(error, "backing up project");
+        } finally {
+          setIsBackingUp(false);
         }
       }
     }

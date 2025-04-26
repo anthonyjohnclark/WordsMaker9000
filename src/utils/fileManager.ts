@@ -119,53 +119,82 @@ export async function deleteProject(projectName: string) {
 
 // List project summaries
 export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
-  const projects = await readDir(BASE_DIR, { baseDir: BaseDirectory.AppData });
+  try {
+    const projects = await readDir(BASE_DIR, {
+      baseDir: BaseDirectory.AppData,
+    });
+    const projectSummaries = await Promise.all(
+      projects.map(async (project) => {
+        try {
+          const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
+          const content = await readTextFile(metadataPath, {
+            baseDir: BaseDirectory.AppData,
+          });
+          const {
+            projectName,
+            createDate,
+            lastModified,
+            wordCount,
+            lastBackedUp,
+            projectType,
+          } = JSON.parse(content);
+          return {
+            projectName,
+            createDate,
+            lastModified,
+            wordCount,
+            lastBackedUp,
+            projectType,
+          };
+        } catch (error) {
+          console.error(
+            `Error reading metadata for project ${project.name}:`,
+            error
+          );
+          return null;
+        }
+      })
+    );
 
-  const projectSummaries = await Promise.all(
-    projects.map(async (project) => {
-      const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
-      const content = await readTextFile(metadataPath, {
-        baseDir: BaseDirectory.AppData,
-      });
-      const {
-        projectName,
-        createDate,
-        lastModified,
-        wordCount,
-        lastBackedUp,
-        projectType,
-      } = JSON.parse(content);
-      return {
-        projectName,
-        createDate,
-        lastModified,
-        wordCount,
-        lastBackedUp,
-        projectType,
-      };
-    })
-  );
-
-  return projectSummaries.filter((metadata) => metadata !== null);
+    return projectSummaries.filter((metadata) => metadata !== null);
+  } catch (error) {
+    console.error("Error reading projects directory:", error);
+    return [];
+  }
 }
 
 // List all projects
 // List all projects with their metadata
 export async function listProjectsWithMetadata() {
-  const projects = await readDir(BASE_DIR, { baseDir: BaseDirectory.AppData });
-
-  const projectMetadataPromises = projects.map(async (project) => {
-    const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
-    const content = await readTextFile(metadataPath, {
+  try {
+    const projects = await readDir(BASE_DIR, {
       baseDir: BaseDirectory.AppData,
     });
-    return JSON.parse(content) as ProjectMetadata;
-  });
 
-  const metadataList = await Promise.all(projectMetadataPromises);
+    const projectMetadataPromises = projects.map(async (project) => {
+      try {
+        const metadataPath = `${BASE_DIR}/${project.name}/metadata.json`;
+        const content = await readTextFile(metadataPath, {
+          baseDir: BaseDirectory.AppData,
+        });
+        return JSON.parse(content) as ProjectMetadata;
+      } catch (error) {
+        console.error(
+          `Error reading metadata for project ${project.name}:`,
+          error
+        );
+        return null;
+      }
+    });
 
-  // Filter out any projects where metadata could not be read
-  return metadataList.filter((metadata) => metadata !== null);
+    const metadataList = await Promise.all(projectMetadataPromises);
+
+    // Filter out any projects where metadata could not be read
+    return metadataList.filter((metadata) => metadata !== null);
+  } catch (error) {
+    console.error("Error reading projects directory:", error);
+    return [];
+  }
 }
 
 // Read metadata for a project
@@ -192,9 +221,17 @@ export function getCurrentTimestamp() {
 // Recursive function to copy files and directories
 export async function copyDirectoryContents(
   sourcePath: string,
-  destinationPath: string
+  destinationPath: string,
+  isBackup = false
 ) {
-  const entries = await readDir(sourcePath, { baseDir: BaseDirectory.AppData });
+  const sourceBaseDir = isBackup
+    ? BaseDirectory.Document
+    : BaseDirectory.AppData;
+  const destinationBaseDir = isBackup
+    ? BaseDirectory.AppData
+    : BaseDirectory.Document;
+
+  const entries = await readDir(sourcePath, { baseDir: sourceBaseDir });
 
   for (const entry of entries) {
     const sourceEntryPath = await join(sourcePath, entry.name);
@@ -202,16 +239,46 @@ export async function copyDirectoryContents(
 
     if (entry.isDirectory) {
       await mkdir(destinationEntryPath, {
-        baseDir: BaseDirectory.AppData,
+        baseDir: destinationBaseDir,
         recursive: true,
       });
-      await copyDirectoryContents(sourceEntryPath, destinationEntryPath);
+      await copyDirectoryContents(
+        sourceEntryPath,
+        destinationEntryPath,
+        isBackup
+      );
     } else {
       await copyFile(sourceEntryPath, destinationEntryPath, {
-        fromPathBaseDir: BaseDirectory.AppData,
-        toPathBaseDir: BaseDirectory.Document,
+        fromPathBaseDir: sourceBaseDir,
+        toPathBaseDir: destinationBaseDir,
       });
     }
+  }
+}
+
+// Restore a project from backup
+export async function restoreProjectFromBackup(
+  projectName: string,
+  backupFolderName: string
+) {
+  const projectPath = `${BASE_DIR}/${projectName}`;
+  const backupPath = `${BACKUP_DIR}/${backupFolderName}`;
+  try {
+    // Remove current project contents
+    await remove(projectPath, {
+      baseDir: BaseDirectory.AppData,
+      recursive: true,
+    });
+    // Recreate project directory
+    await mkdir(projectPath, {
+      baseDir: BaseDirectory.AppData,
+      recursive: true,
+    });
+    // Copy backup contents to project directory
+    await copyDirectoryContents(backupPath, projectPath, true);
+  } catch (error) {
+    console.error("Error restoring backup:", error);
+    throw error;
   }
 }
 

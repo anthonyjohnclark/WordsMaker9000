@@ -14,6 +14,7 @@ import GlobalModal from "../components/GlobalModal";
 import { useErrorContext } from "../contexts/global/ErrorContext";
 import ErrorModal from "../components/ErrorModal";
 import { UserSettingsModal } from "../components/UserSettingsModal";
+import RestoreBackupsModal from "../components/projectComponents/modals/RestoreBackupsModal";
 import { FaCog } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -26,6 +27,8 @@ export default function HomePage() {
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectType, setProjectType] = useState<ProjectType | "">(""); // Default to blank
+
+  console.log(projects);
 
   const isCreateDisabled = !newProjectName.trim() || !projectType; // Disable if either field is invalid
 
@@ -172,17 +175,18 @@ export default function HomePage() {
               {projects.map((project) => (
                 <li
                   key={project.projectName}
-                  className="bg-gray-900 rounded-lg shadow-lg p-4 relative hover:bg-gray-700 transition"
+                  className="bg-gray-900 rounded-lg shadow-lg p-2 relative hover:bg-gray-700 transition"
                 >
                   {/* Project Link */}
-                  <a
-                    href={`/projects/${project.projectName}`}
-                    className="text-xl font-semibold text-blue-400 hover:underline futuristic-font"
-                  >
-                    {decodeURIComponent(project.projectName)}
-                  </a>
-                  <div className="mt-2 text-sm text-gray-400 flex justify-between">
+                  <div className="mt-2 text-sm pb-2 text-gray-400 flex justify-between items-center">
                     <div>
+                      <a
+                        href={`/projects/${project.projectName}`}
+                        className="text-xl font-semibold text-blue-400 hover:underline futuristic-font"
+                      >
+                        {decodeURIComponent(project.projectName)}
+                      </a>
+
                       <p>
                         <span className="font-semibold text-gray-300">
                           Type:
@@ -208,31 +212,68 @@ export default function HomePage() {
                         </span>
                       </p>
                     </div>
-                    <p className="pt-5">
-                      <span className="font-semibold text-gray-300">
-                        Word Count:
-                      </span>{" "}
-                      <span className="text-blue-500">{project.wordCount}</span>
-                    </p>
+                    <div className="flex flex-col space-y-2 items-end">
+                      <p>
+                        <span className="font-semibold text-gray-300">
+                          Word Count:
+                        </span>{" "}
+                        <span className="text-blue-500">
+                          {project.wordCount}
+                        </span>
+                      </p>
+
+                      <button
+                        onClick={() => {
+                          modal.renderModal({
+                            modalBody: (
+                              <DeleteProjectConfirmationModal
+                                projectName={project.projectName}
+                                onCancel={modal.handleClose}
+                                handleSetNewProjects={handleSetNewProjects}
+                              />
+                            ),
+                          });
+                        }}
+                        className="bg-red-500 text-white p-1 rounded-lg w-24 text-center mt-4"
+                        title="Delete Project"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => {
+                          modal.renderModal({
+                            modalBody: (
+                              <RestoreBackupsModal
+                                projectName={project.projectName}
+                                onRestoreSuccess={async () => {
+                                  // Refresh projects list after restore
+                                  const updatedProjects =
+                                    await listProjectsSummary();
+                                  const sortedProjects = updatedProjects.sort(
+                                    (a, b) => {
+                                      const dateA = a.lastModified
+                                        ? new Date(a.lastModified).getTime()
+                                        : 0;
+                                      const dateB = b.lastModified
+                                        ? new Date(b.lastModified).getTime()
+                                        : 0;
+                                      return dateB - dateA;
+                                    }
+                                  );
+                                  setProjects(sortedProjects);
+                                  modal.handleClose();
+                                }}
+                              />
+                            ),
+                          });
+                        }}
+                        className="bg-yellow-500 text-white p-1 rounded-lg w-24 text-center mt-4"
+                        title="Restore Project"
+                      >
+                        Restore
+                      </button>
+                    </div>
                   </div>
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => {
-                      modal.renderModal({
-                        modalBody: (
-                          <DeleteProjectConfirmationModal
-                            projectName={project.projectName}
-                            onCancel={modal.handleClose}
-                            handleSetNewProjects={handleSetNewProjects}
-                          />
-                        ),
-                      });
-                    }}
-                    className="absolute top-4 right-4 bg-red-500 text-white p-1 rounded-lg"
-                    title="Delete Project"
-                  >
-                    Delete
-                  </button>
                 </li>
               ))}
             </ul>

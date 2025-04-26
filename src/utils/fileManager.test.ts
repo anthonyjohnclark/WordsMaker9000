@@ -23,6 +23,7 @@ import {
   deleteFile,
   copyDirectoryContents,
   getCurrentTimestamp,
+  restoreProjectFromBackup,
   UserSettings,
 } from "./fileManager";
 
@@ -412,6 +413,56 @@ describe("fileManager", () => {
       (exists as jest.Mock).mockResolvedValue(true);
       (readTextFile as jest.Mock).mockRejectedValue(new Error("read error"));
       await expect(retrieveSettings()).rejects.toThrow("read error");
+    });
+  });
+
+  describe("restoreProjectFromBackup", () => {
+    it("should remove project directory, recreate it, and copy backup contents", async () => {
+      const projectName = "TestProject";
+      const backupFolderName = "TestProject_backup";
+
+      (remove as jest.Mock).mockResolvedValue(undefined);
+      (mkdir as jest.Mock).mockResolvedValue(undefined);
+
+      // Mock readDir to return an array with one file to simulate actual copyDirectoryContents behavior
+      const readDirMock = require("@tauri-apps/plugin-fs").readDir as jest.Mock;
+      readDirMock.mockResolvedValue([
+        { name: "file1.txt", isDirectory: false },
+      ]);
+
+      // Mock mkdir and copyFile to simulate copyDirectoryContents behavior
+      const mkdirMock = require("@tauri-apps/plugin-fs").mkdir as jest.Mock;
+      const copyFileMock = require("@tauri-apps/plugin-fs")
+        .copyFile as jest.Mock;
+      mkdirMock.mockResolvedValue(undefined);
+      copyFileMock.mockResolvedValue(undefined);
+
+      await restoreProjectFromBackup(projectName, backupFolderName);
+
+      expect(remove).toHaveBeenCalledWith(`Projects/${projectName}`, {
+        baseDir: "AppData",
+        recursive: true,
+      });
+
+      expect(mkdir).toHaveBeenCalledWith(`Projects/${projectName}`, {
+        baseDir: "AppData",
+        recursive: true,
+      });
+
+      expect(mkdirMock).toHaveBeenCalledWith(`Projects/${projectName}`, {
+        baseDir: "AppData",
+        recursive: true,
+      });
+
+      expect(copyFileMock).toHaveBeenCalledWith(
+        `WordsMaker3000Backups/${backupFolderName}/file1.txt`,
+        `Projects/${projectName}/file1.txt`,
+        { fromPathBaseDir: "Document", toPathBaseDir: "AppData" }
+      );
+
+      readDirMock.mockRestore();
+      mkdirMock.mockRestore();
+      copyFileMock.mockRestore();
     });
   });
 });
