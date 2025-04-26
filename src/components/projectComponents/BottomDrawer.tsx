@@ -91,9 +91,9 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   return (
     <div
       ref={drawerRef}
-      className={`absolute bottom-0 left-0 right-0 bg-gray-900 text-white transition-all duration-300 ease-in-out ${
-        isExpanded ? "min-h-10" : "h-12"
-      } overflow-hidden`}
+      className={`absolute bottom-0 left-0 right-0 bg-gray-900 text-white overflow-hidden transition-all duration-300 ease-in-out ${
+        isExpanded ? "max-h-[500px]" : "max-h-12"
+      }`}
     >
       {/* Header Row */}
       <div className="flex items-center justify-between p-2 border-t border-gray-700">
