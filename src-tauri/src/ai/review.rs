@@ -5,10 +5,13 @@ pub async fn ai_review(content: String) -> Result<OpenAIResponse, String> {
     let api_key = get_api_key()?;
     let client = create_client();
 
+    let system_role_content = std::env::var("REVIEW_SYSTEM_ROLE")
+        .unwrap_or_else(|_| "You are an expert content reviewer. Provide detailed feedback on the following content:".to_string());
+
     let body = serde_json::json!({
         "model": "gpt-3.5-turbo",
         "messages": [
-            { "role": "system", "content": "You are an expert content reviewer. Provide detailed feedback on the following content:" },
+            { "role": "system", "content": system_role_content },
             { "role": "user", "content": content }
         ]
     });

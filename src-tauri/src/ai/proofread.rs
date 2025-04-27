@@ -5,10 +5,13 @@ pub async fn proofread_content(content: String) -> Result<OpenAIResponse, String
     let api_key = get_api_key()?;
     let client = create_client();
 
+    let system_role_content = std::env::var("PROOFREAD_SYSTEM_ROLE")
+        .unwrap_or_else(|_| "You are a professional editor. Proofread the content below and return it as clean HTML:".to_string());
+
     let body = serde_json::json!({
         "model": "gpt-3.5-turbo",
         "messages": [
-            { "role": "system", "content": "You are a professional editor. Proofread the content below and return it as clean HTML:" },
+            { "role": "system", "content": system_role_content },
             { "role": "user", "content": content }
         ]
     });
