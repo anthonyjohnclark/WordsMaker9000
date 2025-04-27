@@ -12,6 +12,8 @@ It's a simple app, but it's mine!
 
 ![the editor in action](./heywow.PNG)
 
+![nested folders and AI ](./nestedFoldersAndAI.PNG)
+
 ## Technical Overview
 
 - **Frontend:** Built with React and TypeScript, leveraging Vite for ultra-fast hot module replacement and streamlined builds.
