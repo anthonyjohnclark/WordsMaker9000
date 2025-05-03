@@ -8,11 +8,21 @@ export function calculateTreeWordCount(treeData: ExtendedNodeModel[]): number {
 }
 
 export const convertToCurlyQuotes = (text: string) => {
-  return text
-    .replace(/"([^"]*)"/g, "“$1”") // Double quotes
-    .replace(/'([^']*)'/g, "‘$1’") // Single quotes
-    .replace(/(\b'\b|\w'\w)/g, (match) => match.replace("'", "’")) // Apostrophes
-    .replace(/--/g, "—"); // Replace double dashes with em-dash
+  // Replace straight double quotes with curly quotes
+  let result = text.replace(/(^|[\s(\[{<])"(?=\S)/g, "$1“"); // Opening double quote
+  result = result.replace(/(\S)"([\s)\]}>.,!?:;]|$)/g, "$1”$2"); // Closing double quote
+
+  // Replace straight single quotes with curly quotes
+  result = result.replace(/(^|[\s(\[{<])'(?=\S)/g, "$1‘"); // Opening single quote
+  result = result.replace(/(\S)'([\s)\]}>.,!?:;]|$)/g, "$1’$2"); // Closing single quote
+
+  // Replace apostrophes (contractions and possessives)
+  result = result.replace(/(\w)'(\w)/g, "$1’$2");
+
+  // Replace double dashes with em-dash
+  result = result.replace(/--/g, "—");
+
+  return result;
 };
 
 export const stripHtmlTags = (html: string) => {
