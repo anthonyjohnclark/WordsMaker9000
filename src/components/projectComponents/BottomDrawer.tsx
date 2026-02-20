@@ -91,40 +91,48 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   return (
     <div
       ref={drawerRef}
-      className={`absolute bottom-0 left-0 right-0 bg-gray-900 text-white overflow-hidden transition-all duration-300 ease-in-out ${
+      className={`absolute bottom-0 left-0 right-0 overflow-hidden transition-all duration-300 ease-in-out ${
         isExpanded ? "max-h-[500px]" : "max-h-12"
       }`}
+      style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}
     >
       {/* Header Row */}
-      <div className="flex items-center justify-between p-2 border-t border-gray-700">
+      <div
+        className="flex items-center justify-between p-2 border-t"
+        style={{ borderColor: "var(--border-color)" }}
+      >
         {settings?.aiSuiteEnabled && (
           <h3 className="text-lg font-semibold">AI Suite</h3>
         )}
         <div className="flex items-center space-x-4">
           <span className="text-sm">
             <span className="font-bold">Created:</span>{" "}
-            <span className="text-green-500">
+            <span style={{ color: "var(--btn-success)" }}>
               {project?.selectedFile?.data?.createDate &&
                 formatDateTime(project.selectedFile.data.createDate)}
             </span>
           </span>
           <span className="text-sm">
             <span className="font-bold">Last Edited:</span>{" "}
-            <span className="text-green-500">
+            <span style={{ color: "var(--btn-success)" }}>
               {project?.selectedFile?.data?.lastModified &&
                 formatDateTime(project.selectedFile.data.lastModified)}
             </span>
           </span>
           <span className="text-sm">
             <span className="font-bold">Word Count:</span>{" "}
-            <span className="text-blue-500">
+            <span style={{ color: "var(--btn-primary)" }}>
               {project?.selectedFile?.data?.wordCount}
             </span>
           </span>
           {settings?.aiSuiteEnabled && !showDiff && !isProcessing && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="bg-gray-700 px-3 py-1 rounded hover:bg-gray-500 focus:outline-none focus:ring focus:ring-blue-500"
+              className="px-3 py-1 rounded focus:outline-none"
+              style={{
+                background: "var(--bg-input)",
+                color: "var(--text-primary)",
+              }}
             >
               {isExpanded ? <FiChevronDown /> : <FiChevronUp />}
             </button>
@@ -138,33 +146,43 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
           <div className="flex justify-between items-center space-x-4 mb-4">
             <div className="flex space-x-4">
               <button
-                className={`bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-400 transition ${
-                  isProcessing
-                    ? "opacity-50 cursor-not-allowed hover:bg-blue-500"
-                    : ""
+                className={`px-4 py-2 rounded transition ${
+                  isProcessing ? "opacity-50 cursor-not-allowed" : ""
                 }`}
+                style={{
+                  background: "var(--btn-primary)",
+                  color: "var(--btn-text)",
+                }}
                 onClick={() => handleProofread(content)}
                 disabled={isProcessing}
               >
                 Proofreading
               </button>
               <button
-                className={`bg-green-500 text-white px-4 py-2 rounded hover:bg-green-400 transition ${
+                className={`px-4 py-2 rounded transition ${
                   isProcessing || showDiff
-                    ? "opacity-50 cursor-not-allowed hover:bg-green-500"
+                    ? "opacity-50 cursor-not-allowed"
                     : ""
                 }`}
+                style={{
+                  background: "var(--btn-success)",
+                  color: "var(--btn-text)",
+                }}
                 onClick={() => handleAiAction(() => handleSuggestions(content))}
                 disabled={isProcessing || showDiff}
               >
                 Suggestions
               </button>
               <button
-                className={`bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-400 transition ${
+                className={`px-4 py-2 rounded transition ${
                   isProcessing || showDiff
-                    ? "opacity-50 cursor-not-allowed hover:bg-yellow-500"
+                    ? "opacity-50 cursor-not-allowed"
                     : ""
                 }`}
+                style={{
+                  background: "var(--accent-bg)",
+                  color: "var(--accent-text)",
+                }}
                 onClick={() => handleAiAction(() => handleReview(content))}
                 disabled={isProcessing || showDiff}
               >
@@ -173,7 +191,11 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
             </div>
             {aiResponse && (
               <button
-                className="flex items-center bg-red-500 text-white px-4 py-2 rounded hover:bg-red-400 transition focus:outline-none focus:ring focus:ring-red-300"
+                className="flex items-center px-4 py-2 rounded transition focus:outline-none"
+                style={{
+                  background: "var(--btn-danger)",
+                  color: "var(--btn-text)",
+                }}
                 onClick={() => setAiResponse(null)} // Clear the AI response
               >
                 <FiSlash />
@@ -182,9 +204,18 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
           </div>
 
           {/* Additional Content */}
-          <div className="border-t border-gray-600 pt-4">
+          <div
+            className="border-t pt-4"
+            style={{ borderColor: "var(--border-color)" }}
+          >
             {isProcessing ? (
-              <div className="bg-gray-900 text-gray-400 font-mono text-sm p-4 rounded">
+              <div
+                className="font-mono text-sm p-4 rounded"
+                style={{
+                  background: "var(--bg-primary)",
+                  color: "var(--text-secondary)",
+                }}
+              >
                 <pre>
                   <code>Asking the AI...</code>
                 </pre>
@@ -193,24 +224,36 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
               <div className="flex space-x-2">
                 <button
                   onClick={() => handleAccept()}
-                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-400"
+                  className="px-4 py-2 rounded"
+                  style={{
+                    background: "var(--btn-success)",
+                    color: "var(--btn-text)",
+                  }}
                 >
                   Accept Changes
                 </button>
                 <button
                   onClick={() => declineAllChanges()}
-                  className={`bg-red-500 text-white px-4 py-2 rounded hover:bg-red-400 ${
-                    isProcessing
-                      ? "opacity-50 cursor-not-allowed hover:bg-red-500"
-                      : ""
+                  className={`px-4 py-2 rounded ${
+                    isProcessing ? "opacity-50 cursor-not-allowed" : ""
                   }`}
+                  style={{
+                    background: "var(--btn-danger)",
+                    color: "var(--btn-text)",
+                  }}
                   disabled={isProcessing}
                 >
                   Decline All Changes
                 </button>
               </div>
             ) : aiResponse ? (
-              <div className="bg-gray-900 text-gray-100 text-sm p-4 rounded overflow-y-auto max-h-60">
+              <div
+                className="text-sm p-4 rounded overflow-y-auto max-h-60"
+                style={{
+                  background: "var(--bg-primary)",
+                  color: "var(--text-primary)",
+                }}
+              >
                 <ReactMarkdown
                   rehypePlugins={[rehypeSanitize]}
                   components={{
@@ -218,7 +261,9 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
                       <li className="list-disc ml-4 p-2">{children}</li>
                     ),
                     strong: ({ children }) => (
-                      <strong className="text-blue-500">{children}</strong>
+                      <strong style={{ color: "var(--btn-primary)" }}>
+                        {children}
+                      </strong>
                     ),
                   }}
                 >

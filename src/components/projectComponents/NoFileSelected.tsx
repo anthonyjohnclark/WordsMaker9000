@@ -6,18 +6,28 @@ const NoFileSelectedContent: React.FC = () => {
 
   return (
     <div className="flex-1 flex items-center justify-center h-full">
-      <div className="text-center max-w-md bg-gray-900 text-white rounded-lg shadow-lg p-8 relative ">
+      <div
+        className="text-center max-w-md rounded-lg shadow-lg p-8 relative"
+        style={{ background: "var(--card-bg)", color: "var(--text-primary)" }}
+      >
         {/* Project Name */}
-        <h1 className="text-2xl font-bold mb-6 text-yellow-500">
+        <h1
+          className="text-2xl font-bold mb-6"
+          style={{ color: "var(--accent)" }}
+        >
           {decodeURIComponent(project.projectName)}
         </h1>
 
         {/* Arrow to Sidebar */}
         <div className="absolute left-[-80px] top-1/2 transform -translate-y-1/2 flex items-center">
           <div className="flex flex-col items-center">
-            <div className="bg-gray-700 p-2 rounded-full">
+            <div
+              className="p-2 rounded-full"
+              style={{ background: "var(--bg-input)" }}
+            >
               <svg
-                className="w-6 h-6 text-white"
+                className="w-6 h-6"
+                style={{ color: "var(--text-primary)" }}
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -35,7 +45,7 @@ const NoFileSelectedContent: React.FC = () => {
         </div>
 
         {/* Jumbotron Message */}
-        <p className="text-lg text-gray-300 mb-6">
+        <p className="text-lg mb-6" style={{ color: "var(--text-secondary)" }}>
           Select a file from the sidebar or create one to start editing.
         </p>
       </div>

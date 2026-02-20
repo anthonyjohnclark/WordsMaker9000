@@ -37,7 +37,11 @@ const Sidebar: React.FC = () => {
       <div
         className={`${
           project.isSidebarOpen ? "w-[16rem]" : "w-12"
-        } bg-gray-900 text-white flex flex-col transition-all duration-300 ease-in-out`}
+        } flex flex-col transition-all duration-300 ease-in-out`}
+        style={{
+          background: "var(--bg-primary)",
+          color: "var(--text-primary)",
+        }}
       >
         {/* Header with Toggle Button, Project Name, and Action Buttons */}
         <div className="flex items-center justify-between p-3 pb-0">
@@ -57,7 +61,10 @@ const Sidebar: React.FC = () => {
 
             {project.isSidebarOpen && (
               <div className="ml-4">
-                <h2 className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis text-white">
+                <h2
+                  className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   {project.projectMetadata.projectType}
                 </h2>
               </div>
@@ -90,7 +97,8 @@ const Sidebar: React.FC = () => {
                     ),
                   });
                 }}
-                className="text-green-500 cursor-pointer hover:text-green-400 text-xl"
+                className="cursor-pointer text-xl"
+                style={{ color: "var(--btn-success)" }}
                 title="Add File"
               />
               <FiFolderPlus
@@ -116,7 +124,8 @@ const Sidebar: React.FC = () => {
                     ),
                   });
                 }}
-                className="text-blue-500 cursor-pointer hover:text-blue-400 text-xl"
+                className="cursor-pointer text-xl"
+                style={{ color: "var(--btn-primary)" }}
                 title="Add Folder"
               />
             </div>
@@ -152,7 +161,7 @@ const Sidebar: React.FC = () => {
                   <div
                     style={{
                       padding: depth,
-                      borderBottom: "2px solid white",
+                      borderBottom: "2px solid var(--text-primary)",
                     }}
                   ></div>
                 )}

@@ -3,22 +3,40 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
   --editor-font-size: 16px; /* Default font size */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Theme variables — defaults match Midnight theme, overridden at runtime */
+  --bg-primary: #111827;
+  --bg-secondary: #000000;
+  --bg-input: #374151;
+  --bg-hover: #374151;
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --accent: #eab308;
+  --accent-hover: #fde047;
+  --accent-bg: #eab308;
+  --accent-bg-hover: #facc15;
+  --border-color: #374151;
+  --editor-font-family: Consolas, monospace;
+  --editor-bg: #111827;
+  --editor-text: #e5e7eb;
+  --toolbar-active: #eab308;
+  --btn-primary: #3b82f6;
+  --btn-primary-hover: #60a5fa;
+  --btn-success: #22c55e;
+  --btn-success-hover: #4ade80;
+  --btn-danger: #ef4444;
+  --btn-danger-hover: #f87171;
+  --card-bg: #111827;
+  --modal-bg: #111827;
+  --btn-text: #111827;
+  --accent-text: #111827;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Consolas, monospace;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  font-family: var(--editor-font-family);
   -ms-overflow-style: none;
 }
 
@@ -29,18 +47,36 @@ body {
 /* Remove white border */
 .ql-container {
   border: none !important;
+  background: var(--editor-bg);
 }
 
 .ql-toolbar {
   border: none !important;
+  background: var(--bg-primary);
+}
+
+.ql-toolbar .ql-stroke {
+  stroke: var(--text-secondary) !important;
+}
+
+.ql-toolbar .ql-fill {
+  fill: var(--text-secondary) !important;
+}
+
+.ql-toolbar .ql-picker-label {
+  color: var(--text-secondary) !important;
 }
 
 /* Fullscreen editor adjustments */
+.fullscreen-editor {
+  background: var(--editor-bg);
+}
+
 .fullscreen-editor .ql-container {
   border: none !important;
-  margin-left: 5em;
-  margin-right: 5em;
-  padding-top: 5em;
+  margin-left: 2.5em;
+  margin-right: 2.5em;
+  padding-top: 1em;
 }
 
 .fullscreen-editor .ql-toolbar {
@@ -56,9 +92,36 @@ body {
   display: none; /* Chrome, Safari and Opera */
 }
 
+/* Custom styled scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-bg);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
 .ql-editor {
-  font-family: Consolas, monospace;
+  font-family: var(--editor-font-family);
   font-size: var(--editor-font-size); /* Use CSS variable */
+  color: var(--editor-text);
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
@@ -72,7 +135,7 @@ body {
 }
 
 .futuristic-font {
-  font-family: "Orbitron", sans-serif;
+  font-family: var(--editor-font-family);
 }
 
 .ql-snow.ql-toolbar button:hover .ql-stroke,
@@ -103,8 +166,8 @@ body {
 .ql-snow .ql-toolbar .ql-picker-item:hover .ql-stroke-miter,
 .ql-snow.ql-toolbar .ql-picker-item.ql-selected .ql-stroke-miter,
 .ql-snow .ql-toolbar .ql-picker-item.ql-selected .ql-stroke-miter {
-  color: #eab308 !important; /* Tailwind's yellow-500 */
-  stroke: #eab308 !important; /* Ensure SVG icons are also updated */
+  color: var(--toolbar-active) !important;
+  stroke: var(--toolbar-active) !important;
 }
 
 /* Override React-Quill toolbar styles */
@@ -122,7 +185,7 @@ body {
 .ql-snow .ql-toolbar .ql-picker-item:hover,
 .ql-snow.ql-toolbar .ql-picker-item.ql-selected,
 .ql-snow .ql-toolbar .ql-picker-item.ql-selected {
-  color: #eab308 !important; /* Tailwind's yellow-500 */
-  stroke: #eab308 !important; /* For SVG icons */
-  background-color: transparent !important; /* Optional, for hover background */
+  color: var(--toolbar-active) !important;
+  stroke: var(--toolbar-active) !important;
+  background-color: transparent !important;
 }

@@ -20,7 +20,7 @@ export const RenameModal = ({ node }: IProps) => {
   const project = useProjectContext();
 
   const handleRenameSubmit = async (
-    node: ExtendedNodeModel | NodeModel<NodeData>
+    node: ExtendedNodeModel | NodeModel<NodeData>,
   ) => {
     if (newName.trim()) {
       setIsLoading(true);
@@ -41,7 +41,10 @@ export const RenameModal = ({ node }: IProps) => {
   return (
     <Loadable isLoading={isLoading}>
       <>
-        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+        <h2
+          className="text-lg font-bold mb-4 flex items-center gap-2"
+          style={{ color: "var(--text-primary)" }}
+        >
           Rename Folder
         </h2>
         <input
@@ -49,19 +52,32 @@ export const RenameModal = ({ node }: IProps) => {
           value={newName}
           placeholder={node.text}
           onChange={(e) => setNewName(e.target.value)}
-          className="w-full p-3 border border-gray-500 rounded bg-gray-700 text-white text-lg focus:outline-none focus:ring focus:ring-yellow-500"
+          className="w-full p-3 border rounded text-lg focus:outline-none"
+          style={{
+            borderColor: "var(--border-color)",
+            background: "var(--bg-input)",
+            color: "var(--text-primary)",
+          }}
           autoFocus
         />
         <div className="flex justify-end gap-4 mt-4">
           <button
             onClick={() => modal.handleClose()}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-400"
+            className="px-4 py-2 rounded"
+            style={{
+              background: "var(--bg-input)",
+              color: "var(--text-primary)",
+            }}
           >
             Cancel
           </button>
           <button
             onClick={() => handleRenameSubmit(node)}
-            className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-400"
+            className="px-4 py-2 rounded"
+            style={{
+              background: "var(--accent-bg)",
+              color: "var(--accent-text)",
+            }}
           >
             Save
           </button>

@@ -24,7 +24,11 @@ const Editor: React.FC = () => {
                 type="text"
                 value={project.selectedFile?.text || ""}
                 onChange={(e) => project.handleFileNameChange(e.target.value)}
-                className="w-full text-2xl font-semibold text-white bg-black p-2 rounded focus:outline-none focus:ring focus:ring-blue-500"
+                className="w-full text-2xl font-semibold p-2 rounded focus:outline-none"
+                style={{
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-primary)",
+                }}
               />
             </div>
 

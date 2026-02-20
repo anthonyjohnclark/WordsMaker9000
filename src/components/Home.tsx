@@ -16,9 +16,7 @@ import ErrorModal from "../components/ErrorModal";
 import { UserSettingsModal } from "../components/UserSettingsModal";
 import RestoreBackupsModal from "../components/projectComponents/modals/RestoreBackupsModal";
 import { FaCog } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
-
-import logo from "../assets/wordsmaker9000.png";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function HomePage() {
   const { showError } = useErrorContext();
@@ -86,7 +84,7 @@ export default function HomePage() {
 
   const handleSetNewProjects = (deletedProject: string) => {
     setProjects((prev) =>
-      prev.filter((project) => project.projectName !== deletedProject)
+      prev.filter((project) => project.projectName !== deletedProject),
     );
   };
 
@@ -95,42 +93,45 @@ export default function HomePage() {
       <GlobalModal />
       <ErrorModal />
 
-      <div className="flex flex-col h-full bg-black text-white overflow-x-hidden">
+      <div
+        className="flex flex-col h-full overflow-hidden"
+        style={{
+          background: "var(--bg-secondary)",
+          color: "var(--text-primary)",
+        }}
+      >
         {/* Header */}
-        <header className="bg-yellow-500 text-white py-6 shadow-md">
+        <header
+          className="py-6 shadow-md"
+          style={{
+            background: "var(--accent-bg)",
+            color: "var(--bg-primary)",
+          }}
+        >
           <div className="container mx-auto flex justify-between items-center px-6">
-            <div className="flex items-center space-x-3">
-              <img
-                src={logo}
-                alt="WordsMaker Logo"
-                className="h-11 w-12 object-contain"
-              />
-              <h1 className="text-3xl font-extrabold futuristic-font">
-                WordsMaker9000
-              </h1>
-            </div>
+            <h1 className="text-3xl font-extrabold futuristic-font">
+              Projects
+            </h1>
+            <button
+              onClick={() =>
+                modal.renderModal({
+                  modalBody: <UserSettingsModal onClose={modal.handleClose} />,
+                })
+              }
+              style={{ color: "var(--bg-primary)" }}
+              title="Settings"
+            >
+              <FaCog size={24} />
+            </button>
           </div>
         </header>
         {/* Main Content */}
         <Loadable isLoading={isLoadingProjects}>
-          <main className="flex-1 container mx-auto p-6">
-            <h2 className="text-3xl font-bold mb-6 futuristic-font flex items-center justify-between">
-              Projects
-              <button
-                onClick={() =>
-                  modal.renderModal({
-                    modalBody: (
-                      <UserSettingsModal onClose={modal.handleClose} />
-                    ),
-                  })
-                }
-                className="text-white hover:text-gray-200 ml-4"
-                title="Settings"
-              >
-                <FaCog size={24} />
-              </button>
-            </h2>
-            <div className="bg-gray-900 p-6 rounded-lg shadow-lg mb-6">
+          <main className="flex-1 container mx-auto p-6 flex flex-col overflow-hidden">
+            <div
+              className="p-6 rounded-lg shadow-lg mb-6"
+              style={{ background: "var(--card-bg)" }}
+            >
               <h3 className="text-xl font-bold mb-4">Create New Project</h3>
               <div className="flex items-center space-x-4">
                 <input
@@ -138,14 +139,24 @@ export default function HomePage() {
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   placeholder="New project name"
-                  className="flex-1 border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                  className="flex-1 border rounded p-2 focus:outline-none"
+                  style={{
+                    borderColor: "var(--border-color)",
+                    background: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                  }}
                 />
                 <select
                   value={projectType}
                   onChange={(e) =>
                     setProjectType(e.target.value as ProjectType)
                   }
-                  className="border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                  className="border rounded p-2 focus:outline-none"
+                  style={{
+                    borderColor: "var(--border-color)",
+                    background: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                  }}
                 >
                   <option value="" disabled>
                     Select a project type
@@ -160,64 +171,89 @@ export default function HomePage() {
 
                 <button
                   onClick={handleCreateProject}
-                  className={`bg-blue-500 text-white py-2 px-4 rounded transition ${
-                    isCreateDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-blue-400"
+                  className={`py-2 px-4 rounded transition ${
+                    isCreateDisabled ? "opacity-50 cursor-not-allowed" : ""
                   }`}
+                  style={{
+                    background: "var(--btn-primary)",
+                    color: "var(--btn-text)",
+                  }}
                   disabled={isCreateDisabled}
                 >
                   Create
                 </button>
               </div>
             </div>
-            <ul className="mb-6 space-y-4">
+            <ul className="mb-6 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
               {projects.map((project) => (
                 <li
                   key={project.projectName}
-                  className="bg-gray-900 rounded-lg shadow-lg p-2 relative hover:bg-gray-700 transition"
+                  className="rounded-lg shadow-lg p-2 relative transition"
+                  style={{ background: "var(--card-bg)" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "var(--bg-hover)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "var(--card-bg)")
+                  }
                 >
                   {/* Project Link */}
-                  <div className="mt-2 text-sm pb-2 text-gray-400 flex justify-between items-center">
+                  <div
+                    className="mt-2 text-sm pb-2 flex justify-between items-center"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     <div>
-                      <a
-                        href={`/projects/${project.projectName}`}
-                        className="text-xl font-semibold text-blue-400 hover:underline futuristic-font"
+                      <Link
+                        to={`/projects/${project.projectName}`}
+                        className="text-xl font-semibold hover:underline futuristic-font"
+                        style={{ color: "var(--btn-primary)" }}
                       >
                         {decodeURIComponent(project.projectName)}
-                      </a>
+                      </Link>
 
                       <p>
-                        <span className="font-semibold text-gray-300">
+                        <span
+                          className="font-semibold"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           Type:
                         </span>{" "}
-                        <span className="text-yellow-500">
+                        <span style={{ color: "var(--accent)" }}>
                           {project.projectType}
                         </span>
                       </p>
                       <p>
-                        <span className="font-semibold text-gray-300">
+                        <span
+                          className="font-semibold"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           Created:
                         </span>{" "}
-                        <span className="text-green-500">
+                        <span style={{ color: "var(--btn-success)" }}>
                           {formatDateTime(project.createDate)}
                         </span>
                       </p>
                       <p>
-                        <span className="font-semibold text-gray-300">
+                        <span
+                          className="font-semibold"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           Last Edited:
                         </span>{" "}
-                        <span className="text-green-500">
+                        <span style={{ color: "var(--btn-success)" }}>
                           {formatDateTime(project.lastModified ?? "")}
                         </span>
                       </p>
                     </div>
                     <div className="flex flex-col space-y-2 items-end">
                       <p>
-                        <span className="font-semibold text-gray-300">
+                        <span
+                          className="font-semibold"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           Word Count:
                         </span>{" "}
-                        <span className="text-blue-500">
+                        <span style={{ color: "var(--btn-primary)" }}>
                           {project.wordCount}
                         </span>
                       </p>
@@ -234,7 +270,11 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="bg-red-500 text-white p-1 rounded-lg w-24 text-center mt-4"
+                        className="p-1 rounded-lg w-24 text-center mt-4"
+                        style={{
+                          background: "var(--btn-danger)",
+                          color: "var(--btn-text)",
+                        }}
                         title="Delete Project"
                       >
                         Delete
@@ -258,7 +298,7 @@ export default function HomePage() {
                                         ? new Date(b.lastModified).getTime()
                                         : 0;
                                       return dateB - dateA;
-                                    }
+                                    },
                                   );
                                   setProjects(sortedProjects);
                                   modal.handleClose();
@@ -267,7 +307,11 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="bg-yellow-500 text-white p-1 rounded-lg w-24 text-center mt-4"
+                        className="p-1 rounded-lg w-24 text-center mt-4"
+                        style={{
+                          background: "var(--accent-bg)",
+                          color: "var(--accent-text)",
+                        }}
                         title="Restore Project"
                       >
                         Restore
@@ -280,7 +324,13 @@ export default function HomePage() {
           </main>
         </Loadable>
         {/* Footer */}
-        <footer className="bg-gray-900 text-gray-400 py-4">
+        <footer
+          className="py-4"
+          style={{
+            background: "var(--bg-primary)",
+            color: "var(--text-secondary)",
+          }}
+        >
           <div className="container mx-auto text-center">
             © {new Date().getFullYear()} WordsMaker9000 - All Rights Reserved
           </div>

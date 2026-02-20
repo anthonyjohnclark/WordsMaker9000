@@ -10,12 +10,14 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { join } from "path-browserify";
 import { ExtendedNodeModel } from "../types/ProjectPageTypes";
+import { ThemeName } from "../themes";
 
 export interface UserSettings {
   defaultFontZoom: number;
   defaultSaveInterval: number; // milliseconds
   defaultBackupInterval: number; // milliseconds
   aiSuiteEnabled: boolean;
+  theme: ThemeName;
 }
 
 const BASE_DIR = "Projects";
@@ -59,6 +61,7 @@ export async function retrieveSettings(): Promise<UserSettings> {
     defaultSaveInterval: 60000, // 1 minute
     defaultBackupInterval: 3600000, // 1 hour
     aiSuiteEnabled: false,
+    theme: "midnight",
   };
 
   const filePath = `${USER_DIR}/${SETTINGS_FILE}`;
@@ -81,7 +84,7 @@ export async function retrieveSettings(): Promise<UserSettings> {
 // Create a new project
 export async function createProject(
   projectName: string,
-  projectType: ProjectType | ""
+  projectType: ProjectType | "",
 ) {
   const projectPath = `${BASE_DIR}/${projectName}`;
   const metadataPath = `${projectPath}/metadata.json`;
@@ -149,11 +152,11 @@ export async function listProjectsSummary(): Promise<ProjectMetadataSummary[]> {
         } catch (error) {
           console.error(
             `Error reading metadata for project ${project.name}:`,
-            error
+            error,
           );
           return null;
         }
-      })
+      }),
     );
 
     return projectSummaries.filter((metadata) => metadata !== null);
@@ -181,7 +184,7 @@ export async function listProjectsWithMetadata() {
       } catch (error) {
         console.error(
           `Error reading metadata for project ${project.name}:`,
-          error
+          error,
         );
         return null;
       }
@@ -199,10 +202,10 @@ export async function listProjectsWithMetadata() {
 
 // Read metadata for a project
 export async function fetchFullMetadata(
-  projectName: string
+  projectName: string,
 ): Promise<ProjectMetadata> {
   const metadataPath = `${BASE_DIR}/${decodeURIComponent(
-    projectName
+    projectName,
   )}/metadata.json`;
 
   const content = await readTextFile(metadataPath, {
@@ -222,7 +225,7 @@ export function getCurrentTimestamp() {
 export async function copyDirectoryContents(
   sourcePath: string,
   destinationPath: string,
-  isBackup = false
+  isBackup = false,
 ) {
   const sourceBaseDir = isBackup
     ? BaseDirectory.Document
@@ -245,7 +248,7 @@ export async function copyDirectoryContents(
       await copyDirectoryContents(
         sourceEntryPath,
         destinationEntryPath,
-        isBackup
+        isBackup,
       );
     } else {
       await copyFile(sourceEntryPath, destinationEntryPath, {
@@ -259,7 +262,7 @@ export async function copyDirectoryContents(
 // Restore a project from backup
 export async function restoreProjectFromBackup(
   projectName: string,
-  backupFolderName: string
+  backupFolderName: string,
 ) {
   const projectPath = `${BASE_DIR}/${projectName}`;
   const backupPath = `${BACKUP_DIR}/${backupFolderName}`;
@@ -300,7 +303,7 @@ export async function backupProject(projectName: string) {
     baseDir: BaseDirectory.Document,
   });
   const projectBackups = entries.filter(
-    (entry) => entry.name.startsWith(`${projectName}_`) && entry.isDirectory
+    (entry) => entry.name.startsWith(`${projectName}_`) && entry.isDirectory,
   );
 
   // Sort backups by timestamp (ascending order)
@@ -328,10 +331,10 @@ export async function backupProject(projectName: string) {
 // Write metadata for a project
 export async function updateMetadata(
   projectName: string,
-  metadata: Partial<ProjectMetadata>
+  metadata: Partial<ProjectMetadata>,
 ) {
   const metadataPath = `${BASE_DIR}/${decodeURIComponent(
-    projectName
+    projectName,
   )}/metadata.json`;
 
   const existingMetadata = await fetchFullMetadata(projectName);
@@ -346,10 +349,10 @@ export async function updateMetadata(
 // Read file content
 export async function readFile(
   projectName: string,
-  fileId: string | undefined
+  fileId: string | undefined,
 ): Promise<string> {
   const filePath = `${BASE_DIR}/${decodeURIComponent(
-    projectName
+    projectName,
   )}/${fileId}.json`;
 
   const fileContent = await readTextFile(filePath, {
@@ -364,10 +367,10 @@ export async function readFile(
 export async function saveFile(
   projectName: string,
   fileId: string | undefined,
-  content: string
+  content: string,
 ) {
   const filePath = `${BASE_DIR}/${decodeURIComponent(
-    projectName
+    projectName,
   )}/${fileId}.json`;
 
   const fileData = JSON.stringify({ content });
@@ -377,10 +380,10 @@ export async function saveFile(
 // Delete a file
 export async function deleteFile(
   projectName: string,
-  fileId: string | undefined
+  fileId: string | undefined,
 ) {
   const filePath = `${BASE_DIR}/${decodeURIComponent(
-    projectName
+    projectName,
   )}/${fileId}.json`;
 
   await remove(filePath, { baseDir: BaseDirectory.AppData });

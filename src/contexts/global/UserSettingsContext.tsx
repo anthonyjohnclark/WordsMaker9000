@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { retrieveSettings, UserSettings } from "../../utils/fileManager";
 import { useErrorContext } from "./ErrorContext";
+import { themes } from "../../themes";
 
 interface UserSettingsContextProps {
   settings: UserSettings | null;
@@ -15,7 +16,7 @@ interface UserSettingsContextProps {
 }
 
 const UserSettingsContext = createContext<UserSettingsContextProps | null>(
-  null
+  null,
 );
 
 export const UserSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -26,6 +27,7 @@ export const UserSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     defaultSaveInterval: 60000, // 1 minute
     defaultBackupInterval: 3600000, // 1 hour
     aiSuiteEnabled: false,
+    theme: "midnight",
   });
 
   const { showError } = useErrorContext();
@@ -46,9 +48,20 @@ export const UserSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--editor-font-size",
-      `${settings.defaultFontZoom}px`
+      `${settings.defaultFontZoom}px`,
     );
   }, [settings.defaultFontZoom]);
+
+  useEffect(() => {
+    const themeName = settings.theme || "midnight";
+    const theme = themes[themeName];
+    if (theme) {
+      const root = document.documentElement;
+      Object.entries(theme.variables).forEach(([key, value]) => {
+        root.style.setProperty(key, value);
+      });
+    }
+  }, [settings.theme]);
 
   return (
     <UserSettingsContext.Provider
@@ -63,7 +76,7 @@ export const useUserSettings = () => {
   const context = useContext(UserSettingsContext);
   if (!context) {
     throw new Error(
-      "useUserSettings must be used within a UserSettingsProvider"
+      "useUserSettings must be used within a UserSettingsProvider",
     );
   }
   return context;

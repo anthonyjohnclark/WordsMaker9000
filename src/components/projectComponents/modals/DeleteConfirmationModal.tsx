@@ -28,7 +28,7 @@ export const DeleteConfirmationModal = ({ node }: IProps) => {
       await project.handleDelete(
         node.id as number,
         node.data?.fileId,
-        node.data?.fileType
+        node.data?.fileType,
       );
 
       // Close the modal after successful deletion
@@ -44,21 +44,34 @@ export const DeleteConfirmationModal = ({ node }: IProps) => {
   return (
     <Loadable isLoading={isLoading}>
       <>
-        <h2 className="text-xl font-bold text-white mb-4">Confirm Deletion</h2>
-        <p className="text-white mb-4">
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Confirm Deletion
+        </h2>
+        <p className="mb-4" style={{ color: "var(--text-primary)" }}>
           Are you sure you want to delete{" "}
-          <strong className="text-red-500">{node.text}</strong>?
+          <strong style={{ color: "var(--btn-danger)" }}>{node.text}</strong>?
         </p>
         <div className="flex justify-end gap-4 mt-4">
           <button
             onClick={() => modal.handleClose()}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-400"
+            className="px-4 py-2 rounded"
+            style={{
+              background: "var(--bg-input)",
+              color: "var(--text-primary)",
+            }}
           >
             Cancel
           </button>
           <button
             onClick={handleDeleteConfirm}
-            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-400"
+            className="px-4 py-2 rounded"
+            style={{
+              background: "var(--btn-danger)",
+              color: "var(--btn-text)",
+            }}
           >
             Delete
           </button>

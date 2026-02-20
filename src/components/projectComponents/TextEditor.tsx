@@ -157,11 +157,15 @@ const TextEditor: React.FC<TextEditorProps> = ({
         <>
           <FiSave
             onClick={handleSave}
-            className="save-icon absolute top-2 right-2 text-yellow-500 cursor-pointer hover:text-blue-400 text-2xl"
+            className="save-icon absolute top-2 right-2 cursor-pointer text-2xl"
+            style={{ color: "var(--accent)" }}
             title="Save"
           />
 
-          <p className="italic save-icon absolute top-2 right-20 text-gray-500">
+          <p
+            className="italic save-icon absolute top-2 right-20"
+            style={{ color: "var(--text-muted)" }}
+          >
             Ctrl + wheel to zoom
           </p>
         </>
@@ -175,8 +179,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
           onChange={handleContentChange}
           style={{
             height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
-            fontFamily: "monospace",
-            font: "Consola",
+            fontFamily: "var(--editor-font-family)",
           }}
           modules={modules}
         />

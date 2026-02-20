@@ -40,11 +40,14 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
   return (
     <Loadable isLoading={isLoading}>
       <>
-        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+        <h2
+          className="text-lg font-bold mb-4 flex items-center gap-2"
+          style={{ color: "var(--text-primary)" }}
+        >
           {newNode?.data?.fileType === "file" ? (
-            <FiFile className="text-green-500" />
+            <FiFile style={{ color: "var(--btn-success)" }} />
           ) : (
-            <FiFolder className="text-blue-500" />
+            <FiFolder style={{ color: "var(--btn-primary)" }} />
           )}
           {`Enter ${newNode?.data?.fileType} name`}
         </h2>
@@ -53,11 +56,12 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
           value={newNodeText}
           onChange={(e) => setNewNodeText(e.target.value)}
           autoFocus
-          className={`border border-gray-500 bg-gray-700 text-white rounded w-full p-2 mb-4 focus:outline-none focus:ring-2 ${
-            newNode?.data?.fileType === "folder"
-              ? "focus:ring-blue-500"
-              : "focus:ring-green-500"
-          }`}
+          className="border rounded w-full p-2 mb-4 focus:outline-none"
+          style={{
+            borderColor: "var(--border-color)",
+            background: "var(--bg-input)",
+            color: "var(--text-primary)",
+          }}
           placeholder={`Enter ${newNode?.data?.fileType} name`}
         />
         <div className="flex justify-end gap-4">
@@ -65,22 +69,25 @@ export const AddFileFolderModal = ({ newNode }: IProps) => {
             onClick={() => {
               modal.handleClose();
             }}
-            className="px-4 py-2 bg-gray-500 text-gray-200 rounded hover:bg-gray-400"
+            className="px-4 py-2 rounded"
+            style={{
+              background: "var(--bg-input)",
+              color: "var(--text-primary)",
+            }}
           >
             Cancel
           </button>
           <button
             onClick={handleAdd}
             disabled={newNodeText.length === 0}
-            className={`px-4 py-2 text-white rounded hover:${
-              newNode?.data?.fileType === "folder"
-                ? "bg-blue-400"
-                : "bg-green-400"
-            } ${
-              newNode?.data?.fileType === "folder"
-                ? "bg-blue-500"
-                : "bg-green-500"
-            }`}
+            className="px-4 py-2 rounded"
+            style={{
+              background:
+                newNode?.data?.fileType === "folder"
+                  ? "var(--btn-primary)"
+                  : "var(--btn-success)",
+              color: "var(--btn-text)",
+            }}
           >
             Add
           </button>

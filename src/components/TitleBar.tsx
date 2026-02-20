@@ -18,8 +18,14 @@ const TitleBar = () => {
 
   return (
     <div
-      className="h-8 bg-gray-900 text-white flex items-center justify-between px-2 select-none"
-      style={{ WebkitAppRegion: "drag" }}
+      className="h-8 flex items-center justify-between px-2 select-none"
+      style={
+        {
+          background: "var(--bg-primary)",
+          color: "var(--text-primary)",
+          WebkitAppRegion: "drag",
+        } as React.CSSProperties
+      }
     >
       {/* App Logo and Title */}
       <div
@@ -29,11 +35,14 @@ const TitleBar = () => {
         {pathname !== "/" && ( // Only show the link if not at the home page
           <Link
             to="/" // Use `to` for navigation in React Router
-            className="text-sm font-semibold futuristic-font text-yellow-500 flex items-center space-x-1"
-            style={{
-              WebkitAppRegion: "no-drag",
-              cursor: "pointer",
-            }}
+            className="text-sm font-semibold futuristic-font flex items-center space-x-1"
+            style={
+              {
+                color: "var(--accent)",
+                WebkitAppRegion: "no-drag",
+                cursor: "pointer",
+              } as React.CSSProperties
+            }
           >
             <FiHome /> {/* Add the home icon here */}
             <span>WordsMaker9000</span>
@@ -48,26 +57,28 @@ const TitleBar = () => {
       {pathname !== "/" && !isLoading && projectName && (
         <>
           <h2 className="text-lg font-semibold futuristic-font">
-            <span className="text-white">
+            <span style={{ color: "var(--text-primary)" }}>
               {decodeURIComponent(projectName)}
             </span>
           </h2>
           <div className="text-sm flex items-center space-x-2">
             {isBackingUp ? (
-              <span className="text-gray-500">Backing up...</span>
+              <span style={{ color: "var(--text-muted)" }}>Backing up...</span>
             ) : lastBackupTime ? (
               <>
-                <span className="text-gray-400">
+                <span style={{ color: "var(--text-secondary)" }}>
                   Backed up at {formatDateTime(lastBackupTime)}
                 </span>
-                <FiCheckCircle className="text-green-500" />
+                <FiCheckCircle style={{ color: "var(--btn-success)" }} />
               </>
             ) : (
-              <span className="text-red-500">No backups yet</span>
+              <span style={{ color: "var(--btn-danger)" }}>No backups yet</span>
             )}
           </div>
           {wordCount !== null && (
-            <span className="text-blue-500">{wordCount} words</span>
+            <span style={{ color: "var(--btn-primary)" }}>
+              {wordCount} words
+            </span>
           )}
         </>
       )}
@@ -76,21 +87,42 @@ const TitleBar = () => {
       <div className="flex space-x-2" style={{ WebkitAppRegion: "no-drag" }}>
         <button
           onClick={handleMinimize}
-          className="w-8 h-8 flex items-center justify-center hover:bg-gray-500 transition-colors"
+          className="w-8 h-8 flex items-center justify-center transition-colors"
+          style={{ color: "var(--text-primary)" }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "var(--bg-hover)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "transparent")
+          }
           aria-label="Minimize"
         >
           &#8211;
         </button>
         <button
           onClick={handleMaximize}
-          className="w-8 h-8 flex items-center justify-center hover:bg-gray-500 transition-colors"
+          className="w-8 h-8 flex items-center justify-center transition-colors"
+          style={{ color: "var(--text-primary)" }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "var(--bg-hover)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "transparent")
+          }
           aria-label="Maximize"
         >
           &#9633;
         </button>
         <button
           onClick={handleClose}
-          className="w-8 h-8 flex items-center justify-center hover:bg-red-500 transition-colors"
+          className="w-8 h-8 flex items-center justify-center transition-colors"
+          style={{ color: "var(--text-primary)" }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "var(--btn-danger)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "transparent")
+          }
           aria-label="Close"
         >
           &#10005;

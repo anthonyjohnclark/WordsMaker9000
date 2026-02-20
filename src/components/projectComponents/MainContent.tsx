@@ -7,7 +7,10 @@ const MainContent: React.FC = () => {
   const project = useProjectContext();
 
   return (
-    <section className={`relative flex-1 bg-black  `}>
+    <section
+      className="relative flex-1"
+      style={{ background: "var(--bg-secondary)" }}
+    >
       {project.selectedFile ? <Editor /> : <NoFileSelectedContent />}
     </section>
   );

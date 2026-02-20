@@ -21,7 +21,7 @@ export default function RestoreBackupsModal({
 }: RestoreBackupsModalProps) {
   const [backups, setBackups] = useState<BackupEntry[]>([]);
   const [selectedBackup, setSelectedBackup] = useState<BackupEntry | null>(
-    null
+    null,
   );
   const [isRestoring, setIsRestoring] = useState(false);
   const [isLoadingBackups, setIsLoadingBackups] = useState(true);
@@ -43,7 +43,7 @@ export default function RestoreBackupsModal({
 
       // Create a Date object in UTC
       const utcDate = new Date(
-        Date.UTC(year, month, day, hour, minute, second)
+        Date.UTC(year, month, day, hour, minute, second),
       );
 
       // Convert to local time string
@@ -61,7 +61,7 @@ export default function RestoreBackupsModal({
         });
         const projectBackups = entries.filter(
           (entry) =>
-            entry.name.startsWith(`${projectName}_`) && entry.isDirectory
+            entry.name.startsWith(`${projectName}_`) && entry.isDirectory,
         );
         const backupsList = projectBackups.map((entry) => ({
           name: entry.name,
@@ -105,7 +105,10 @@ export default function RestoreBackupsModal({
 
   if (isLoadingBackups) {
     return (
-      <div className="p-6 bg-gray-900 rounded-lg max-w-md mx-auto text-white">
+      <div
+        className="p-6 rounded-lg max-w-md mx-auto"
+        style={{ background: "var(--modal-bg)", color: "var(--text-primary)" }}
+      >
         <Loader />
       </div>
     );
@@ -113,28 +116,39 @@ export default function RestoreBackupsModal({
 
   return (
     <>
-      <div className="p-6 bg-gray-900 rounded-lg max-w-md mx-auto text-white">
+      <div
+        className="p-6 rounded-lg max-w-md mx-auto"
+        style={{ background: "var(--modal-bg)", color: "var(--text-primary)" }}
+      >
         <h2 className="text-xl font-bold mb-4 ">
           Restore from backup for{" "}
-          <span className="text-blue-500">{projectName}</span>
+          <span style={{ color: "var(--btn-primary)" }}>{projectName}</span>
         </h2>
         {selectedBackup ? (
           <div>
             <p>Are you sure you want to restore from backup:</p>
-            <p className="font-mono my-2 text-yellow-500">
+            <p className="font-mono my-2" style={{ color: "var(--accent)" }}>
               {formatBackupNameToDate(selectedBackup.name)}
             </p>
             <div className="flex justify-end space-x-4 mt-4">
               <button
                 onClick={handleCancelRestore}
-                className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "var(--bg-input)",
+                  color: "var(--text-primary)",
+                }}
                 disabled={isRestoring}
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmRestore}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-gray-600"
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "var(--btn-success)",
+                  color: "var(--btn-text)",
+                }}
                 disabled={isRestoring}
               >
                 {isRestoring ? "Restoring..." : "Confirm Restore"}
@@ -146,13 +160,17 @@ export default function RestoreBackupsModal({
             {backups.length === 0 ? (
               <p>No backups available for this project.</p>
             ) : (
-              <ul className="max-h-64 overflow-y-auto rounded p-2 bg-gray-800">
+              <ul
+                className="max-h-64 overflow-y-auto rounded p-2"
+                style={{ background: "var(--bg-input)" }}
+              >
                 {backups.map((backup) => {
                   const readableDate = formatBackupNameToDate(backup.name);
                   return (
                     <li
                       key={backup.name}
-                      className="cursor-pointer p-2 hover:bg-gray-700 rounded"
+                      className="cursor-pointer p-2 rounded"
+                      style={{ color: "var(--text-primary)" }}
                       onClick={() => handleBackupClick(backup)}
                       title={backup.name}
                     >
@@ -165,7 +183,11 @@ export default function RestoreBackupsModal({
             <div className="flex justify-end mt-4">
               <button
                 onClick={modal.handleClose}
-                className="px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+                className="px-4 py-2 rounded"
+                style={{
+                  background: "var(--bg-input)",
+                  color: "var(--text-primary)",
+                }}
               >
                 Close
               </button>

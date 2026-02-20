@@ -17,7 +17,13 @@ function App() {
           <ProvideModal>
             <div className="grid grid-rows-[auto,1fr] h-screen">
               <TitleBar /> {/* Always present */}
-              <main className="overflow-auto">
+              <main
+                className="overflow-hidden"
+                style={{
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-primary)",
+                }}
+              >
                 <Routes>
                   {" "}
                   <Route path="/projects/:projectName" element={<Project />} />

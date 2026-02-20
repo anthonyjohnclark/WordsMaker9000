@@ -49,6 +49,10 @@
     {
       "identifier": "core:window:allow-close",
       "windows": ["main"]
+    },
+    {
+      "identifier": "core:window:allow-show",
+      "windows": ["main"]
     }
   ]
 }

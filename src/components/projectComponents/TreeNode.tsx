@@ -73,7 +73,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                   ),
                 });
               }}
-              className="text-green-500 cursor-pointer hover:text-green-300"
+              className="cursor-pointer"
+              style={{ color: "var(--btn-success)" }}
               title="Add File"
             />
             <FiFolderPlus
@@ -102,7 +103,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                   ),
                 });
               }}
-              className="text-blue-500 cursor-pointer hover:text-blue-300"
+              className="cursor-pointer"
+              style={{ color: "var(--btn-primary)" }}
               title="Add Folder"
             />
             <FiEdit
@@ -111,7 +113,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                   modalBody: <RenameModal node={node} />,
                 })
               }
-              className="text-yellow-500 cursor-pointer hover:text-yellow-300"
+              className="cursor-pointer"
+              style={{ color: "var(--accent)" }}
               title="Rename"
             />
           </>
@@ -123,7 +126,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
             });
             e.stopPropagation();
           }}
-          className="text-red-500 cursor-pointer hover:text-red-300"
+          className="cursor-pointer"
+          style={{ color: "var(--btn-danger)" }}
           title="Delete"
         />
       </div>

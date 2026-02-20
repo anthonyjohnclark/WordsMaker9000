@@ -34,11 +34,19 @@ const DeleteProjectConfirmationModal: React.FC<
 
   return (
     <Loadable isLoading={deletionLoading}>
-      <div className="bg-gray-900 rounded-lg p-6 max-w-sm w-full">
-        <h2 className="text-xl font-bold mb-4 text-red-500">Delete Project</h2>
-        <p className="mb-4 text-white">
+      <div
+        className="rounded-lg p-6 max-w-sm w-full"
+        style={{ background: "var(--modal-bg)", color: "var(--text-primary)" }}
+      >
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: "var(--btn-danger)" }}
+        >
+          Delete Project
+        </h2>
+        <p className="mb-4" style={{ color: "var(--text-primary)" }}>
           Type the project name{" "}
-          <strong className="text-red-500">
+          <strong style={{ color: "var(--btn-danger)" }}>
             {decodeURIComponent(projectName)}
           </strong>{" "}
           to confirm deletion:
@@ -48,12 +56,21 @@ const DeleteProjectConfirmationModal: React.FC<
           value={confirmationText}
           onChange={(e) => setConfirmationText(e.target.value)}
           placeholder="Project name"
-          className="w-full border border-gray-700 bg-gray-900 text-white rounded p-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+          className="w-full border rounded p-2 focus:outline-none"
+          style={{
+            borderColor: "var(--border-color)",
+            background: "var(--bg-primary)",
+            color: "var(--text-primary)",
+          }}
         />
         <div className="mt-4 flex justify-end space-x-4">
           <button
             onClick={onCancel}
-            className="bg-gray-700 text-white py-2 px-4 rounded hover:bg-gray-600 transition"
+            className="py-2 px-4 rounded transition"
+            style={{
+              background: "var(--bg-input)",
+              color: "var(--text-primary)",
+            }}
           >
             Cancel
           </button>
@@ -61,10 +78,14 @@ const DeleteProjectConfirmationModal: React.FC<
             onClick={onDeleteConfirm}
             disabled={confirmationText !== decodeURIComponent(projectName)}
             className={`${
-              confirmationText === decodeURIComponent(projectName)
-                ? "bg-red-500 hover:bg-red-400"
-                : "bg-gray-600 cursor-not-allowed"
-            } text-white py-2 px-4 rounded transition`}
+              confirmationText !== decodeURIComponent(projectName)
+                ? "cursor-not-allowed opacity-50"
+                : ""
+            } py-2 px-4 rounded transition`}
+            style={{
+              background: "var(--btn-danger)",
+              color: "var(--btn-text)",
+            }}
           >
             Delete
           </button>

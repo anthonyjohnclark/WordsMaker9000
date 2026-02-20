@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <link
@@ -9,14 +9,36 @@
       href="https://fonts.googleapis.com/css2?family=Consolas:wght500;800&display=swap"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Lora:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/index.css" />
     <!-- Import your index.css -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WordsMaker9000</title>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="margin: 0; background: #000">
+    <div id="root">
+      <!-- Splash screen shown while React loads -->
+      <div
+        id="splash"
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          background: #000;
+        "
+      >
+        <img
+          src="/wordsmaker9000.png"
+          alt="WordsMaker9000"
+          style="width: 120px; height: auto"
+        />
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
