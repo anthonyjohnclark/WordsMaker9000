@@ -30,3 +30,10 @@ pub struct ExportResult {
     pub output_path: Option<String>,
     pub error: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExportProgress {
+    pub stage: String,
+    pub current: usize,
+    pub total: usize,
+}

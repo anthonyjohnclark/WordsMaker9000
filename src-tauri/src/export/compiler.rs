@@ -29,14 +29,13 @@ pub struct TextElement {
     pub text: String,
     pub bold: bool,
     pub italic: bool,
-    pub underline: bool,
-    pub strikethrough: bool,
     pub block_type: BlockType,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockType {
     Paragraph,
+    ParagraphBreak,
     ListItem,
     Heading,
 }
@@ -155,8 +154,15 @@ fn parse_html_content(html: &str) -> Vec<TextElement> {
                 };
 
                 let inline_elements =
-                    extract_inline_elements(&child_ref, false, false, false, false, &block_type);
+                    extract_inline_elements(&child_ref, false, false, &block_type);
                 elements.extend(inline_elements);
+
+                elements.push(TextElement {
+                    text: String::new(),
+                    bold: false,
+                    italic: false,
+                    block_type: BlockType::ParagraphBreak,
+                });
             }
             Node::Text(text) => {
                 let t = text.text.to_string();
@@ -165,8 +171,6 @@ fn parse_html_content(html: &str) -> Vec<TextElement> {
                         text: t,
                         bold: false,
                         italic: false,
-                        underline: false,
-                        strikethrough: false,
                         block_type: BlockType::Paragraph,
                     });
                 }
@@ -187,14 +191,8 @@ fn parse_list_node(node: &NodeRef<'_, Node>) -> Vec<TextElement> {
             Node::Element(el) => {
                 let tag = el.name();
                 if tag == "li" {
-                    let inline = extract_inline_elements(
-                        &child_ref,
-                        false,
-                        false,
-                        false,
-                        false,
-                        &BlockType::ListItem,
-                    );
+                    let inline =
+                        extract_inline_elements(&child_ref, false, false, &BlockType::ListItem);
                     elements.extend(inline);
                 } else if tag == "ol" || tag == "ul" {
                     let nested = parse_list_node(&child_ref);
@@ -212,8 +210,6 @@ fn extract_inline_elements(
     node: &NodeRef<'_, Node>,
     bold: bool,
     italic: bool,
-    underline: bool,
-    strikethrough: bool,
     block_type: &BlockType,
 ) -> Vec<TextElement> {
     let mut elements = Vec::new();
@@ -228,33 +224,28 @@ fn extract_inline_elements(
                         text: t,
                         bold,
                         italic,
-                        underline,
-                        strikethrough,
                         block_type: block_type.clone(),
                     });
                 }
             }
             Node::Element(el) => {
                 let tag = el.name();
-                let (b, i, u, s) = match tag {
-                    "strong" | "b" => (true, italic, underline, strikethrough),
-                    "em" | "i" => (bold, true, underline, strikethrough),
-                    "u" => (bold, italic, true, strikethrough),
-                    "s" | "del" | "strike" => (bold, italic, underline, true),
+                let (b, i) = match tag {
+                    "strong" | "b" => (true, italic),
+                    "em" | "i" => (bold, true),
+                    "u" | "s" | "del" | "strike" => (bold, italic),
                     "br" => {
                         elements.push(TextElement {
                             text: "\n".to_string(),
                             bold,
                             italic,
-                            underline,
-                            strikethrough,
                             block_type: block_type.clone(),
                         });
                         continue;
                     }
-                    _ => (bold, italic, underline, strikethrough),
+                    _ => (bold, italic),
                 };
-                let nested = extract_inline_elements(&child, b, i, u, s, block_type);
+                let nested = extract_inline_elements(&child, b, i, block_type);
                 elements.extend(nested);
             }
             _ => {}
@@ -341,19 +332,26 @@ mod tests {
     #[test]
     fn test_html_bold_italic() {
         let elements = parse_html_content("<p><strong>Bold</strong> and <em>italic</em></p>");
-        assert!(elements.len() >= 3);
+        // 3 inline elements + 1 ParagraphBreak sentinel
+        assert_eq!(elements.len(), 4);
         assert!(elements[0].bold);
         assert!(!elements[0].italic);
+        assert_eq!(elements[0].block_type, BlockType::Paragraph);
         assert!(elements[2].italic);
         assert!(!elements[2].bold);
+        assert_eq!(elements[2].block_type, BlockType::Paragraph);
+        assert_eq!(elements[3].block_type, BlockType::ParagraphBreak);
     }
 
     #[test]
     fn test_nested_formatting() {
         let elements = parse_html_content("<p><strong><em>Bold italic</em></strong></p>");
-        assert_eq!(elements.len(), 1);
+        // 1 inline element + 1 ParagraphBreak
+        assert_eq!(elements.len(), 2);
         assert!(elements[0].bold);
         assert!(elements[0].italic);
+        assert_eq!(elements[0].block_type, BlockType::Paragraph);
+        assert_eq!(elements[1].block_type, BlockType::ParagraphBreak);
     }
 
     #[test]
@@ -368,5 +366,44 @@ mod tests {
         assert_eq!(elements.len(), 2);
         assert_eq!(elements[0].block_type, BlockType::ListItem);
         assert_eq!(elements[1].block_type, BlockType::ListItem);
+    }
+
+    #[test]
+    fn test_inline_italic_same_paragraph() {
+        let elements = parse_html_content("<p>Hello <em>world</em> foo</p>");
+        // "Hello ", "world" (italic), " foo", ParagraphBreak
+        assert_eq!(elements.len(), 4);
+        assert_eq!(elements[0].block_type, BlockType::Paragraph);
+        assert_eq!(elements[1].block_type, BlockType::Paragraph);
+        assert!(elements[1].italic);
+        assert_eq!(elements[2].block_type, BlockType::Paragraph);
+        assert_eq!(elements[3].block_type, BlockType::ParagraphBreak);
+    }
+
+    #[test]
+    fn test_multiple_paragraphs_separated() {
+        let elements = parse_html_content("<p>First</p><p>Second</p>");
+        // "First", ParagraphBreak, "Second", ParagraphBreak
+        assert_eq!(elements.len(), 4);
+        assert_eq!(elements[0].text, "First");
+        assert_eq!(elements[0].block_type, BlockType::Paragraph);
+        assert_eq!(elements[1].block_type, BlockType::ParagraphBreak);
+        assert_eq!(elements[2].text, "Second");
+        assert_eq!(elements[2].block_type, BlockType::Paragraph);
+        assert_eq!(elements[3].block_type, BlockType::ParagraphBreak);
+    }
+
+    #[test]
+    fn test_bold_inline_same_paragraph() {
+        let elements = parse_html_content("<p>Some <strong>bold</strong> text</p>");
+        // "Some ", "bold" (bold), " text", ParagraphBreak
+        assert_eq!(elements.len(), 4);
+        assert_eq!(elements[0].block_type, BlockType::Paragraph);
+        assert!(!elements[0].bold);
+        assert_eq!(elements[1].block_type, BlockType::Paragraph);
+        assert!(elements[1].bold);
+        assert_eq!(elements[2].block_type, BlockType::Paragraph);
+        assert!(!elements[2].bold);
+        assert_eq!(elements[3].block_type, BlockType::ParagraphBreak);
     }
 }

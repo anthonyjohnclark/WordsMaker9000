@@ -7,8 +7,10 @@ use genpdf::style::Style;
 use genpdf::{Document, Element};
 
 use chrono::Local;
+use tauri::{AppHandle, Emitter};
 
 use crate::export::compiler::{BlockType, Chapter, CompiledDocument, Section, TextElement};
+use crate::export::types::ExportProgress;
 
 fn load_font_family() -> Result<FontFamily<FontData>, String> {
     // Try loading Liberation Serif (standard naming convention)
@@ -96,7 +98,28 @@ fn load_font_family() -> Result<FontFamily<FontData>, String> {
     Err("Could not find a suitable font (Times New Roman, Arial, or Liberation Serif).".to_string())
 }
 
-pub fn generate_pdf(doc: &CompiledDocument, output_dir: &Path) -> Result<PathBuf, String> {
+fn emit_progress(app: Option<&AppHandle>, stage: &str, current: usize, total: usize) {
+    if let Some(app) = app {
+        let _ = app.emit(
+            "export-progress",
+            ExportProgress {
+                stage: stage.to_string(),
+                current,
+                total,
+            },
+        );
+    }
+}
+
+pub fn generate_pdf(
+    doc: &CompiledDocument,
+    output_dir: &Path,
+    app: Option<&AppHandle>,
+) -> Result<PathBuf, String> {
+    let total_steps = doc.chapters.len() + 2; // +1 for compiling, +1 for writing file
+
+    emit_progress(app, "Preparing document...", 0, total_steps);
+
     fs::create_dir_all(output_dir)
         .map_err(|e| format!("Failed to create exports directory: {}", e))?;
 
@@ -122,7 +145,13 @@ pub fn generate_pdf(doc: &CompiledDocument, output_dir: &Path) -> Result<PathBuf
     }
 
     // === Chapters ===
-    for chapter in &doc.chapters {
+    for (i, chapter) in doc.chapters.iter().enumerate() {
+        emit_progress(
+            app,
+            &format!("Rendering chapter {} of {}...", i + 1, doc.chapters.len()),
+            i + 1,
+            total_steps,
+        );
         render_chapter(&mut pdf, chapter);
     }
 
@@ -149,6 +178,8 @@ pub fn generate_pdf(doc: &CompiledDocument, output_dir: &Path) -> Result<PathBuf
         .collect();
     let filename = format!("{}_{}.pdf", safe_title.trim(), timestamp);
     let output_path = output_dir.join(&filename);
+
+    emit_progress(app, "Writing PDF file...", total_steps, total_steps);
 
     pdf.render_to_file(&output_path)
         .map_err(|e| format!("Failed to render PDF: {}", e))?;
@@ -179,7 +210,10 @@ fn render_chapter(pdf: &mut Document, chapter: &Chapter) {
     pdf.push(heading.styled(Style::new().bold().with_font_size(22)));
     pdf.push(Break::new(1.5));
 
-    for section in &chapter.sections {
+    for (i, section) in chapter.sections.iter().enumerate() {
+        if i > 0 {
+            pdf.push(PageBreak::new());
+        }
         render_section(pdf, section);
     }
 }
@@ -196,15 +230,21 @@ fn render_section(pdf: &mut Document, section: &Section) {
     for element in &section.elements {
         match element.block_type {
             BlockType::Paragraph => {
-                // Flush any pending paragraph
+                // Append to the current paragraph (inline elements stay together)
+                if let Some(ref mut p) = current_paragraph {
+                    p.push_styled(&element.text, build_style(element));
+                } else {
+                    let mut para = Paragraph::default();
+                    para.push_styled(&element.text, build_style(element));
+                    current_paragraph = Some(para);
+                }
+            }
+            BlockType::ParagraphBreak => {
+                // Flush the current paragraph
                 if let Some(p) = current_paragraph.take() {
                     pdf.push(p);
                     pdf.push(Break::new(0.3));
                 }
-
-                let mut para = Paragraph::default();
-                para.push_styled(&element.text, build_style(element));
-                current_paragraph = Some(para);
             }
             BlockType::ListItem => {
                 if let Some(p) = current_paragraph.take() {
@@ -272,8 +312,6 @@ mod tests {
                         text: "Hello world".to_string(),
                         bold: false,
                         italic: false,
-                        underline: false,
-                        strikethrough: false,
                         block_type: BlockType::Paragraph,
                     }],
                 }],
@@ -292,7 +330,7 @@ mod tests {
         };
         let tmp = env::temp_dir().join("wm9000_test_exports");
         // This may fail if no fonts are available in CI, that's OK
-        let _ = generate_pdf(&doc, &tmp);
+        let _ = generate_pdf(&doc, &tmp, None);
     }
 
     #[test]
@@ -305,6 +343,6 @@ mod tests {
             chapters: vec![],
         };
         let tmp = env::temp_dir().join("wm9000_test_exports_special");
-        let _ = generate_pdf(&doc, &tmp);
+        let _ = generate_pdf(&doc, &tmp, None);
     }
 }

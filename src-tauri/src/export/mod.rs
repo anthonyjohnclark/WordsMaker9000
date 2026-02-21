@@ -113,7 +113,7 @@ pub async fn export_project(
         .join(&payload.project_name)
         .join("exports");
 
-    match generate_pdf(&compiled, &exports_dir) {
+    match generate_pdf(&compiled, &exports_dir, Some(&app)) {
         Ok(path) => Ok(ExportResult {
             success: true,
             output_path: Some(path.to_string_lossy().to_string()),

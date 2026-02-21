@@ -24,3 +24,9 @@ export interface ExportResult {
   output_path?: string;
   error?: string;
 }
+
+export interface ExportProgress {
+  stage: string;
+  current: number;
+  total: number;
+}

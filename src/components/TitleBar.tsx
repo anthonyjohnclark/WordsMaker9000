@@ -18,7 +18,7 @@ const TitleBar = () => {
 
   return (
     <div
-      className="h-8 flex items-center justify-between px-2 select-none"
+      className="h-8 flex items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
       style={
         {
           background: "var(--bg-primary)",
@@ -29,13 +29,13 @@ const TitleBar = () => {
     >
       {/* App Logo and Title */}
       <div
-        className="flex items-center space-x-2"
+        className="flex items-center space-x-2 shrink-0"
         style={{ WebkitAppRegion: "no-drag" }}
       >
         {pathname !== "/" && ( // Only show the link if not at the home page
           <Link
             to="/" // Use `to` for navigation in React Router
-            className="text-sm font-semibold futuristic-font flex items-center space-x-1"
+            className="text-sm font-semibold futuristic-font flex items-center space-x-1 truncate"
             style={
               {
                 color: "var(--accent)",
@@ -56,12 +56,12 @@ const TitleBar = () => {
       {/* Render project-related info if not on the home page */}
       {pathname !== "/" && !isLoading && projectName && (
         <>
-          <h2 className="text-lg font-semibold futuristic-font">
+          <h2 className="text-lg font-semibold futuristic-font truncate min-w-0">
             <span style={{ color: "var(--text-primary)" }}>
               {decodeURIComponent(projectName)}
             </span>
           </h2>
-          <div className="text-sm flex items-center space-x-2">
+          <div className="text-sm flex items-center space-x-2 shrink-0">
             {isBackingUp ? (
               <span style={{ color: "var(--text-muted)" }}>Backing up...</span>
             ) : lastBackupTime ? (
@@ -76,7 +76,7 @@ const TitleBar = () => {
             )}
           </div>
           {wordCount !== null && (
-            <span style={{ color: "var(--btn-primary)" }}>
+            <span className="shrink-0" style={{ color: "var(--btn-primary)" }}>
               {wordCount} words
             </span>
           )}
@@ -84,7 +84,10 @@ const TitleBar = () => {
       )}
 
       {/* Window Controls */}
-      <div className="flex space-x-2" style={{ WebkitAppRegion: "no-drag" }}>
+      <div
+        className="flex space-x-2 shrink-0"
+        style={{ WebkitAppRegion: "no-drag" }}
+      >
         <button
           onClick={handleMinimize}
           className="w-8 h-8 flex items-center justify-center transition-colors"
