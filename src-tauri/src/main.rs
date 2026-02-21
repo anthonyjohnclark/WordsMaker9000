@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ai;
+mod export;
 
 use dotenv::dotenv;
 use std::env;
@@ -10,6 +11,7 @@ use tauri_plugin_fs; // To access environment variables
 use ai::proofread::proofread_content;
 use ai::review::ai_review;
 use ai::suggestions::ai_suggestions;
+use export::{export_project, list_project_exports, open_file_default};
 
 fn main() {
     dotenv().ok(); // Load the .env file
@@ -19,7 +21,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             proofread_content,
             ai_suggestions,
-            ai_review
+            ai_review,
+            export_project,
+            list_project_exports,
+            open_file_default
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

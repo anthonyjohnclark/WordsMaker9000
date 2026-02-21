@@ -15,6 +15,7 @@ import { useErrorContext } from "../contexts/global/ErrorContext";
 import ErrorModal from "../components/ErrorModal";
 import { UserSettingsModal } from "../components/UserSettingsModal";
 import RestoreBackupsModal from "../components/projectComponents/modals/RestoreBackupsModal";
+import ExportVersionsModal from "../components/projectComponents/modals/ExportVersionsModal";
 import { FaCog } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
 
@@ -315,6 +316,25 @@ export default function HomePage() {
                         title="Restore Project"
                       >
                         Restore
+                      </button>
+                      <button
+                        onClick={() => {
+                          modal.renderModal({
+                            modalBody: (
+                              <ExportVersionsModal
+                                projectName={project.projectName}
+                              />
+                            ),
+                          });
+                        }}
+                        className="p-1 rounded-lg w-24 text-center mt-4"
+                        style={{
+                          background: "var(--btn-primary)",
+                          color: "var(--btn-text)",
+                        }}
+                        title="View Exports"
+                      >
+                        Exports
                       </button>
                     </div>
                   </div>

@@ -1,9 +1,16 @@
 import React, { useEffect } from "react";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
-import { FiX, FiMenu, FiFilePlus, FiFolderPlus } from "react-icons/fi";
+import {
+  FiX,
+  FiMenu,
+  FiFilePlus,
+  FiFolderPlus,
+  FiDownload,
+} from "react-icons/fi";
 import { DndProvider, Tree } from "@minoru/react-dnd-treeview";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { AddFileFolderModal } from "./modals/AddFileFolderModal";
+import { ExportModal } from "./modals/ExportModal";
 import { useModal } from "../../contexts/global/ModalContext";
 import TreeNode from "./TreeNode";
 
@@ -127,6 +134,16 @@ const Sidebar: React.FC = () => {
                 className="cursor-pointer text-xl"
                 style={{ color: "var(--btn-primary)" }}
                 title="Add Folder"
+              />
+              <FiDownload
+                onClick={() => {
+                  modal.renderModal({
+                    modalBody: <ExportModal />,
+                  });
+                }}
+                className="cursor-pointer text-xl"
+                style={{ color: "var(--text-primary)" }}
+                title="Export to PDF"
               />
             </div>
           )}
