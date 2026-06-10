@@ -18,7 +18,7 @@ import RestoreBackupsModal from "../components/projectComponents/modals/RestoreB
 import ExportVersionsModal from "../components/projectComponents/modals/ExportVersionsModal";
 import { FaCog } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
-import { FiEdit2 } from "react-icons/fi";
+import { FiEdit2, FiTrash2, FiRotateCcw, FiDownload } from "react-icons/fi";
 import EditProjectTypeModal from "./EditProjectTypeModal";
 
 export default function HomePage() {
@@ -202,7 +202,7 @@ export default function HomePage() {
               {projects.map((project) => (
                 <li
                   key={project.projectName}
-                  className="rounded-lg shadow-lg p-2 relative transition"
+                  className="rounded-lg shadow-lg px-4 py-3 relative transition"
                   style={{ background: "var(--card-bg)" }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background = "var(--bg-hover)")
@@ -211,111 +211,16 @@ export default function HomePage() {
                     (e.currentTarget.style.background = "var(--card-bg)")
                   }
                 >
-                  {/* Project Link */}
-                  <div
-                    className="mt-2 text-sm pb-2 flex justify-between items-center"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    <div>
-                      <Link
-                        to={`/projects/${project.projectName}`}
-                        className="text-xl font-semibold hover:underline futuristic-font"
-                        style={{ color: "var(--btn-primary)" }}
-                      >
-                        {decodeURIComponent(project.projectName)}
-                      </Link>
-
-                      <p className="flex items-center space-x-2">
-                        <span
-                          className="font-semibold"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          Type:
-                        </span>{" "}
-                        <span style={{ color: "var(--accent)" }}>
-                          {project.projectType}
-                        </span>
-                        <button
-                          onClick={() => {
-                            modal.renderModal({
-                              modalBody: (
-                                <EditProjectTypeModal
-                                  projectName={project.projectName}
-                                  currentType={project.projectType}
-                                  onSuccess={(newType) =>
-                                    handleUpdateProjectType(
-                                      project.projectName,
-                                      newType,
-                                    )
-                                  }
-                                />
-                              ),
-                            });
-                          }}
-                          className="hover:opacity-80 p-1"
-                          style={{ color: "var(--btn-primary)" }}
-                          title="Edit Project Type"
-                        >
-                          <FiEdit2 size={14} />
-                        </button>
-                      </p>
-                      <p>
-                        <span
-                          className="font-semibold"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          Created:
-                        </span>{" "}
-                        <span style={{ color: "var(--btn-success)" }}>
-                          {formatDateTime(project.createDate)}
-                        </span>
-                      </p>
-                      <p>
-                        <span
-                          className="font-semibold"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          Last Edited:
-                        </span>{" "}
-                        <span style={{ color: "var(--btn-success)" }}>
-                          {formatDateTime(project.lastModified ?? "")}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex flex-col space-y-2 items-end">
-                      <p>
-                        <span
-                          className="font-semibold"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          Word Count:
-                        </span>{" "}
-                        <span style={{ color: "var(--btn-primary)" }}>
-                          {project.wordCount}
-                        </span>
-                      </p>
-
-                      <button
-                        onClick={() => {
-                          modal.renderModal({
-                            modalBody: (
-                              <DeleteProjectConfirmationModal
-                                projectName={project.projectName}
-                                onCancel={modal.handleClose}
-                                handleSetNewProjects={handleSetNewProjects}
-                              />
-                            ),
-                          });
-                        }}
-                        className="p-1 rounded-lg w-24 text-center mt-4"
-                        style={{
-                          background: "var(--btn-danger)",
-                          color: "var(--btn-text)",
-                        }}
-                        title="Delete Project"
-                      >
-                        Delete
-                      </button>
+                  {/* Top row: project name + action icons */}
+                  <div className="flex items-center justify-between">
+                    <Link
+                      to={`/projects/${project.projectName}`}
+                      className="text-xl font-semibold hover:underline futuristic-font"
+                      style={{ color: "var(--btn-primary)" }}
+                    >
+                      {decodeURIComponent(project.projectName)}
+                    </Link>
+                    <div className="flex items-center space-x-1">
                       <button
                         onClick={() => {
                           modal.renderModal({
@@ -323,7 +228,6 @@ export default function HomePage() {
                               <RestoreBackupsModal
                                 projectName={project.projectName}
                                 onRestoreSuccess={async () => {
-                                  // Refresh projects list after restore
                                   const updatedProjects =
                                     await listProjectsSummary();
                                   const sortedProjects = updatedProjects.sort(
@@ -344,14 +248,11 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="p-1 rounded-lg w-24 text-center mt-4"
-                        style={{
-                          background: "var(--accent-bg)",
-                          color: "var(--accent-text)",
-                        }}
-                        title="Restore Project"
+                        className="p-1.5 rounded hover:opacity-80 transition"
+                        style={{ color: "var(--accent-bg)" }}
+                        title="Restore Backup"
                       >
-                        Restore
+                        <FiRotateCcw size={16} />
                       </button>
                       <button
                         onClick={() => {
@@ -363,16 +264,123 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="p-1 rounded-lg w-24 text-center mt-4"
-                        style={{
-                          background: "var(--btn-primary)",
-                          color: "var(--btn-text)",
-                        }}
+                        className="p-1.5 rounded hover:opacity-80 transition"
+                        style={{ color: "var(--btn-primary)" }}
                         title="View Exports"
                       >
-                        Exports
+                        <FiDownload size={16} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          modal.renderModal({
+                            modalBody: (
+                              <DeleteProjectConfirmationModal
+                                projectName={project.projectName}
+                                onCancel={modal.handleClose}
+                                handleSetNewProjects={handleSetNewProjects}
+                              />
+                            ),
+                          });
+                        }}
+                        className="p-1.5 rounded hover:opacity-80 transition"
+                        style={{ color: "var(--btn-danger)" }}
+                        title="Delete Project"
+                      >
+                        <FiTrash2 size={16} />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Bottom row: metadata in a horizontal line */}
+                  <div
+                    className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-1 text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <span className="flex items-center space-x-1">
+                      <span
+                        className="font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Type:
+                      </span>
+                      <span style={{ color: "var(--accent)" }}>
+                        {project.projectType}
+                      </span>
+                      <button
+                        onClick={() => {
+                          modal.renderModal({
+                            modalBody: (
+                              <EditProjectTypeModal
+                                projectName={project.projectName}
+                                currentType={project.projectType}
+                                onSuccess={(newType) =>
+                                  handleUpdateProjectType(
+                                    project.projectName,
+                                    newType,
+                                  )
+                                }
+                              />
+                            ),
+                          });
+                        }}
+                        className="hover:opacity-80 p-0.5"
+                        style={{ color: "var(--btn-primary)" }}
+                        title="Edit Project Type"
+                      >
+                        <FiEdit2 size={12} />
+                      </button>
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--border-color)" }}
+                    >
+                      |
+                    </span>
+                    <span>
+                      <span
+                        className="font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Created:
+                      </span>{" "}
+                      <span style={{ color: "var(--btn-success)" }}>
+                        {formatDateTime(project.createDate)}
+                      </span>
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--border-color)" }}
+                    >
+                      |
+                    </span>
+                    <span>
+                      <span
+                        className="font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Edited:
+                      </span>{" "}
+                      <span style={{ color: "var(--btn-success)" }}>
+                        {formatDateTime(project.lastModified ?? "")}
+                      </span>
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--border-color)" }}
+                    >
+                      |
+                    </span>
+                    <span>
+                      <span
+                        className="font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Words:
+                      </span>{" "}
+                      <span style={{ color: "var(--btn-primary)" }}>
+                        {project.wordCount}
+                      </span>
+                    </span>
                   </div>
                 </li>
               ))}
