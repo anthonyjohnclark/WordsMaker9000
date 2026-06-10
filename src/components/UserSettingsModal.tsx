@@ -194,6 +194,26 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             </select>
           </div>
           <div className="mb-4">
+            <label className="block text-sm font-bold mb-1">
+              Backup Location
+            </label>
+            <p
+              className="text-sm px-2 py-1 rounded font-mono"
+              style={{
+                color: "var(--text-secondary)",
+                background: "var(--bg-input)",
+              }}
+            >
+              {import.meta.env.DEV ? "Dev_" : ""}WordsMaker3000Backups
+              <span
+                className="block text-xs mt-1"
+                style={{ color: "var(--text-secondary)", opacity: 0.7 }}
+              >
+                Located in your Documents folder
+              </span>
+            </p>
+          </div>
+          <div className="mb-4">
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"

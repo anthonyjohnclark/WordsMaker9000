@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
@@ -47,7 +48,7 @@ interface ProjectContextProps {
   handleDelete: (
     id: number,
     fileId: string | undefined,
-    type: "file" | "folder" | undefined
+    type: "file" | "folder" | undefined,
   ) => Promise<void>;
   handleRename: (id: number, newName: string) => void;
   handleModalOpen: (open: boolean) => void;
@@ -62,10 +63,12 @@ interface ProjectContextProps {
   fileSaveInProgress: boolean;
   setFileSaveInProgress: React.Dispatch<React.SetStateAction<boolean>>;
   isBackingUp: boolean;
+  editorContentRef: React.MutableRefObject<string>;
+  setFileContentDirectly: (content: string) => void;
 }
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
-  undefined
+  undefined,
 );
 
 export const ProjectProvider: React.FC<{
@@ -74,7 +77,7 @@ export const ProjectProvider: React.FC<{
 }> = ({ projectName, children }) => {
   const [treeData, setTreeData] = useState<ExtendedNodeModel[]>([]);
   const [selectedFile, setSelectedFile] = useState<ExtendedNodeModel | null>(
-    null
+    null,
   );
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -84,6 +87,13 @@ export const ProjectProvider: React.FC<{
   const [isEditorLoading, setIsEditorLoading] = useState(false);
   const [fileSaveInProgress, setFileSaveInProgress] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false); // Track backup status
+
+  const editorContentRef = useRef<string>("");
+
+  const setFileContentDirectly = useCallback((content: string) => {
+    setFileContent(content);
+    editorContentRef.current = content;
+  }, []);
 
   const { settings } = useUserSettings();
 
@@ -230,12 +240,12 @@ export const ProjectProvider: React.FC<{
                 fileType: node?.data?.fileType, // Ensure fileType is not undefined
               },
             }
-          : node
+          : node,
       ) as ExtendedNodeModel[];
 
       // Update selectedFile to reflect the changes
       const updatedSelectedFile = updatedTree.find(
-        (node) => node.id === selectedFile?.id
+        (node) => node.id === selectedFile?.id,
       );
 
       if (updatedSelectedFile) {
@@ -255,7 +265,7 @@ export const ProjectProvider: React.FC<{
   const handleDelete = async (
     id: number,
     fileId: string | undefined,
-    type: "file" | "folder" | undefined
+    type: "file" | "folder" | undefined,
   ) => {
     try {
       if (type === "file") {
@@ -299,8 +309,8 @@ export const ProjectProvider: React.FC<{
               text: newName,
               data: { ...node.data, fileName: newName },
             } as ExtendedNodeModel)
-          : node
-      )
+          : node,
+      ),
     );
   };
 
@@ -368,7 +378,7 @@ export const ProjectProvider: React.FC<{
   const reorderArray = (
     array: ExtendedNodeModel[],
     sourceIndex: number,
-    targetIndex: number
+    targetIndex: number,
   ) => {
     const newArray = [...array];
     const element = newArray.splice(sourceIndex, 1)[0];
@@ -398,7 +408,7 @@ export const ProjectProvider: React.FC<{
 
   const handleDrop = (
     _newTree: NodeModel<NodeData>[],
-    options: DropOptions
+    options: DropOptions,
   ) => {
     const { dragSourceId, dropTargetId, destinationIndex } = options;
     if (
@@ -418,7 +428,7 @@ export const ProjectProvider: React.FC<{
         const output = reorderArray(
           treeData,
           treeData.indexOf(start),
-          destinationIndex
+          destinationIndex,
         );
         return output;
       });
@@ -431,7 +441,7 @@ export const ProjectProvider: React.FC<{
     ) {
       if (
         getDescendants(treeData, dragSourceId).find(
-          (el) => el.id === dropTargetId
+          (el) => el.id === dropTargetId,
         ) ||
         dropTargetId === dragSourceId ||
         (end && !end?.droppable)
@@ -441,7 +451,7 @@ export const ProjectProvider: React.FC<{
         const output = reorderArray(
           treeData,
           treeData.indexOf(start),
-          destinationIndex
+          destinationIndex,
         );
         const movedElement = output.find((el) => el.id === dragSourceId);
         if (movedElement) movedElement.parent = dropTargetId as number;
@@ -485,7 +495,7 @@ export const ProjectProvider: React.FC<{
                       lastModified: new Date(),
                     },
                   }
-                : node
+                : node,
             ) as ExtendedNodeModel[];
 
             // Update project metadata with the updated tree data
@@ -518,7 +528,7 @@ export const ProjectProvider: React.FC<{
         }
       }
     },
-    [selectedFile, projectName, showError]
+    [selectedFile, projectName, showError],
   );
 
   return (
@@ -550,6 +560,8 @@ export const ProjectProvider: React.FC<{
         fileSaveInProgress,
         setFileSaveInProgress,
         isBackingUp,
+        editorContentRef,
+        setFileContentDirectly,
       }}
     >
       {children}

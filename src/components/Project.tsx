@@ -8,12 +8,13 @@ import {
   useProjectContext,
 } from "../contexts/pages/ProjectProvider";
 import Sidebar from "./projectComponents/SideBar";
+import SearchReplaceModal from "./projectComponents/modals/SearchReplaceModal";
 import { useParams } from "react-router-dom";
 
 export default function Project() {
   const projectName = useParams().projectName ?? "";
 
-  const { setProjectName, setWordCount, setLastBackupTime } =
+  const { setProjectName, setWordCount, setLastBackupTime, setIsSearchOpen } =
     useGlobalProjectContext();
 
   useEffect(() => {
@@ -24,12 +25,20 @@ export default function Project() {
       setProjectName("");
       setWordCount(null); // Reset word count when navigating away
       setLastBackupTime(null);
+      setIsSearchOpen(false);
     };
-  }, [projectName, setLastBackupTime, setProjectName, setWordCount]);
+  }, [
+    projectName,
+    setLastBackupTime,
+    setProjectName,
+    setWordCount,
+    setIsSearchOpen,
+  ]);
 
   return (
     <ProjectProvider projectName={projectName}>
       <TitleBarUpdater /> {/* Keeps GlobalProjectContext updated */}
+      <SearchReplaceModal />
       <ProjectsPageModalWrapper>
         <FileSavedMessage />
         <Sidebar />

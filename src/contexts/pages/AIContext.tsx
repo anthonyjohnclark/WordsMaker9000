@@ -53,7 +53,8 @@ const AIContext = createContext<AIContextType | undefined>(undefined);
 
 // AI Provider component
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { fileContent, saveFileContent, loadFileContent } = useProjectContext();
+  const { fileContent, saveFileContent, loadFileContent, editorContentRef } =
+    useProjectContext();
 
   const { showError } = useErrorContext();
 
@@ -73,6 +74,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
     setContent(fileContent ?? "");
   }, [fileContent]);
+
+  useEffect(() => {
+    editorContentRef.current = content;
+  }, [content, editorContentRef]);
 
   useEffect(() => {
     setShowDiff(false); // Hide the diff view when the content changes

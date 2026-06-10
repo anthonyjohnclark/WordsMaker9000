@@ -1,12 +1,18 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
-import { FiCheckCircle, FiHome } from "react-icons/fi";
+import { FiCheckCircle, FiHome, FiSearch } from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
 import { Link, useLocation } from "react-router-dom";
 
 const TitleBar = () => {
-  const { projectName, wordCount, isLoading, isBackingUp, lastBackupTime } =
-    useGlobalProjectContext();
+  const {
+    projectName,
+    wordCount,
+    isLoading,
+    isBackingUp,
+    lastBackupTime,
+    setIsSearchOpen,
+  } = useGlobalProjectContext();
 
   const handleClose = () => getCurrentWindow().close();
   const handleMinimize = () => getCurrentWindow().minimize();
@@ -61,6 +67,27 @@ const TitleBar = () => {
               {decodeURIComponent(projectName)}
             </span>
           </h2>
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="p-1 rounded transition-colors shrink-0"
+            style={
+              {
+                color: "var(--text-secondary)",
+                WebkitAppRegion: "no-drag",
+                cursor: "pointer",
+              } as React.CSSProperties
+            }
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.color = "var(--accent)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.color = "var(--text-secondary)")
+            }
+            aria-label="Search & Replace"
+            title="Search & Replace (Ctrl+Shift+F)"
+          >
+            <FiSearch size={14} />
+          </button>
           <div className="text-sm flex items-center space-x-2 shrink-0">
             {isBackingUp ? (
               <span style={{ color: "var(--text-muted)" }}>Backing up...</span>

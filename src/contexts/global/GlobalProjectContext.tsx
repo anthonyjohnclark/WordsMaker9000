@@ -13,6 +13,8 @@ interface GlobalProjectContextProps {
   setLastBackupTime: React.Dispatch<React.SetStateAction<Date | null>>;
   setIsBackingUp: React.Dispatch<React.SetStateAction<boolean>>;
   lastBackupTime: Date | null;
+  isSearchOpen: boolean;
+  setIsSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const GlobalProjectContext = createContext<
@@ -29,6 +31,7 @@ export const GlobalProjectProvider = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isBackingUp, setIsBackingUp] = useState<boolean>(false);
   const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
     <GlobalProjectContext.Provider
@@ -43,6 +46,8 @@ export const GlobalProjectProvider = ({
         setLastBackupTime,
         setIsBackingUp,
         lastBackupTime,
+        isSearchOpen,
+        setIsSearchOpen,
       }}
     >
       {children}
@@ -54,7 +59,7 @@ export const useGlobalProjectContext = () => {
   const context = useContext(GlobalProjectContext);
   if (!context) {
     throw new Error(
-      "useGlobalProjectContext must be used within a GlobalProjectProvider"
+      "useGlobalProjectContext must be used within a GlobalProjectProvider",
     );
   }
   return context;
