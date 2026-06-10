@@ -18,6 +18,8 @@ import RestoreBackupsModal from "../components/projectComponents/modals/RestoreB
 import ExportVersionsModal from "../components/projectComponents/modals/ExportVersionsModal";
 import { FaCog } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
+import { FiEdit2 } from "react-icons/fi";
+import EditProjectTypeModal from "./EditProjectTypeModal";
 
 export default function HomePage() {
   const { showError } = useErrorContext();
@@ -26,8 +28,6 @@ export default function HomePage() {
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [projectType, setProjectType] = useState<ProjectType | "">(""); // Default to blank
-
-  console.log(projects);
 
   const isCreateDisabled = !newProjectName.trim() || !projectType; // Disable if either field is invalid
 
@@ -86,6 +86,19 @@ export default function HomePage() {
   const handleSetNewProjects = (deletedProject: string) => {
     setProjects((prev) =>
       prev.filter((project) => project.projectName !== deletedProject),
+    );
+  };
+
+  const handleUpdateProjectType = (
+    projectName: string,
+    newType: ProjectType,
+  ) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.projectName === projectName
+          ? { ...project, projectType: newType }
+          : project,
+      ),
     );
   };
 
@@ -212,7 +225,7 @@ export default function HomePage() {
                         {decodeURIComponent(project.projectName)}
                       </Link>
 
-                      <p>
+                      <p className="flex items-center space-x-2">
                         <span
                           className="font-semibold"
                           style={{ color: "var(--text-primary)" }}
@@ -222,6 +235,29 @@ export default function HomePage() {
                         <span style={{ color: "var(--accent)" }}>
                           {project.projectType}
                         </span>
+                        <button
+                          onClick={() => {
+                            modal.renderModal({
+                              modalBody: (
+                                <EditProjectTypeModal
+                                  projectName={project.projectName}
+                                  currentType={project.projectType}
+                                  onSuccess={(newType) =>
+                                    handleUpdateProjectType(
+                                      project.projectName,
+                                      newType,
+                                    )
+                                  }
+                                />
+                              ),
+                            });
+                          }}
+                          className="hover:opacity-80 p-1"
+                          style={{ color: "var(--btn-primary)" }}
+                          title="Edit Project Type"
+                        >
+                          <FiEdit2 size={14} />
+                        </button>
                       </p>
                       <p>
                         <span

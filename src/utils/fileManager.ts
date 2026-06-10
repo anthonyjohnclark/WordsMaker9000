@@ -20,9 +20,10 @@ export interface UserSettings {
   theme: ThemeName;
 }
 
-const BASE_DIR = "Projects";
-const BACKUP_DIR = "WordsMaker3000Backups";
-const USER_DIR = "User";
+const DEV_PREFIX = import.meta.env.DEV ? "Dev_" : "";
+const BASE_DIR = `${DEV_PREFIX}Projects`;
+const BACKUP_DIR = `${DEV_PREFIX}WordsMaker3000Backups`;
+const USER_DIR = `${DEV_PREFIX}User`;
 const SETTINGS_FILE = "settings.json";
 
 export type ProjectType = "novel" | "collection" | "serial" | "novella";
@@ -90,7 +91,7 @@ export async function createProject(
   const metadataPath = `${projectPath}/metadata.json`;
 
   // Create project folder
-  await mkdir(projectPath, { baseDir: BaseDirectory.AppData });
+  await mkdir(projectPath, { baseDir: BaseDirectory.AppData, recursive: true });
 
   // Initialize metadata for the project
   const metadata: ProjectMetadata = {

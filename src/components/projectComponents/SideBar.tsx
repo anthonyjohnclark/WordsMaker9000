@@ -53,11 +53,11 @@ const Sidebar: React.FC = () => {
         {/* Header with Toggle Button, Project Name, and Action Buttons */}
         <div className="flex items-center justify-between p-3 pb-0">
           {/* Left Section: Toggle Button and Project Name */}
-          <div className="flex items-center">
+          <div className="flex items-center min-w-0 flex-1">
             {/* Toggle Button */}
             <button
               onClick={() => project.setIsSidebarOpen((prev) => !prev)}
-              className="focus:outline-none"
+              className="focus:outline-none flex-shrink-0"
             >
               {project.isSidebarOpen ? (
                 <FiX className="text-2xl" />
@@ -67,7 +67,7 @@ const Sidebar: React.FC = () => {
             </button>
 
             {project.isSidebarOpen && (
-              <div className="ml-4">
+              <div className="ml-4 min-w-0">
                 <h2
                   className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis"
                   style={{ color: "var(--text-primary)" }}
@@ -80,7 +80,7 @@ const Sidebar: React.FC = () => {
 
           {/* Right Section: Action Buttons */}
           {project.isSidebarOpen && (
-            <div className="flex gap-4 pl-4">
+            <div className="flex gap-4 pl-4 flex-shrink-0">
               <FiFilePlus
                 onClick={() => {
                   modal.renderModal({

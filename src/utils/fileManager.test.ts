@@ -50,6 +50,7 @@ const defaultSettings: UserSettings = {
   defaultSaveInterval: 60000, // 1 minute
   defaultBackupInterval: 3600000, // 1 hour
   aiSuiteEnabled: false,
+  theme: "midnight",
 };
 
 describe("fileManager", () => {
@@ -64,6 +65,7 @@ describe("fileManager", () => {
         defaultSaveInterval: 10000,
         defaultBackupInterval: 5000,
         aiSuiteEnabled: true,
+        theme: "midnight" as const,
       };
       (mkdir as jest.Mock).mockResolvedValue(undefined);
       (writeTextFile as jest.Mock).mockResolvedValue(undefined);
@@ -76,7 +78,7 @@ describe("fileManager", () => {
       expect(writeTextFile).toHaveBeenCalledWith(
         "User/settings.json",
         JSON.stringify(testSettings),
-        { baseDir: expect.any(String) }
+        { baseDir: expect.any(String) },
       );
     });
   });
@@ -86,7 +88,7 @@ describe("fileManager", () => {
       (exists as jest.Mock).mockResolvedValue(false);
       (writeTextFile as jest.Mock).mockResolvedValue(undefined);
       (readTextFile as jest.Mock).mockResolvedValue(
-        JSON.stringify(defaultSettings)
+        JSON.stringify(defaultSettings),
       );
 
       const settings = await retrieveSettings();
@@ -104,7 +106,7 @@ describe("fileManager", () => {
       };
       (exists as jest.Mock).mockResolvedValue(true);
       (readTextFile as jest.Mock).mockResolvedValue(
-        JSON.stringify(customSettings)
+        JSON.stringify(customSettings),
       );
 
       const settings = await retrieveSettings();
@@ -221,7 +223,7 @@ describe("fileManager", () => {
         treeData: [],
       };
       (readTextFile as jest.Mock).mockResolvedValue(
-        JSON.stringify(originalMetadata)
+        JSON.stringify(originalMetadata),
       );
       (writeTextFile as jest.Mock).mockResolvedValue(undefined);
 
@@ -230,14 +232,14 @@ describe("fileManager", () => {
       expect(writeTextFile).toHaveBeenCalledWith(
         "Projects/Project1/metadata.json",
         JSON.stringify(updatedMetadata),
-        { baseDir: expect.any(String) }
+        { baseDir: expect.any(String) },
       );
     });
 
     it("should throw error if fetching existing metadata fails", async () => {
       (readTextFile as jest.Mock).mockRejectedValue(new Error("fetch error"));
       await expect(
-        updateMetadata("Project1", { wordCount: 200 })
+        updateMetadata("Project1", { wordCount: 200 }),
       ).rejects.toThrow("fetch error");
     });
   });
@@ -263,7 +265,7 @@ describe("fileManager", () => {
       expect(writeTextFile).toHaveBeenCalledWith(
         "Projects/Project1/file1.json",
         JSON.stringify({ content: "New Content" }),
-        { baseDir: expect.any(String) }
+        { baseDir: expect.any(String) },
       );
     });
   });
@@ -299,7 +301,7 @@ describe("fileManager", () => {
 
       expect(remove).toHaveBeenCalledWith(
         "WordsMaker3000Backups/TestProject_202501010000000",
-        { baseDir: expect.any(String), recursive: true }
+        { baseDir: expect.any(String), recursive: true },
       );
       expect(mkdir).toHaveBeenCalled();
     });
@@ -348,7 +350,7 @@ describe("fileManager", () => {
         {
           fromPathBaseDir: "AppData",
           toPathBaseDir: "Document",
-        }
+        },
       );
 
       expect(copyFile).toHaveBeenCalledWith(
@@ -357,7 +359,7 @@ describe("fileManager", () => {
         {
           fromPathBaseDir: "AppData",
           toPathBaseDir: "Document",
-        }
+        },
       );
     });
 
@@ -372,7 +374,7 @@ describe("fileManager", () => {
       });
       (copyFile as jest.Mock).mockRejectedValueOnce(new Error("copy error"));
       await expect(
-        copyDirectoryContents("sourceDir", "destDir")
+        copyDirectoryContents("sourceDir", "destDir"),
       ).rejects.toThrow("copy error");
     });
   });
@@ -457,7 +459,7 @@ describe("fileManager", () => {
       expect(copyFileMock).toHaveBeenCalledWith(
         `WordsMaker3000Backups/${backupFolderName}/file1.txt`,
         `Projects/${projectName}/file1.txt`,
-        { fromPathBaseDir: "Document", toPathBaseDir: "AppData" }
+        { fromPathBaseDir: "Document", toPathBaseDir: "AppData" },
       );
 
       readDirMock.mockRestore();

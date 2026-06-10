@@ -29,7 +29,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--accent-bg-hover": "#facc15", // yellow-400
       "--border-color": "#374151", // gray-700
       "--editor-font-family": "Consolas, monospace",
-      "--editor-bg": "#111827",
+      "--editor-bg": "#000000",
       "--editor-text": "#e5e7eb", // gray-200
       "--toolbar-active": "#eab308",
       "--btn-primary": "#3b82f6", // blue-500
