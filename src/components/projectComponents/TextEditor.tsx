@@ -5,6 +5,7 @@ import { useEditorContext } from "../../contexts/pages/EditorContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { convertToCurlyQuotes } from "../../utils/helpers";
+import "../../utils/quillSmartTypography";
 import ReactQuill from "react-quill-new";
 import "../../styles/quill.snow.css";
 
@@ -108,6 +109,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
         ["bold", "italic", "underline", "strike"],
         [{ list: "ordered" }, { list: "bullet" }],
       ],
+      smartTypography: true,
     };
   }, []);
 
