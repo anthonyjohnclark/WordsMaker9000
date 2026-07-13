@@ -45,11 +45,14 @@ jest.mock("path-browserify", () => ({
   join: (...args: string[]) => args.join("/"),
 }));
 
+jest.mock("./env", () => ({
+  IS_DEV: false,
+}));
+
 const defaultSettings: UserSettings = {
   defaultFontZoom: 16,
   defaultSaveInterval: 60000, // 1 minute
   defaultBackupInterval: 3600000, // 1 hour
-  aiSuiteEnabled: false,
   theme: "midnight",
 };
 
@@ -64,7 +67,6 @@ describe("fileManager", () => {
         defaultFontZoom: 18,
         defaultSaveInterval: 10000,
         defaultBackupInterval: 5000,
-        aiSuiteEnabled: true,
         theme: "midnight" as const,
       };
       (mkdir as jest.Mock).mockResolvedValue(undefined);
@@ -102,7 +104,6 @@ describe("fileManager", () => {
         defaultFontZoom: 20,
         defaultSaveInterval: 20000,
         defaultBackupInterval: 10000,
-        aiSuiteEnabled: false,
       };
       (exists as jest.Mock).mockResolvedValue(true);
       (readTextFile as jest.Mock).mockResolvedValue(

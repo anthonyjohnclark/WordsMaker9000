@@ -41,7 +41,6 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       defaultFontZoom: settings?.defaultFontZoom,
       defaultSaveInterval: settings?.defaultSaveInterval,
       defaultBackupInterval: settings?.defaultBackupInterval,
-      aiSuiteEnabled: settings?.aiSuiteEnabled,
       theme: settings?.theme || "midnight",
     },
   });
@@ -212,17 +211,6 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 Located in your Documents folder
               </span>
             </p>
-          </div>
-          <div className="mb-4">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                {...register("aiSuiteEnabled")}
-                className="form-checkbox"
-                style={{ accentColor: "var(--accent)" }}
-              />
-              <span>AI Suite Enabled</span>
-            </label>
           </div>
           <div className="flex justify-end space-x-2">
             <button

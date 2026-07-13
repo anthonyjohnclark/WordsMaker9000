@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { FiSave } from "react-icons/fi";
 import { useUserSettings } from "../../contexts/global/UserSettingsContext";
-import { useAIContext } from "../../contexts/pages/AIContext";
+import { useEditorContext } from "../../contexts/pages/EditorContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { convertToCurlyQuotes } from "../../utils/helpers";
-import DiffView from "../DiffView";
 import ReactQuill from "react-quill-new";
 import "../../styles/quill.snow.css";
 
@@ -19,13 +18,11 @@ const TextEditor: React.FC<TextEditorProps> = ({
   isDrawerExpanded,
 }) => {
   const { settings } = useUserSettings();
-  const { content, setContent } = useAIContext();
+  const { content, setContent } = useEditorContext();
 
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
   const editorRef = useRef<HTMLDivElement | null>(null);
-
-  const { showDiff } = useAIContext();
 
   const project = useProjectContext();
 
@@ -153,37 +150,29 @@ const TextEditor: React.FC<TextEditorProps> = ({
       ref={editorRef}
       className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
-      {!showDiff && (
-        <>
-          <FiSave
-            onClick={handleSave}
-            className="save-icon absolute top-2 right-2 cursor-pointer text-2xl"
-            style={{ color: "var(--accent)" }}
-            title="Save"
-          />
+      <FiSave
+        onClick={handleSave}
+        className="save-icon absolute top-2 right-2 cursor-pointer text-2xl"
+        style={{ color: "var(--accent)" }}
+        title="Save"
+      />
 
-          <p
-            className="italic save-icon absolute top-2 right-20"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Ctrl + wheel to zoom
-          </p>
-        </>
-      )}
+      <p
+        className="italic save-icon absolute top-2 right-20"
+        style={{ color: "var(--text-muted)" }}
+      >
+        Ctrl + wheel to zoom
+      </p>
 
-      {showDiff ? (
-        <DiffView />
-      ) : (
-        <ReactQuill
-          value={content}
-          onChange={handleContentChange}
-          style={{
-            height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
-            fontFamily: "var(--editor-font-family)",
-          }}
-          modules={modules}
-        />
-      )}
+      <ReactQuill
+        value={content}
+        onChange={handleContentChange}
+        style={{
+          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+          fontFamily: "var(--editor-font-family)",
+        }}
+        modules={modules}
+      />
     </div>
   );
 };

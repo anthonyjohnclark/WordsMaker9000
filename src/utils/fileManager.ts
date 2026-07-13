@@ -11,16 +11,16 @@ import {
 import { join } from "path-browserify";
 import { ExtendedNodeModel } from "../types/ProjectPageTypes";
 import { ThemeName } from "../themes";
+import { IS_DEV } from "./env";
 
 export interface UserSettings {
   defaultFontZoom: number;
   defaultSaveInterval: number; // milliseconds
   defaultBackupInterval: number; // milliseconds
-  aiSuiteEnabled: boolean;
   theme: ThemeName;
 }
 
-const DEV_PREFIX = import.meta.env.DEV ? "Dev_" : "";
+const DEV_PREFIX = IS_DEV ? "Dev_" : "";
 const BASE_DIR = `${DEV_PREFIX}Projects`;
 const BACKUP_DIR = `${DEV_PREFIX}WordsMaker3000Backups`;
 const USER_DIR = `${DEV_PREFIX}User`;
@@ -61,7 +61,6 @@ export async function retrieveSettings(): Promise<UserSettings> {
     defaultFontZoom: 16,
     defaultSaveInterval: 60000, // 1 minute
     defaultBackupInterval: 3600000, // 1 hour
-    aiSuiteEnabled: false,
     theme: "midnight",
   };
 

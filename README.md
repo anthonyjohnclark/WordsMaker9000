@@ -4,15 +4,11 @@ Welcome to **Wordsmaker9000**!
 
 As a writer, I was sick of Word's overcomplicated interface and features I never used. I wanted a simple local desktop application that could save files to a project, word count, backup, simple rich text edit, auto-save, and more, in a style all my own. The biggest difference for me is having a VS Code like side-drawer with all my files in a project and being able to quickly switch between them.
 
-More than that, I wanted more custom control over the AI prompts used to look at my writing.
-
 It's a simple app, but it's mine!
 
 ![Wordsmaker9000](./wordsmaker9000.PNG)
 
 ![the editor in action](./heywow.PNG)
-
-![nested folders and AI ](./nestedFoldersAndAI.PNG)
 
 ## Technical Overview
 
@@ -29,7 +25,6 @@ It's a simple app, but it's mine!
 - **Tauri Integration:** Native desktop app support with a Rust-powered backend.
 - **Tailwind CSS:** Pre-configured utility-first CSS framework for rapid styling and responsive design, enabling highly customizable and consistent user interfaces.
 - **Production Ready:** Easy to build and bundle for production use.
-- **OpenAI Integration:** Supports integration with OpenAI APIs. Simply add your API key in a `.env` file to get started.
 
 ## Getting Started
 
@@ -85,25 +80,6 @@ To publish Wordsmaker9000 as a desktop application:
 
 3. **Deploy:**  
    Distribute your app through your preferred channels, such as direct downloads or app stores.
-
-## Configuring OPEN_AI Key
-
-For OpenAI integrations:
-
-1. **Obtain an API Key:**  
-   Register at [OpenAI](https://platform.openai.com/) and secure your API key.
-
-2. **Set the API Key:**  
-   Create a `.env` file in the project root (if it’s not already present) and add:
-
-   ```
-   OPEN_AI_KEY=your_api_key_here
-   ```
-
-   Replace `your_api_key_here` with your actual API key. Ensure this file is included in your `.gitignore` to protect your API credentials.
-
-3. **Automatic Detection:**  
-   The application automatically reads the `OPEN_AI_KEY` environment variable to enable OpenAI features.
 
 ## Dive Deeper
 

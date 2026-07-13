@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AIProvider } from "../../contexts/pages/AIContext";
+import { EditorProvider } from "../../contexts/pages/EditorContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import Loadable from "../Loadable";
 import BottomDrawer from "./BottomDrawer";
@@ -14,7 +14,7 @@ const Editor: React.FC = () => {
   };
 
   return (
-    <AIProvider>
+    <EditorProvider>
       <Loadable isLoading={project.isEditorLoading}>
         <div className="relative flex flex-col h-full">
           {/* Header */}
@@ -50,7 +50,7 @@ const Editor: React.FC = () => {
           <BottomDrawer onStateChange={handleDrawerStateChange} />
         </div>
       </Loadable>
-    </AIProvider>
+    </EditorProvider>
   );
 };
 
