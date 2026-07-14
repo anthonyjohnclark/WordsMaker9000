@@ -3,7 +3,8 @@ export type ThemeName =
   | "parchment"
   | "ocean"
   | "forest"
-  | "typewriter";
+  | "typewriter"
+  | "slate";
 
 export interface ThemeDefinition {
   label: string;
@@ -93,7 +94,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--accent-bg-hover": "#06b6d4", // cyan-500
       "--border-color": "#334155", // slate-700
       "--editor-font-family": "'Merriweather', Georgia, serif",
-      "--editor-bg": "#0f172a",
+      "--editor-bg": "#020617",
       "--editor-text": "#cbd5e1", // slate-300
       "--toolbar-active": "#22d3ee",
       "--btn-primary": "#6366f1", // indigo-500
@@ -125,7 +126,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--accent-bg-hover": "#10b981", // emerald-500
       "--border-color": "#2d4a2d",
       "--editor-font-family": "'Lora', Georgia, serif",
-      "--editor-bg": "#1a2e1a",
+      "--editor-bg": "#0f1f0f",
       "--editor-text": "#d1e7d1",
       "--toolbar-active": "#34d399",
       "--btn-primary": "#8b5cf6", // violet-500
@@ -157,7 +158,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--accent-bg-hover": "#4b5563",
       "--border-color": "#d1d5db", // gray-300
       "--editor-font-family": "'Courier New', 'Courier', monospace",
-      "--editor-bg": "#fafaf5",
+      "--editor-bg": "#eaeae5",
       "--editor-text": "#1f2937",
       "--toolbar-active": "#1f2937",
       "--btn-primary": "#4b5563",
@@ -170,6 +171,38 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--modal-bg": "#ededea",
       "--btn-text": "#f5f5f0",
       "--accent-text": "#f5f5f0",
+    },
+  },
+  slate: {
+    label: "Slate",
+    description: "Dark blues, blacks, and greys with warm pops of color",
+    variables: {
+      "--bg-primary": "#1e293b", // slate-800
+      "--bg-secondary": "#020617", // slate-950
+      "--bg-input": "#334155", // slate-700
+      "--bg-hover": "#334155",
+      "--text-primary": "#f8fafc", // slate-50
+      "--text-secondary": "#94a3b8", // slate-400
+      "--text-muted": "#64748b", // slate-500
+      "--accent": "#f59e0b", // amber-500
+      "--accent-hover": "#fbbf24", // amber-400
+      "--accent-bg": "#f59e0b",
+      "--accent-bg-hover": "#fbbf24",
+      "--border-color": "#334155",
+      "--editor-font-family": "'Lora', Georgia, serif",
+      "--editor-bg": "#020617",
+      "--editor-text": "#cbd5e1", // slate-300
+      "--toolbar-active": "#f59e0b",
+      "--btn-primary": "#3b82f6", // blue-500
+      "--btn-primary-hover": "#60a5fa",
+      "--btn-success": "#22c55e",
+      "--btn-success-hover": "#4ade80",
+      "--btn-danger": "#ef4444",
+      "--btn-danger-hover": "#f87171",
+      "--card-bg": "#1e293b",
+      "--modal-bg": "#0f172a",
+      "--btn-text": "#020617",
+      "--accent-text": "#020617",
     },
   },
 };

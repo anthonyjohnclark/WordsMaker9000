@@ -3,11 +3,9 @@ import { smartQuoteChar, convertToCurlyQuotes } from "./smartTypography";
 
 class SmartTypography {
   private quill: Quill;
-  private options: Record<string, unknown>;
 
-  constructor(quill: Quill, options: Record<string, unknown> = {}) {
+  constructor(quill: Quill) {
     this.quill = quill;
-    this.options = options;
     this.quill.root.addEventListener("keydown", this.handleKeyDown);
     this.quill.clipboard.addMatcher(Node.TEXT_NODE, (_node, delta) => {
       delta.ops.forEach((op) => {
