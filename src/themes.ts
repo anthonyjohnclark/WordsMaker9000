@@ -191,7 +191,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--border-color": "#334155",
       "--editor-font-family": "'Lora', Georgia, serif",
       "--editor-bg": "#020617",
-      "--editor-text": "#cbd5e1", // slate-300
+      "--editor-text": "#f8fafc", // slate-300
       "--toolbar-active": "#f59e0b",
       "--btn-primary": "#3b82f6", // blue-500
       "--btn-primary-hover": "#60a5fa",
