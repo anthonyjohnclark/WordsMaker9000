@@ -20,6 +20,7 @@
   --editor-font-family: Consolas, monospace;
   --editor-bg: #111827;
   --editor-text: #e5e7eb;
+  --selection-bg: rgba(234, 179, 8, 0.35);
   --toolbar-active: #eab308;
   --btn-primary: #3b82f6;
   --btn-primary-hover: #60a5fa;
@@ -31,6 +32,11 @@
   --modal-bg: #111827;
   --btn-text: #111827;
   --accent-text: #111827;
+}
+
+/* Themed text selection color (overrides the WebView's default blue) */
+::selection {
+  background: var(--selection-bg);
 }
 
 body {

@@ -32,6 +32,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--editor-font-family": "Consolas, monospace",
       "--editor-bg": "#000000",
       "--editor-text": "#e5e7eb", // gray-200
+      "--selection-bg": "rgba(234, 179, 8, 0.35)", // yellow-500 @ 35%
       "--toolbar-active": "#eab308",
       "--btn-primary": "#3b82f6", // blue-500
       "--btn-primary-hover": "#60a5fa", // blue-400
@@ -64,6 +65,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--editor-font-family": "Georgia, 'Times New Roman', serif",
       "--editor-bg": "#faf6ef",
       "--editor-text": "#3d2b1f",
+      "--selection-bg": "rgba(180, 83, 9, 0.25)", // amber-700 @ 25%
       "--toolbar-active": "#b45309",
       "--btn-primary": "#1d4ed8", // blue-700
       "--btn-primary-hover": "#2563eb",
@@ -96,6 +98,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--editor-font-family": "'Merriweather', Georgia, serif",
       "--editor-bg": "#020617",
       "--editor-text": "#cbd5e1", // slate-300
+      "--selection-bg": "rgba(34, 211, 238, 0.3)", // cyan-400 @ 30%
       "--toolbar-active": "#22d3ee",
       "--btn-primary": "#6366f1", // indigo-500
       "--btn-primary-hover": "#818cf8",
@@ -128,6 +131,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--editor-font-family": "'Lora', Georgia, serif",
       "--editor-bg": "#0f1f0f",
       "--editor-text": "#d1e7d1",
+      "--selection-bg": "rgba(52, 211, 153, 0.3)", // emerald-400 @ 30%
       "--toolbar-active": "#34d399",
       "--btn-primary": "#8b5cf6", // violet-500
       "--btn-primary-hover": "#a78bfa",
@@ -160,6 +164,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--editor-font-family": "'Courier New', 'Courier', monospace",
       "--editor-bg": "#eaeae5",
       "--editor-text": "#1f2937",
+      "--selection-bg": "rgba(31, 41, 55, 0.2)", // gray-800 @ 20%
       "--toolbar-active": "#1f2937",
       "--btn-primary": "#4b5563",
       "--btn-primary-hover": "#6b7280",
@@ -192,6 +197,7 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
       "--editor-font-family": "'Lora', Georgia, serif",
       "--editor-bg": "#020617",
       "--editor-text": "#f8fafc", // slate-300
+      "--selection-bg": "rgba(245, 158, 11, 0.35)", // amber-500 @ 35%
       "--toolbar-active": "#f59e0b",
       "--btn-primary": "#3b82f6", // blue-500
       "--btn-primary-hover": "#60a5fa",
