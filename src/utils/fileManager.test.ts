@@ -54,6 +54,7 @@ const defaultSettings: UserSettings = {
   defaultSaveInterval: 60000, // 1 minute
   defaultBackupInterval: 3600000, // 1 hour
   theme: "midnight",
+  dictionaryEnabled: true,
 };
 
 describe("fileManager", () => {
@@ -68,6 +69,7 @@ describe("fileManager", () => {
         defaultSaveInterval: 10000,
         defaultBackupInterval: 5000,
         theme: "midnight" as const,
+        dictionaryEnabled: true,
       };
       (mkdir as jest.Mock).mockResolvedValue(undefined);
       (writeTextFile as jest.Mock).mockResolvedValue(undefined);

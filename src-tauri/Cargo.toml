@@ -28,3 +28,8 @@ genpdf = "0.2"
 scraper = "0.21"
 ego-tree = "0.9"
 chrono = "0.4"
+
+# Windows-only: WebView2 context-menu bridge (matches versions Tauri pulls in)
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.33"
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_WinRT"] }

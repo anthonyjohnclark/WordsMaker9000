@@ -1,10 +1,21 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import { createPortal } from "react-dom";
 import { FiSave } from "react-icons/fi";
 import { useUserSettings } from "../../contexts/global/UserSettingsContext";
 import { useEditorContext } from "../../contexts/pages/EditorContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
+import { useModal } from "../../contexts/global/ModalContext";
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { convertToCurlyQuotes } from "../../utils/helpers";
+import { normalizeWord } from "../../agents/dictionaryAgent";
+import DefinitionModal from "./DefinitionModal";
+import FindBar from "./FindBar";
 import "../../utils/quillSmartTypography";
 import ReactQuill from "react-quill-new";
 import "../../styles/quill.snow.css";
@@ -20,10 +31,22 @@ const TextEditor: React.FC<TextEditorProps> = ({
 }) => {
   const { settings } = useUserSettings();
   const { content, setContent } = useEditorContext();
+  const modal = useModal();
 
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
+  const [defineButton, setDefineButton] = useState<{
+    x: number;
+    y: number;
+    word: string;
+  } | null>(null);
+  const [isFindOpen, setIsFindOpen] = useState(false);
+  const [findTerm, setFindTerm] = useState("");
+  const [findMatches, setFindMatches] = useState<number[]>([]);
+  const [currentMatch, setCurrentMatch] = useState(0);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const quillRef = useRef<ReactQuill | null>(null);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
 
   const project = useProjectContext();
 
@@ -124,6 +147,191 @@ const TextEditor: React.FC<TextEditorProps> = ({
     setContent(newContent); // Save raw content without processing
   };
 
+  // Show a floating "Define" button when the user selects a single word
+  // inside the editor. Positioned to the top-right of the selection.
+  const dictionaryEnabled = settings?.dictionaryEnabled ?? true;
+
+  useEffect(() => {
+    if (!dictionaryEnabled) {
+      setDefineButton(null);
+      return;
+    }
+
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        setDefineButton(null);
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      const container = editorRef.current;
+      if (!container || !container.contains(range.commonAncestorContainer)) {
+        setDefineButton(null);
+        return;
+      }
+
+      const raw = selection.toString().trim();
+      const word = normalizeWord(raw);
+      // Single word only: reject anything containing internal whitespace.
+      if (!word || /\s/.test(raw)) {
+        setDefineButton(null);
+        return;
+      }
+
+      // Whole-word only: reject partial selections (e.g. "et" in "clarinet")
+      // by checking the characters adjacent to the selection in the text.
+      const editor = quillRef.current?.getEditor();
+      const qSel = editor?.getSelection();
+      if (editor && qSel && qSel.length > 0) {
+        const text = editor.getText();
+        const isWordChar = (c?: string) => !!c && /[\p{L}\p{M}'’-]/u.test(c);
+        const before = text[qSel.index - 1];
+        const after = text[qSel.index + qSel.length];
+        if (isWordChar(before) || isWordChar(after)) {
+          setDefineButton(null);
+          return;
+        }
+      }
+
+      const rect = range.getBoundingClientRect();
+      setDefineButton({ x: rect.right, y: rect.top, word });
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () =>
+      document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [dictionaryEnabled]);
+
+  // Keep the Define button anchored to the word while scrolling; hide it once
+  // the selection scrolls out of the editor's visible area.
+  useEffect(() => {
+    if (!defineButton) return;
+
+    const reposition = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        setDefineButton(null);
+        return;
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect();
+      const containerRect = editorRef.current?.getBoundingClientRect();
+      if (
+        containerRect &&
+        (rect.bottom < containerRect.top || rect.top > containerRect.bottom)
+      ) {
+        setDefineButton(null);
+        return;
+      }
+      setDefineButton((prev) =>
+        prev ? { ...prev, x: rect.right, y: rect.top } : prev,
+      );
+    };
+
+    // Capture so scrolls from any inner container (e.g. .ql-editor) are caught.
+    window.addEventListener("scroll", reposition, true);
+    return () => window.removeEventListener("scroll", reposition, true);
+  }, [defineButton?.word]);
+
+  const handleDefine = () => {
+    if (!defineButton) return;
+    const { word } = defineButton;
+    setDefineButton(null);
+    modal.renderModal({ modalBody: <DefinitionModal word={word} /> });
+  };
+
+  // ── In-file find (Ctrl+F) ──────────────────────────────────────────────────
+
+  const computeMatches = useCallback((term: string): number[] => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor || !term) return [];
+    const text = editor.getText().toLowerCase();
+    const needle = term.toLowerCase();
+    const found: number[] = [];
+    let pos = 0;
+    while (pos <= text.length - needle.length) {
+      const idx = text.indexOf(needle, pos);
+      if (idx === -1) break;
+      found.push(idx);
+      pos = idx + needle.length; // non-overlapping matches
+    }
+    return found;
+  }, []);
+
+  const goToMatch = useCallback(
+    (matches: number[], index: number) => {
+      const editor = quillRef.current?.getEditor();
+      if (!editor || matches.length === 0) return;
+      const wrapped =
+        ((index % matches.length) + matches.length) % matches.length;
+      // Selecting the match highlights it natively and scrolls it into view.
+      editor.setSelection(matches[wrapped], findTerm.length, "user");
+      setCurrentMatch(wrapped);
+    },
+    [findTerm],
+  );
+
+  const nextMatch = useCallback(() => {
+    goToMatch(findMatches, currentMatch + 1);
+  }, [goToMatch, findMatches, currentMatch]);
+
+  const prevMatch = useCallback(() => {
+    goToMatch(findMatches, currentMatch - 1);
+  }, [goToMatch, findMatches, currentMatch]);
+
+  // Recompute matches whenever the term, editor content, or open state changes.
+  // Start at -1 so the first Enter/next lands on the first match (index 0).
+  useEffect(() => {
+    if (!isFindOpen) return;
+    setFindMatches(computeMatches(findTerm));
+    setCurrentMatch(-1);
+  }, [findTerm, isFindOpen, content, computeMatches]);
+
+  // Open with Ctrl+F, prefilling a single-word selection when present.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        const editor = quillRef.current?.getEditor();
+        const selection = editor?.getSelection();
+        if (selection && selection.length > 0) {
+          const selected = editor!
+            .getText(selection.index, selection.length)
+            .trim();
+          if (selected && !/\s/.test(selected)) setFindTerm(selected);
+        }
+        setIsFindOpen(true);
+        setTimeout(() => findInputRef.current?.select(), 50);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // While open: Enter/Shift+Enter navigate, Escape closes. Global so it works
+  // regardless of whether focus is in the find input or the editor.
+  useEffect(() => {
+    if (!isFindOpen) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsFindOpen(false);
+        return;
+      }
+      if (event.key === "Enter") {
+        // Capture + stopPropagation so Quill never inserts a newline when the
+        // editor has focus after navigating to a previous match.
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey) prevMatch();
+        else nextMatch();
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [isFindOpen, nextMatch, prevMatch]);
+
   const handleSave = () => {
     if (content) {
       // Create a temporary DOM element to parse the HTML content
@@ -147,11 +355,53 @@ const TextEditor: React.FC<TextEditorProps> = ({
     }
   };
 
+  // Render the find bar into the (non-scrolling) title header row so it lines
+  // up with the filename input instead of overlapping the editor's save button.
+  const findBarSlot =
+    typeof document !== "undefined"
+      ? document.getElementById("findbar-slot")
+      : null;
+
   return (
     <div
       ref={editorRef}
       className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
+      {isFindOpen &&
+        findBarSlot &&
+        createPortal(
+          <FindBar
+            term={findTerm}
+            onTermChange={setFindTerm}
+            matchCount={findMatches.length}
+            currentIndex={currentMatch}
+            onNext={nextMatch}
+            onPrev={prevMatch}
+            onClose={() => setIsFindOpen(false)}
+            inputRef={findInputRef}
+          />,
+          findBarSlot,
+        )}
+
+      {defineButton && (
+        <button
+          // Prevent mousedown from collapsing the selection before the click.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={handleDefine}
+          className="fixed rounded shadow-lg px-2 py-1 text-xs font-medium whitespace-nowrap z-[60] hover:opacity-90"
+          style={{
+            top: defineButton.y,
+            left: defineButton.x,
+            transform: "translate(4px, -100%)",
+            background: "var(--accent-bg, var(--accent))",
+            color: "var(--accent-text, var(--btn-text))",
+            border: "1px solid var(--border-color)",
+          }}
+        >
+          Define
+        </button>
+      )}
+
       <FiSave
         onClick={handleSave}
         className="save-icon absolute top-2 right-2 cursor-pointer text-2xl"
@@ -167,6 +417,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       </p>
 
       <ReactQuill
+        ref={quillRef}
         value={content}
         onChange={handleContentChange}
         style={{

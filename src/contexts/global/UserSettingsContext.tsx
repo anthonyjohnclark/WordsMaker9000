@@ -27,6 +27,7 @@ export const UserSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     defaultSaveInterval: 60000, // 1 minute
     defaultBackupInterval: 3600000, // 1 hour
     theme: "midnight",
+    dictionaryEnabled: true,
   });
 
   const { showError } = useErrorContext();

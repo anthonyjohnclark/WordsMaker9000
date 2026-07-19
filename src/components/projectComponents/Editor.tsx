@@ -19,6 +19,8 @@ const Editor: React.FC = () => {
         <div className="relative flex flex-col h-full">
           {/* Header */}
           <div className="relative flex flex-col pl-5 pr-5 h-full">
+            {/* Slot for the in-file find bar, aligned with the title input */}
+            <div id="findbar-slot" className="absolute top-3 right-5 z-50" />
             <div className="mb-0 flex items-center justify-between border-b pb-2 pt-2">
               <input
                 type="text"

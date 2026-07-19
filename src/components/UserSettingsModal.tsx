@@ -42,6 +42,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       defaultSaveInterval: settings?.defaultSaveInterval,
       defaultBackupInterval: settings?.defaultBackupInterval,
       theme: settings?.theme || "midnight",
+      dictionaryEnabled: settings?.dictionaryEnabled ?? true,
     },
   });
 
@@ -191,6 +192,17 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 </option>
               ))}
             </select>
+          </div>
+          <div className="mb-4">
+            <label className="flex items-center gap-2 text-sm font-bold cursor-pointer">
+              <input
+                type="checkbox"
+                {...register("dictionaryEnabled")}
+                className="h-4 w-4"
+                style={{ accentColor: "var(--accent)" }}
+              />
+              Enable dictionary (select a word to define)
+            </label>
           </div>
           <div className="mb-4">
             <label className="block text-sm font-bold mb-1">

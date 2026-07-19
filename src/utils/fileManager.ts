@@ -18,6 +18,7 @@ export interface UserSettings {
   defaultSaveInterval: number; // milliseconds
   defaultBackupInterval: number; // milliseconds
   theme: ThemeName;
+  dictionaryEnabled: boolean;
 }
 
 const DEV_PREFIX = IS_DEV ? "Dev_" : "";
@@ -62,6 +63,7 @@ export async function retrieveSettings(): Promise<UserSettings> {
     defaultSaveInterval: 60000, // 1 minute
     defaultBackupInterval: 3600000, // 1 hour
     theme: "midnight",
+    dictionaryEnabled: true,
   };
 
   const filePath = `${USER_DIR}/${SETTINGS_FILE}`;
