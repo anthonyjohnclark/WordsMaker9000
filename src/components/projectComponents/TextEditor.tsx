@@ -32,6 +32,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const { settings } = useUserSettings();
   const { content, setContent } = useEditorContext();
   const modal = useModal();
+  const { setModalContainer } = modal;
 
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
@@ -47,6 +48,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const editorRef = useRef<HTMLDivElement | null>(null);
   const quillRef = useRef<ReactQuill | null>(null);
   const findInputRef = useRef<HTMLInputElement | null>(null);
+  const findBarSlotRef = useRef<HTMLDivElement | null>(null);
 
   const project = useProjectContext();
 
@@ -108,6 +110,21 @@ const TextEditor: React.FC<TextEditorProps> = ({
       window.removeEventListener("keydown", handleFullScreenShortcut);
     };
   }, []);
+
+  useEffect(() => {
+    const defaultContainer =
+      typeof document !== "undefined" ? document.body : null;
+
+    if (isFullScreen && editorRef.current) {
+      setModalContainer(editorRef.current);
+    } else {
+      setModalContainer(defaultContainer);
+    }
+
+    return () => {
+      setModalContainer(defaultContainer);
+    };
+  }, [isFullScreen, setModalContainer]);
 
   const handleWheelZoom = (event: WheelEvent) => {
     if (event.ctrlKey) {
@@ -292,6 +309,10 @@ const TextEditor: React.FC<TextEditorProps> = ({
     const handler = (event: KeyboardEvent) => {
       if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "f") {
         event.preventDefault();
+        if (isFindOpen) {
+          setIsFindOpen(false);
+          return;
+        }
         const editor = quillRef.current?.getEditor();
         const selection = editor?.getSelection();
         if (selection && selection.length > 0) {
@@ -306,7 +327,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [isFindOpen]);
 
   // While open: Enter/Shift+Enter navigate, Escape closes. Global so it works
   // regardless of whether focus is in the find input or the editor.
@@ -361,14 +382,24 @@ const TextEditor: React.FC<TextEditorProps> = ({
     typeof document !== "undefined"
       ? document.getElementById("findbar-slot")
       : null;
+  const fullscreenFindBarTarget = findBarSlotRef.current;
+  const findBarPortalTarget = isFullScreen
+    ? fullscreenFindBarTarget
+    : findBarSlot;
 
   return (
     <div
       ref={editorRef}
       className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
+      <div
+        ref={findBarSlotRef}
+        className="absolute top-3 right-5 z-[51]"
+        aria-hidden="true"
+      />
+
       {isFindOpen &&
-        findBarSlot &&
+        findBarPortalTarget &&
         createPortal(
           <FindBar
             term={findTerm}
@@ -380,7 +411,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
             onClose={() => setIsFindOpen(false)}
             inputRef={findInputRef}
           />,
-          findBarSlot,
+          findBarPortalTarget,
         )}
 
       {defineButton && (

@@ -16,6 +16,8 @@ interface IModalContext {
   resetModal: () => void;
   modalContent: IModalContent;
   handleExited: () => void;
+  modalContainer: HTMLElement | null;
+  setModalContainer: (node: HTMLElement | null) => void;
 }
 
 const modalContext = createContext<IModalContext>({} as IModalContext);
@@ -38,6 +40,10 @@ export const useProvideModal = () => {
   const [modalContent, setModalContent] = useState<IModalContent>({
     modalBody: (<></>) as React.ReactNode,
   });
+
+  const [modalContainer, setModalContainer] = useState<HTMLElement | null>(
+    () => (typeof document !== "undefined" ? document.body : null),
+  );
 
   const handleClose = () => {
     setShow(false);
@@ -75,5 +81,7 @@ export const useProvideModal = () => {
     setModalContent,
     resetModal,
     handleExited,
+    modalContainer,
+    setModalContainer,
   };
 };
