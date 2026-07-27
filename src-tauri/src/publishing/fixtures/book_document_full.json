@@ -1,0 +1,320 @@
+{
+  "metadata": {
+    "title": "The Example Book",
+    "subtitle": "A Semantic Fixture",
+    "contributors": [
+      {
+        "name": "A. Writer",
+        "role": "author"
+      },
+      {
+        "name": "E. Editor",
+        "role": "editor"
+      }
+    ],
+    "language": "en-US",
+    "series": {
+      "title": "Example Series",
+      "position": 2
+    }
+  },
+  "sections": [
+    {
+      "source_node_id": null,
+      "role": "front_matter",
+      "title": "Dedication",
+      "inclusion": {
+        "type": "selected_formats",
+        "formats": [
+          "pdf",
+          "epub"
+        ]
+      },
+      "blocks": [
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "For everyone who reads fixtures.",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "center",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "source_node_id": 1,
+      "role": "part",
+      "title": "Part One",
+      "inclusion": {
+        "type": "all_formats"
+      },
+      "blocks": [
+        {
+          "type": "heading",
+          "level": "h1",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "Beginnings",
+              "marks": {
+                "bold": true,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ]
+        }
+      ],
+      "children": [
+        {
+          "source_node_id": 2,
+          "role": "chapter",
+          "title": "Chapter One",
+          "inclusion": {
+            "type": "all_formats"
+          },
+          "blocks": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "Linked and marked",
+                  "marks": {
+                    "bold": true,
+                    "italic": false,
+                    "underline": true,
+                    "strike": false
+                  },
+                  "link": "https://example.com"
+                },
+                {
+                  "type": "text",
+                  "text": " then emphasized",
+                  "marks": {
+                    "bold": false,
+                    "italic": true,
+                    "underline": false,
+                    "strike": true
+                  },
+                  "link": null
+                },
+                {
+                  "type": "footnote_reference",
+                  "id": "note-1"
+                }
+              ],
+              "style": {
+                "alignment": "justify",
+                "indent_level": 1,
+                "direction": "right_to_left"
+              }
+            },
+            {
+              "type": "ordered_list",
+              "items": [
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "inlines": [
+                        {
+                          "type": "text",
+                          "text": "First ordered item",
+                          "marks": {
+                            "bold": false,
+                            "italic": false,
+                            "underline": false,
+                            "strike": false
+                          },
+                          "link": null
+                        }
+                      ],
+                      "style": {
+                        "alignment": "start",
+                        "indent_level": 0,
+                        "direction": "auto"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "inlines": [
+                        {
+                          "type": "text",
+                          "text": "First bullet item",
+                          "marks": {
+                            "bold": false,
+                            "italic": false,
+                            "underline": false,
+                            "strike": false
+                          },
+                          "link": null
+                        }
+                      ],
+                      "style": {
+                        "alignment": "start",
+                        "indent_level": 0,
+                        "direction": "auto"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "block_quote",
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "inlines": [
+                    {
+                      "type": "text",
+                      "text": "A quoted paragraph.",
+                      "marks": {
+                        "bold": false,
+                        "italic": false,
+                        "underline": false,
+                        "strike": false
+                      },
+                      "link": null
+                    }
+                  ],
+                  "style": {
+                    "alignment": "start",
+                    "indent_level": 0,
+                    "direction": "auto"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "scene_break",
+              "style": {
+                "type": "custom",
+                "marker": "§"
+              }
+            },
+            {
+              "type": "page_break"
+            },
+            {
+              "type": "image",
+              "asset_id": "image-1",
+              "alt": "A sample illustration",
+              "caption": [
+                {
+                  "type": "text",
+                  "text": "Figure one",
+                  "marks": {
+                    "bold": false,
+                    "italic": false,
+                    "underline": false,
+                    "strike": false
+                  },
+                  "link": null
+                }
+              ]
+            },
+            {
+              "type": "footnote_definition",
+              "id": "note-1",
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "inlines": [
+                    {
+                      "type": "text",
+                      "text": "The footnote body.",
+                      "marks": {
+                        "bold": false,
+                        "italic": false,
+                        "underline": false,
+                        "strike": false
+                      },
+                      "link": null
+                    }
+                  ],
+                  "style": {
+                    "alignment": "start",
+                    "indent_level": 0,
+                    "direction": "auto"
+                  }
+                }
+              ]
+            }
+          ],
+          "children": [
+            {
+              "source_node_id": 3,
+              "role": "scene",
+              "title": null,
+              "inclusion": {
+                "type": "excluded"
+              },
+              "blocks": [],
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source_node_id": 4,
+      "role": "back_matter",
+      "title": "Acknowledgments",
+      "inclusion": {
+        "type": "selected_formats",
+        "formats": [
+          "docx"
+        ]
+      },
+      "blocks": [],
+      "children": []
+    }
+  ],
+  "assets": [
+    {
+      "id": "image-1",
+      "kind": "image",
+      "media_type": "image/png",
+      "source": {
+        "type": "project_relative_path",
+        "path": "assets/illustration.png"
+      }
+    },
+    {
+      "id": "cover-1",
+      "kind": "cover_image",
+      "media_type": "image/jpeg",
+      "source": {
+        "type": "project_relative_path",
+        "path": "assets/cover.jpg"
+      }
+    }
+  ]
+}

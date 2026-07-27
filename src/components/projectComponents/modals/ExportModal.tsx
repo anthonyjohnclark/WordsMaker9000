@@ -12,12 +12,8 @@ import { useModal } from "../../../contexts/global/ModalContext";
 import { useErrorContext } from "../../../contexts/global/ErrorContext";
 import { exportProject } from "../../../agents/exportAgent";
 import { readFile } from "../../../utils/fileManager";
-import {
-  ExportFileNode,
-  ExportPayload,
-  ExportResult,
-  ExportProgress,
-} from "../../../types/ExportTypes";
+import { prepareAndExportProject } from "../../../utils/exportPreparation";
+import { ExportResult, ExportProgress } from "../../../types/ExportTypes";
 
 export const ExportModal = () => {
   const project = useProjectContext();
@@ -46,69 +42,41 @@ export const ExportModal = () => {
   const handleExport = async () => {
     setIsLoading(true);
     setResult(null);
-    setProgress({ stage: "Reading files...", current: 0, total: 1 });
-
-    unlistenRef.current = await listen<ExportProgress>(
-      "export-progress",
-      (event) => {
-        setProgress(event.payload);
-      },
-    );
+    setProgress({ stage: "Saving current document...", current: 0, total: 1 });
 
     try {
-      // Build export nodes from tree data, reading file content for each file node
-      const nodes: ExportFileNode[] = [];
-      const totalNodes = project.treeData.length;
-
-      for (let idx = 0; idx < totalNodes; idx++) {
-        const node = project.treeData[idx];
-        setProgress({
-          stage: `Reading file ${idx + 1} of ${totalNodes}...`,
-          current: idx,
-          total: totalNodes,
-        });
-
-        const exportNode: ExportFileNode = {
-          id: node.id as number,
-          parent: node.parent as number,
-          text: node.text,
-          file_type: node.data?.fileType || "file",
-        };
-
-        if (node.data?.fileType === "file" && node.data?.fileId) {
-          try {
-            const content = await readFile(
-              project.projectName,
-              node.data.fileId,
-            );
-            exportNode.content = content;
-          } catch {
-            exportNode.content = "";
-          }
-        }
-
-        nodes.push(exportNode);
-      }
-
-      const payload: ExportPayload = {
-        project_name: decodeURIComponent(project.projectName),
-        nodes,
-        options: {
-          title: title.trim() || "Untitled",
-          author: author.trim() || "Unknown Author",
-          front_matter: frontMatter.trim() || undefined,
-          back_matter: backMatter.trim() || undefined,
+      unlistenRef.current = await listen<ExportProgress>(
+        "export-progress",
+        (event) => {
+          setProgress(event.payload);
         },
-      };
+      );
 
-      setProgress({ stage: "Compiling document...", current: 0, total: 1 });
-      const exportResult = await exportProject(payload);
+      const exportResult = await prepareAndExportProject(
+        {
+          projectName: project.projectName,
+          treeData: project.treeData,
+          flushCurrentDocument: project.flushCurrentDocument,
+          onProgress: setProgress,
+          options: {
+            title: title.trim() || "Untitled",
+            author: author.trim() || "Unknown Author",
+            front_matter: frontMatter.trim() || undefined,
+            back_matter: backMatter.trim() || undefined,
+          },
+        },
+        {
+          readFile,
+          exportProject,
+        },
+      );
+
       setResult(exportResult);
     } catch (error) {
       showError(error, "exporting project");
       setResult({
         success: false,
-        error: String(error),
+        error: error instanceof Error ? error.message : String(error),
       });
     } finally {
       if (unlistenRef.current) {

@@ -27,6 +27,7 @@ import {
 
 import { v4 as uuidv4 } from "uuid";
 import { calculateTreeWordCount } from "../../utils/helpers";
+import { createDocumentSaveQueue } from "../../utils/documentSaveQueue";
 import { useErrorContext } from "../global/ErrorContext";
 import { useUserSettings } from "../global/UserSettingsContext";
 
@@ -42,6 +43,7 @@ interface ProjectContextProps {
   setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleTreeDataChange: (newTreeData: ExtendedNodeModel[]) => void;
   saveFileContent: (content: string) => Promise<void>;
+  flushCurrentDocument: () => Promise<void>;
   loadFileContent(node: ExtendedNodeModel): Promise<void>;
   handleDrop: (newTree: NodeModel<NodeData>[], options: DropOptions) => void;
   handleSubmit: (newNode: ExtendedNodeModel | null) => Promise<void>;
@@ -89,6 +91,7 @@ export const ProjectProvider: React.FC<{
   const [isBackingUp, setIsBackingUp] = useState(false); // Track backup status
 
   const editorContentRef = useRef<string>("");
+  const documentSaveQueueRef = useRef(createDocumentSaveQueue());
 
   const setFileContentDirectly = useCallback((content: string) => {
     setFileContent(content);
@@ -476,60 +479,99 @@ export const ProjectProvider: React.FC<{
     }
   }
 
-  const saveFileContent = useCallback(
-    async (content: string) => {
-      if (selectedFile) {
+  const enqueueDocumentSave = useCallback((save: () => Promise<void>) => {
+    return documentSaveQueueRef.current.enqueue(save);
+  }, []);
+
+  const persistFileContent = useCallback(
+    async (targetFile: ExtendedNodeModel, content: string) => {
+      const fileId = targetFile.data?.fileId;
+      if (!fileId) {
+        throw new Error(
+          `Cannot save "${targetFile.text}" (node ${targetFile.id}): missing file ID`,
+        );
+      }
+
+      await enqueueDocumentSave(async () => {
         setFileSaveInProgress(true);
         try {
-          await saveFile(projectName, selectedFile.data?.fileId, content);
-          await new Promise((resolve) => setTimeout(resolve, 1000)); // 1000ms = 1 second
+          await saveFile(projectName, fileId, content);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          const savedAt = new Date();
 
           setTreeData((prevTreeData) => {
             const updatedTreeData = prevTreeData.map((node) =>
-              node.id === selectedFile?.id
+              node.id === targetFile.id
                 ? {
                     ...node,
                     data: {
                       ...node.data,
-                      wordCount: selectedFile.data?.wordCount,
-                      lastModified: new Date(),
+                      wordCount: targetFile.data?.wordCount,
+                      lastModified: savedAt,
                     },
                   }
                 : node,
             ) as ExtendedNodeModel[];
 
-            // Update project metadata with the updated tree data
             const projectWordCount = calculateTreeWordCount(updatedTreeData);
-
             setProjectMetadata((prevMetadata) => ({
               ...prevMetadata,
-              lastModified: new Date(),
+              lastModified: savedAt,
               wordCount: projectWordCount,
             }));
 
             return updatedTreeData;
           });
 
-          setSelectedFile({
-            ...selectedFile,
-            data: {
-              ...(selectedFile.data as NodeData),
-              lastModified: new Date(),
-            },
-          });
+          setSelectedFile((currentFile) =>
+            currentFile?.id === targetFile.id
+              ? ({
+                  ...currentFile,
+                  data: {
+                    ...(currentFile.data as NodeData),
+                    lastModified: savedAt,
+                  },
+                } as ExtendedNodeModel)
+              : currentFile,
+          );
 
           setFileContent(content);
-          setFileSaveInProgress(false);
-
           setFileSavedMessage(true);
-          setTimeout(() => setFileSavedMessage(false), 3000); // Hide after 3 seconds
-        } catch (error) {
-          showError(error, "saving file content");
+          setTimeout(() => setFileSavedMessage(false), 3000);
+        } finally {
+          setFileSaveInProgress(false);
         }
+      });
+    },
+    [enqueueDocumentSave, projectName],
+  );
+
+  const saveFileContent = useCallback(
+    async (content: string) => {
+      if (!selectedFile || selectedFile.data?.fileType !== "file") return;
+
+      try {
+        await persistFileContent(selectedFile, content);
+      } catch (error) {
+        showError(error, "saving file content");
+        throw error;
       }
     },
-    [selectedFile, projectName, showError],
+    [persistFileContent, selectedFile, showError],
   );
+
+  const flushCurrentDocument = useCallback(async () => {
+    if (!selectedFile || selectedFile.data?.fileType !== "file") return;
+
+    try {
+      await persistFileContent(selectedFile, editorContentRef.current);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to save "${selectedFile.text}" before export: ${message}`,
+      );
+    }
+  }, [persistFileContent, selectedFile]);
 
   return (
     <ProjectContext.Provider
@@ -543,6 +585,7 @@ export const ProjectProvider: React.FC<{
         setIsSidebarOpen,
         handleTreeDataChange,
         saveFileContent,
+        flushCurrentDocument,
         loadFileContent,
         handleDrop,
         handleSubmit,

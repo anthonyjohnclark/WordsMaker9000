@@ -11,6 +11,7 @@ export const exportProject = async (
     return response;
   } catch (error) {
     console.error("Error in exportProject function:", error);
-    throw new Error("Failed to export project");
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(message || "Failed to export project");
   }
 };

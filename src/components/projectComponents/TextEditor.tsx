@@ -372,7 +372,9 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
       // Save the processed HTML content
       const processedContent = tempDiv.innerHTML;
-      project.saveFileContent(processedContent);
+      void project.saveFileContent(processedContent).catch(() => {
+        // ProjectProvider reports ordinary save failures to the user.
+      });
     }
   };
 

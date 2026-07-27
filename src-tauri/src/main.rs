@@ -3,6 +3,7 @@
 
 mod context_menu;
 mod export;
+mod publishing;
 
 use tauri_plugin_fs;
 

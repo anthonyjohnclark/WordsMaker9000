@@ -38,16 +38,20 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({
     editorContentRef.current = content;
   }, [content, editorContentRef]);
 
-  const handleSave = useCallback(() => {
-    saveFileContent(content);
-    setLastSavedContent(content);
+  const handleSave = useCallback(async () => {
+    try {
+      await saveFileContent(content);
+      setLastSavedContent(content);
+    } catch {
+      // ProjectProvider reports ordinary save failures to the user.
+    }
   }, [content, saveFileContent]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (content !== lastSavedContent) {
         console.log("Auto-saving content...");
-        handleSave();
+        void handleSave();
       }
     }, settings?.defaultSaveInterval ?? 60000);
 

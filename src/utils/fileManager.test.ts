@@ -127,6 +127,7 @@ describe("fileManager", () => {
       const projectPath = await createProject("TestProject", "novel");
       expect(mkdir).toHaveBeenCalledWith("Projects/TestProject", {
         baseDir: expect.any(String),
+        recursive: true,
       });
       expect(writeTextFile).toHaveBeenCalled();
       expect(projectPath).toBe("Projects/TestProject");
