@@ -1,8 +1,7 @@
-pub mod compiler;
 pub mod pdf_adapter;
 pub mod types;
 
-use compiler::compile;
+use crate::publishing::compiler::compile;
 use pdf_adapter::generate_pdf;
 use types::{ExportPayload, ExportResult};
 

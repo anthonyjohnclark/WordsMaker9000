@@ -1,0 +1,46 @@
+{
+  "project_name": "The%20Winter%20Archive",
+  "nodes": [
+    {
+      "id": 1,
+      "parent": 0,
+      "text": "Part One",
+      "file_type": "folder",
+      "content": null
+    },
+    {
+      "id": 2,
+      "parent": 1,
+      "text": "Arrival",
+      "file_type": "file",
+      "content": "<p>“You came back,” Mara said — <strong>at last</strong>.</p>"
+    },
+    {
+      "id": 3,
+      "parent": 1,
+      "text": "The Town",
+      "file_type": "folder",
+      "content": null
+    },
+    {
+      "id": 4,
+      "parent": 3,
+      "text": "Night Market",
+      "file_type": "file",
+      "content": "<p><em>Music</em>, <u>lanterns</u>, and <s>rain</s>.</p><ol><li data-list=\"ordered\"><span class=\"ql-ui\" contenteditable=\"false\"></span>Find the key</li><li class=\"ql-indent-1\" data-list=\"bullet\"><span class=\"ql-ui\" contenteditable=\"false\"></span>Ask the bookseller</li><li data-list=\"ordered\"><span class=\"ql-ui\" contenteditable=\"false\"></span>Open the archive</li></ol>"
+    },
+    {
+      "id": 5,
+      "parent": 0,
+      "text": "Coda",
+      "file_type": "file",
+      "content": "<p>雪 fell beyond the glass.</p>"
+    }
+  ],
+  "options": {
+    "title": "The Winter Archive",
+    "author": "A. Writer",
+    "front_matter": "Copyright 2026",
+    "back_matter": "The End"
+  }
+}
