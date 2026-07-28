@@ -1,10 +1,17 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
-import { FiCheckCircle, FiHome, FiSearch } from "react-icons/fi";
+import {
+  FiCheckCircle,
+  FiHome,
+  FiSearch,
+} from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
 import { Link, useLocation } from "react-router-dom";
+import { useModal } from "../contexts/global/ModalContext";
+import { ExportModal } from "./projectComponents/modals/ExportModal";
 
 const TitleBar = () => {
+  const modal = useModal();
   const {
     projectName,
     wordCount,
@@ -53,6 +60,37 @@ const TitleBar = () => {
             <FiHome /> {/* Add the home icon here */}
             <span>WordsMaker9000</span>
           </Link>
+        )}
+        {pathname !== "/" && !isLoading && projectName && (
+          <button
+            onClick={() => {
+              modal.renderModal({
+                modalBody: <ExportModal />,
+                modalSize: "wide",
+              });
+            }}
+            className="h-6 px-2 rounded flex items-center gap-1 text-xs font-semibold transition-colors shrink-0"
+            style={{
+              color: "var(--text-primary)",
+              background: "var(--bg-input)",
+              marginLeft: "1.5rem",
+              WebkitAppRegion: "no-drag",
+              cursor: "pointer",
+            } as React.CSSProperties}
+            onMouseEnter={(event) =>
+              (event.currentTarget.style.background = "var(--bg-hover)")
+            }
+            onMouseLeave={(event) =>
+              (event.currentTarget.style.background = "var(--bg-input)")
+            }
+            aria-label="Publish project"
+            title="Publish project"
+          >
+            <span aria-hidden="true" className="text-sm leading-none">
+              🚀
+            </span>
+            <span>Publish</span>
+          </button>
         )}
       </div>
 

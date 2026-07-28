@@ -123,7 +123,14 @@ pub fn generate_pdf(
         .sections
         .iter()
         .filter(|section| {
-            section.role == SectionRole::Chapter && included_for_pdf(&section.inclusion)
+            matches!(
+                section.role,
+                SectionRole::Chapter
+                    | SectionRole::Work
+                    | SectionRole::Installment
+                    | SectionRole::Part
+                    | SectionRole::Volume
+            ) && included_for_pdf(&section.inclusion)
         })
         .collect();
     let total_steps = chapters.len() + 2;
@@ -260,9 +267,7 @@ fn render_chapter(pdf: &mut Document, chapter: &BookSection) -> Result<(), Strin
     pdf.push(heading.styled(Style::new().bold().with_font_size(22)));
     pdf.push(Break::new(1.5));
 
-    let mut sections = Vec::new();
-    let mut folder_path = Vec::new();
-    collect_pdf_sections(chapter, &mut folder_path, &mut sections);
+    let sections = project_chapter_sections(chapter);
 
     for (index, section) in sections.iter().enumerate() {
         if index > 0 {
@@ -272,6 +277,20 @@ fn render_chapter(pdf: &mut Document, chapter: &BookSection) -> Result<(), Strin
     }
 
     Ok(())
+}
+
+fn project_chapter_sections(chapter: &BookSection) -> Vec<PdfSection<'_>> {
+    let mut sections = Vec::new();
+    if !chapter.blocks.is_empty() {
+        sections.push(PdfSection {
+            title: String::new(),
+            blocks: &chapter.blocks,
+        });
+    }
+
+    let mut folder_path = Vec::new();
+    collect_pdf_sections(chapter, &mut folder_path, &mut sections);
+    sections
 }
 
 fn collect_pdf_sections<'a>(
@@ -310,9 +329,11 @@ fn collect_pdf_sections<'a>(
 }
 
 fn render_section(pdf: &mut Document, section: &PdfSection<'_>) -> Result<(), String> {
-    let heading = Paragraph::new(section.title.as_str());
-    pdf.push(heading.styled(Style::new().bold().with_font_size(14)));
-    pdf.push(Break::new(0.5));
+    if !section.title.is_empty() {
+        let heading = Paragraph::new(section.title.as_str());
+        pdf.push(heading.styled(Style::new().bold().with_font_size(14)));
+        pdf.push(Break::new(0.5));
+    }
 
     render_blocks(pdf, section.blocks)?;
 
@@ -585,6 +606,19 @@ mod tests {
                 "Closing",
             ]
         );
+    }
+
+    #[test]
+    fn compatibility_projection_keeps_direct_root_file_chapter_blocks() {
+        let mut chapter = section(SectionRole::Chapter, "Root File", vec![]);
+        chapter.source_node_id = Some(7);
+        chapter.blocks = vec![text_block("Direct chapter prose")];
+
+        let projected = project_chapter_sections(&chapter);
+
+        assert_eq!(projected.len(), 1);
+        assert!(projected[0].title.is_empty());
+        assert_eq!(projected[0].blocks, chapter.blocks.as_slice());
     }
 
     #[test]

@@ -4,7 +4,7 @@ use scraper::Html;
 
 use super::model::{
     Block, HeadingLevel, Inline, InlineMarks, LinkTarget, ListItem, ParagraphAlignment,
-    ParagraphStyle, TextDirection,
+    ParagraphStyle, SceneBreakStyle, TextDirection,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +70,9 @@ fn parse_top_level_node(node: NodeRef<'_, Node>, blocks: &mut Vec<Block>) -> Res
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => blocks.push(parse_heading(node)?),
             "ol" | "ul" => blocks.extend(parse_list(node)?),
             "blockquote" => blocks.push(parse_block_quote(node)?),
+            "hr" => blocks.push(Block::SceneBreak {
+                style: SceneBreakStyle::Asterisks,
+            }),
             "br" => blocks.push(Block::Paragraph {
                 inlines: vec![plain_text("\n")],
                 style: default_paragraph_style(),
@@ -87,10 +90,42 @@ fn parse_top_level_node(node: NodeRef<'_, Node>, blocks: &mut Vec<Block>) -> Res
 }
 
 fn parse_paragraph(node: NodeRef<'_, Node>) -> Result<Block, String> {
+    let inlines = extract_inlines(node)?;
+    if let Some(style) = scene_break_style(&inlines) {
+        return Ok(Block::SceneBreak { style });
+    }
+
     Ok(Block::Paragraph {
-        inlines: extract_inlines(node)?,
+        inlines,
         style: paragraph_style(node)?,
     })
+}
+
+fn scene_break_style(inlines: &[Inline]) -> Option<SceneBreakStyle> {
+    let mut text = String::new();
+    for inline in inlines {
+        match inline {
+            Inline::Text {
+                text: inline_text,
+                link: None,
+                ..
+            } => text.push_str(inline_text),
+            Inline::Text { link: Some(_), .. } | Inline::FootnoteReference { .. } => return None,
+        }
+    }
+
+    let marker = text.trim();
+    if marker == "#" {
+        return Some(SceneBreakStyle::Custom {
+            marker: "#".to_string(),
+        });
+    }
+
+    let compact: String = marker
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect();
+    (compact == "***").then_some(SceneBreakStyle::Asterisks)
 }
 
 fn parse_heading(node: NodeRef<'_, Node>) -> Result<Block, String> {
@@ -515,6 +550,73 @@ mod tests {
         };
         let (quoted, _) = paragraph(&quote[0]);
         assert_eq!(text(&quoted[1]).2, Some("https://example.com"));
+    }
+
+    #[test]
+    fn parses_conventional_standalone_scene_break_markers() {
+        let blocks = parse_quill_html(concat!(
+            "<p>First scene</p>",
+            "<p class=\"ql-align-center\">#</p>",
+            "<p><strong>*</strong> * *</p>",
+            "<hr>",
+            "<p>Last scene</p>"
+        ))
+        .unwrap();
+
+        assert_eq!(blocks.len(), 5);
+        assert_eq!(
+            blocks[1],
+            Block::SceneBreak {
+                style: SceneBreakStyle::Custom {
+                    marker: "#".to_string()
+                }
+            }
+        );
+        assert_eq!(
+            blocks[2],
+            Block::SceneBreak {
+                style: SceneBreakStyle::Asterisks
+            }
+        );
+        assert_eq!(
+            blocks[3],
+            Block::SceneBreak {
+                style: SceneBreakStyle::Asterisks
+            }
+        );
+    }
+
+    #[test]
+    fn does_not_infer_scene_breaks_from_prose_headings_links_or_blank_paragraphs() {
+        let blocks = parse_quill_html(concat!(
+            "<p>A # inside prose</p>",
+            "<p>Before *** after</p>",
+            "<p>****</p>",
+            "<h2>#</h2>",
+            "<p><a href=\"https://example.com\">#</a></p>",
+            "<p><br></p>",
+            "<p></p>"
+        ))
+        .unwrap();
+
+        assert_eq!(blocks.len(), 7);
+        assert!(blocks
+            .iter()
+            .all(|block| !matches!(block, Block::SceneBreak { .. })));
+        assert!(matches!(
+            blocks[3],
+            Block::Heading {
+                level: HeadingLevel::H2,
+                ..
+            }
+        ));
+        assert!(matches!(
+            blocks[6],
+            Block::Paragraph {
+                ref inlines,
+                ..
+            } if inlines.is_empty()
+        ));
     }
 
     #[test]

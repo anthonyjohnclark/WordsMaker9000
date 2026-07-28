@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from "react";
 
 interface IModalContent {
   modalBody: React.ReactNode;
+  modalSize?: "default" | "wide";
 }
 
 interface Props {

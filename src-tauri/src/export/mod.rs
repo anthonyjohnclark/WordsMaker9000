@@ -7,31 +7,13 @@ use types::{ExportPayload, ExportResult};
 
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
-pub fn open_file_default(path: String) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &path])
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to open file: {}", e))?;
-    }
-    Ok(())
+pub fn open_file_default(app: AppHandle, path: String) -> Result<(), String> {
+    app.opener()
+        .open_path(path, None::<String>)
+        .map_err(|error| format!("Failed to open file: {error}"))
 }
 
 #[derive(serde::Serialize)]

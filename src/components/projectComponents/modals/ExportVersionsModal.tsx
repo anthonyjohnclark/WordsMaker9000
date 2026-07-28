@@ -9,9 +9,13 @@ interface ExportVersionsModalProps {
 }
 
 interface ExportEntry {
+  export_id?: string;
   filename: string;
   path: string;
   modified: string;
+  format: string;
+  profile_id?: string;
+  legacy: boolean;
 }
 
 export default function ExportVersionsModal({
@@ -25,12 +29,15 @@ export default function ExportVersionsModal({
     async function fetchExports() {
       setIsLoading(true);
       try {
-        const entries = await invoke<ExportEntry[]>("list_project_exports", {
-          projectName,
-        });
+        const entries = await invoke<ExportEntry[]>(
+          "list_publication_history",
+          {
+            projectName: decodeURIComponent(projectName),
+          },
+        );
         setExports(entries);
       } catch (error) {
-        console.error("Failed to list exports:", error);
+        console.error("Failed to list publication history:", error);
       } finally {
         setIsLoading(false);
       }
@@ -42,7 +49,7 @@ export default function ExportVersionsModal({
     try {
       await invoke("open_file_default", { path });
     } catch (error) {
-      console.error("Failed to open PDF:", error);
+      console.error("Failed to open artifact:", error);
     }
   };
 
@@ -90,7 +97,11 @@ export default function ExportVersionsModal({
                   className="text-xs"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  {entry.modified}
+                  {entry.format.toUpperCase()}
+                  {entry.profile_id
+                    ? ` · ${entry.profile_id.replace(/_/g, " ")}`
+                    : ""}
+                  {entry.legacy ? " · legacy" : ""} · {entry.modified}
                 </p>
               </div>
               <button
@@ -100,7 +111,7 @@ export default function ExportVersionsModal({
                   background: "var(--btn-primary)",
                   color: "var(--btn-text)",
                 }}
-                title="Open PDF"
+                title={`Open ${entry.format.toUpperCase()}`}
               >
                 <FiExternalLink />
               </button>

@@ -16,7 +16,11 @@ const GlobalModal = (): JSX.Element | null => {
       onClick={modal.handleClose}
     >
       <div
-        className="p-6 rounded shadow-lg w-96"
+        className={`p-6 rounded shadow-lg ${
+          modalContent.modalSize === "wide"
+            ? "w-[calc(100vw-3rem)] max-w-6xl"
+            : "w-96"
+        }`}
         style={{
           background: "var(--modal-bg)",
           color: "var(--text-primary)",

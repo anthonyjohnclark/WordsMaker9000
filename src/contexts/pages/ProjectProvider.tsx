@@ -44,6 +44,7 @@ interface ProjectContextProps {
   handleTreeDataChange: (newTreeData: ExtendedNodeModel[]) => void;
   saveFileContent: (content: string) => Promise<void>;
   flushCurrentDocument: () => Promise<void>;
+  flushProjectSnapshot: () => Promise<void>;
   loadFileContent(node: ExtendedNodeModel): Promise<void>;
   handleDrop: (newTree: NodeModel<NodeData>[], options: DropOptions) => void;
   handleSubmit: (newNode: ExtendedNodeModel | null) => Promise<void>;
@@ -92,6 +93,7 @@ export const ProjectProvider: React.FC<{
 
   const editorContentRef = useRef<string>("");
   const documentSaveQueueRef = useRef(createDocumentSaveQueue());
+  const metadataSaveQueueRef = useRef(createDocumentSaveQueue());
 
   const setFileContentDirectly = useCallback((content: string) => {
     setFileContent(content);
@@ -182,7 +184,9 @@ export const ProjectProvider: React.FC<{
 
     const timeout = setTimeout(async () => {
       try {
-        await updateMetadata(pendingMetadata.projectName, pendingMetadata);
+        await metadataSaveQueueRef.current.enqueue(() =>
+          updateMetadata(pendingMetadata.projectName, pendingMetadata),
+        );
         setPendingMetadata(null);
       } catch (error) {
         showError(error, "updating metadata");
@@ -399,7 +403,9 @@ export const ProjectProvider: React.FC<{
         };
 
         if (metadata.treeData && metadata.treeData.length !== 0) {
-          updateMetadata(projectName, metadata);
+          await metadataSaveQueueRef.current.enqueue(() =>
+            updateMetadata(projectName, metadata),
+          );
         }
       } catch (error) {
         showError(error, "updating tree metadata");
@@ -573,6 +579,31 @@ export const ProjectProvider: React.FC<{
     }
   }, [persistFileContent, selectedFile]);
 
+  const flushProjectSnapshot = useCallback(async () => {
+    await flushCurrentDocument();
+
+    const metadata = pendingMetadata ?? {
+      ...projectMetadata,
+      projectName,
+      treeData,
+      lastModified: new Date(),
+    };
+    await metadataSaveQueueRef.current.enqueue(() =>
+      updateMetadata(projectName, {
+        ...metadata,
+        projectName,
+        treeData,
+      }),
+    );
+    setPendingMetadata(null);
+  }, [
+    flushCurrentDocument,
+    pendingMetadata,
+    projectMetadata,
+    projectName,
+    treeData,
+  ]);
+
   return (
     <ProjectContext.Provider
       value={{
@@ -586,6 +617,7 @@ export const ProjectProvider: React.FC<{
         handleTreeDataChange,
         saveFileContent,
         flushCurrentDocument,
+        flushProjectSnapshot,
         loadFileContent,
         handleDrop,
         handleSubmit,

@@ -1,5 +1,11 @@
+pub(crate) mod adapters;
+pub(crate) mod artifacts;
 pub(crate) mod compiler;
+pub(crate) mod config;
 pub(crate) mod html;
-
-#[allow(dead_code)]
 pub(crate) mod model;
+pub(crate) mod preflight;
+pub(crate) mod project_types;
+pub(crate) mod request;
+pub(crate) mod service;
+pub(crate) mod source;

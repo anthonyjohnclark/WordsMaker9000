@@ -274,6 +274,18 @@ Inline
 
 Use enums instead of stringly typed fields such as `file_type`. Unknown future enum values should produce a clear migration error rather than being treated as a file.
 
+### Source identity and scene boundaries
+
+Every source tree node must appear at most once in the semantic outline. A root file is compiled directly as the type-appropriate publication unit: chapter for a novel/novella, work for a collection, or installment for a serial, with its title, source-node ID, and prose blocks on that section. Legacy `Chapter N` wrappers are presentation details and must not become a second editable section or reuse the file's source-node ID. Actual chapter folders retain their child scene files as recursive `scene` sections.
+
+A root-file chapter's direct prose is its implicit first scene. Conventional standalone manuscript separators should divide additional untitled scenes inside that file without inventing source nodes:
+
+- a paragraph whose trimmed content is exactly `#`;
+- a paragraph whose trimmed content is exactly `***` or `* * *`;
+- a semantic horizontal rule (`<hr>`).
+
+The Quill parser should convert these markers to `scene_break` blocks. It must not treat a marker embedded in prose, Markdown heading syntax, or ordinary blank paragraphs as a scene boundary. Tree-based scene files remain the representation for scenes that need titles, role/inclusion overrides, or independent publication scope. A later explicit scene-break editor element should emit the same semantic block without requiring typed marker recognition.
+
 ## Project type export behavior
 
 Project type should affect compilation before an output adapter is selected. DOCX, EPUB, and PDF should all receive the same type-aware `BookDocument`; adapters should not independently reinterpret a project as a novel, collection, or serial.
@@ -510,6 +522,8 @@ Deliverables:
 - Parse current Quill formats without loss.
 - Add intrinsic publishing roles and per-format inclusion rules.
 - Add a `ProjectTypeStrategy` for novel, novella, collection, and serial projects.
+- Enforce one semantic section per source-node ID and collapse legacy root-file wrappers before role inference.
+- Parse conventional standalone `#`, `***`, `* * *`, and `<hr>` scene separators into `scene_break` blocks while preserving ordinary blank paragraphs.
 - Add type-aware publication scopes, terminology, metadata defaults, and validation.
 - Add `publishing.json` with lazy migration/defaults.
 - Port the existing PDF adapter to consume `BookDocument`.
@@ -530,6 +544,7 @@ Deliverables:
 - Complete the `docx-rs` compatibility spike and record the dependency decision.
 - Implement Standard Manuscript and Clean Handoff profiles.
 - Support title page, chapters, page breaks, body paragraphs, current inline styles, and both list types.
+- Render tree-based scenes and in-file `scene_break` blocks by profile: centered `#` separators with hidden scene titles for Standard Manuscript, and named scene-heading/break styles for Clean Handoff.
 - Add header/page numbering for Standard Manuscript.
 - Add DOCX-specific preflight and artifact history.
 - Test output in Word and LibreOffice on representative platforms.
@@ -645,7 +660,8 @@ Keep pull requests narrow enough to preserve the existing export while the new p
 - Tree traversal: mixed root items, arbitrary depth, empty nodes, missing parents, cycles, and deletion orphans.
 - HTML parsing: fixtures copied from actual Quill output for every supported toolbar action.
 - Semantic IR: snapshot tests for a small novel, novella, collection, and serial.
-- Project-type strategies: inference, terminology, metadata defaults, scope expansion, ambiguity handling, and persisted overrides.
+- Project-type strategies: inference, terminology, metadata defaults, scope expansion, ambiguity handling, persisted overrides, unique source-node identities, and direct root-file chapters/works/installments.
+- Scene boundaries: recognize standalone `#`, `***`, `* * *`, and `<hr>` markers; reject false positives inside prose or headings; retain blank paragraphs as non-semantic spacing.
 - Profile defaults and migrations.
 - Filename sanitization and collision behavior.
 - Preflight diagnostics with stable codes, severity, node ID, and suggested remediation.
@@ -665,8 +681,10 @@ Maintain a small set of source projects containing:
 - empty and very long chapters;
 - bold/italic/underline/strike combinations;
 - ordered and nested bullet lists;
+- root-file chapters plus folder chapters containing multiple child scene files;
+- standalone and inline uses of `#` and asterisks to exercise scene-break recognition;
 - curly quotes, em dashes, accented Latin text, and non-Latin Unicode;
-- later: links, images with/without alt text, footnotes, scene breaks, and explicit page breaks.
+- later: links, images with/without alt text, footnotes, and explicit page breaks.
 
 ### Cross-platform and performance checks
 

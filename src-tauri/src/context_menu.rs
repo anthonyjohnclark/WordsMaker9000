@@ -66,7 +66,7 @@ unsafe fn log_requested(
     args: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2ContextMenuRequestedEventArgs,
 ) {
     use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND;
-    use windows::Win32::Foundation::BOOL;
+    use windows::core::BOOL;
 
     // Target context: is it editable text, is there a selection, etc.
     if let Ok(target) = args.ContextMenuTarget() {
@@ -104,8 +104,7 @@ unsafe fn log_item(
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU,
     };
-    use windows::core::PWSTR;
-    use windows::Win32::Foundation::BOOL;
+    use windows::core::{BOOL, PWSTR};
 
     let indent = "  ".repeat(depth);
 

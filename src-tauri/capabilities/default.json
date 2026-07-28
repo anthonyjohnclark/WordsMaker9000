@@ -7,6 +7,8 @@
   ],
   "permissions": [
     "core:default",
+    "dialog:default",
+    "opener:default",
     {
       "identifier": "fs:allow-appdata-read-recursive",
       "allow": [
