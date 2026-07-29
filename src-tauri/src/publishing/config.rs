@@ -8,7 +8,7 @@ use super::request::{
     ContactInformation, NodePublishingOverride, ProjectType, PublishMetadataOverrides,
 };
 
-pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 1;
+pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 2;
 pub(crate) const STRATEGY_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +27,8 @@ pub(crate) struct PublishingBookMetadata {
     pub front_matter: Option<String>,
     pub back_matter: Option<String>,
     pub contact: ContactInformation,
+    #[serde(default)]
+    pub ebook: super::request::EbookMetadata,
 }
 
 impl From<&PublishMetadataOverrides> for PublishingBookMetadata {
@@ -39,6 +41,7 @@ impl From<&PublishMetadataOverrides> for PublishingBookMetadata {
             front_matter: value.front_matter.clone(),
             back_matter: value.back_matter.clone(),
             contact: value.contact.clone(),
+            ebook: value.ebook.clone(),
         }
     }
 }
@@ -71,6 +74,7 @@ impl PublishingConfig {
             default_profile_by_format: HashMap::from([
                 ("pdf".to_string(), "proof_pdf".to_string()),
                 ("docx".to_string(), "standard_manuscript".to_string()),
+                ("epub".to_string(), "reflowable_epub".to_string()),
             ]),
         }
     }
@@ -100,12 +104,19 @@ pub(crate) fn load_or_default(
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
     let mut config: PublishingConfig = serde_json::from_str(&content)
         .map_err(|error| format!("Invalid publishing configuration: {error}"))?;
-    if config.schema_version != PUBLISHING_SCHEMA_VERSION {
+    if config.schema_version == 0 || config.schema_version > PUBLISHING_SCHEMA_VERSION {
         return Err(format!(
             "Unsupported publishing.json schema version {}; expected {}",
             config.schema_version, PUBLISHING_SCHEMA_VERSION
         ));
     }
+    if config.schema_version < PUBLISHING_SCHEMA_VERSION {
+        config.schema_version = PUBLISHING_SCHEMA_VERSION;
+    }
+    config
+        .default_profile_by_format
+        .entry("epub".to_string())
+        .or_insert_with(|| "reflowable_epub".to_string());
     if config.project_type_strategy.version > STRATEGY_VERSION {
         return Err(format!(
             "Unsupported publishing strategy version {}; expected at most {}",
@@ -158,7 +169,7 @@ mod tests {
         ));
         let config = load_or_default(&path, ProjectType::Novel, "Draft").unwrap();
 
-        assert_eq!(config.schema_version, 1);
+        assert_eq!(config.schema_version, PUBLISHING_SCHEMA_VERSION);
         assert_eq!(config.book_metadata.title, "Draft");
         assert!(!config.project_type_strategy.confirmed);
         assert!(!path.exists());
@@ -189,6 +200,33 @@ mod tests {
         assert!(load_or_default(&path, ProjectType::Novel, "Ignored")
             .unwrap_err()
             .contains("schema version 99"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn schema_one_configuration_migrates_epub_defaults_in_memory() {
+        let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
+        let path = root.join("publishing.json");
+        let mut config = PublishingConfig::defaults(ProjectType::Novel, "Draft");
+        config.schema_version = 1;
+        config.default_profile_by_format.remove("epub");
+        let mut legacy = serde_json::to_value(config).unwrap();
+        legacy["book_metadata"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ebook");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+
+        let migrated = load_or_default(&path, ProjectType::Novel, "Draft").unwrap();
+        assert_eq!(migrated.schema_version, PUBLISHING_SCHEMA_VERSION);
+        assert_eq!(
+            migrated.default_profile_by_format.get("epub"),
+            Some(&"reflowable_epub".to_string())
+        );
+        assert!(migrated.book_metadata.ebook.include_front_matter);
+        assert!(migrated.book_metadata.ebook.include_back_matter);
 
         let _ = fs::remove_dir_all(root);
     }

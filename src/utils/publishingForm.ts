@@ -1,10 +1,13 @@
 import type {
   Diagnostic,
+  NodePublishingOverride,
   PublicationScope,
   PublishFailure,
   PublishFormat,
   PublishProfileId,
   PublishProgress,
+  PublishingOutlineNode,
+  SectionRole,
 } from "../types/PublishingTypes";
 
 export function profileForFormat(
@@ -12,6 +15,7 @@ export function profileForFormat(
   configuredDocxProfile?: string,
 ): PublishProfileId {
   if (format === "pdf") return "proof_pdf";
+  if (format === "epub") return "reflowable_epub";
   return configuredDocxProfile === "clean_handoff"
     ? "clean_handoff"
     : "standard_manuscript";
@@ -34,6 +38,14 @@ export function scopeForSelection(
     default:
       return { type: "selected_nodes", node_ids: [selectedNodeId] };
   }
+}
+
+export function outlineNodeRole(
+  node: PublishingOutlineNode,
+  overrides: Record<string, NodePublishingOverride>,
+): SectionRole {
+  if (node.id === null) return node.role;
+  return overrides[node.id.toString()]?.role ?? node.role;
 }
 
 export function progressForExport(
@@ -67,4 +79,3 @@ export function parsePublishFailure(error: unknown): PublishFailure {
   }
   return { message: String(error), diagnostics: [] };
 }
-

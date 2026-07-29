@@ -1,8 +1,11 @@
 import type { ProjectType } from "../utils/fileManager";
 
-export type PublishFormat = "pdf" | "docx";
+export type PublishFormat = "pdf" | "docx" | "epub";
 export type DocxProfileId = "standard_manuscript" | "clean_handoff";
-export type PublishProfileId = "proof_pdf" | DocxProfileId;
+export type PublishProfileId =
+  | "proof_pdf"
+  | DocxProfileId
+  | "reflowable_epub";
 export type SectionRole =
   | "front_matter"
   | "part"
@@ -35,6 +38,22 @@ export interface ContactInformation {
   short_title: string;
 }
 
+export interface EbookCover {
+  source: string;
+  alt_text: string;
+}
+
+export interface EbookMetadata {
+  identifier?: string;
+  publisher?: string;
+  description?: string;
+  rights?: string;
+  cover?: EbookCover;
+  page_progression_direction?: "left_to_right" | "right_to_left";
+  include_front_matter: boolean;
+  include_back_matter: boolean;
+}
+
 export interface PublishingMetadata {
   title: string;
   subtitle?: string;
@@ -43,6 +62,7 @@ export interface PublishingMetadata {
   front_matter?: string;
   back_matter?: string;
   contact: ContactInformation;
+  ebook: EbookMetadata;
 }
 
 export interface NodePublishingOverride {
@@ -95,8 +115,8 @@ export interface PublishResult {
 }
 
 export interface PublishingOutlineNode {
-  id?: number;
-  title?: string;
+  id: number | null;
+  title: string | null;
   role: SectionRole;
   inclusion: SectionInclusion;
   children: PublishingOutlineNode[];
@@ -125,4 +145,3 @@ export interface PublishFailure {
   message: string;
   diagnostics: Diagnostic[];
 }
-

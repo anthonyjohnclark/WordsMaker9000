@@ -189,6 +189,7 @@ mod tests {
                 contributors: vec![],
                 language: None,
                 series: None,
+                ..BookMetadata::default()
             },
             sections: vec![
                 section(
@@ -216,6 +217,7 @@ mod tests {
                 contributors: vec![],
                 language: None,
                 series: None,
+                ..BookMetadata::default()
             },
             sections: vec![BookSection {
                 source_node_id: None,

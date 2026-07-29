@@ -557,6 +557,7 @@ mod tests {
                 }],
                 language: None,
                 series: None,
+                ..BookMetadata::default()
             },
             sections,
             assets: vec![],

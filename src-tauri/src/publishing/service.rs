@@ -1,16 +1,23 @@
-use std::path::{Path, PathBuf};
+use std::fs;
+use std::io::Write;
+use std::path::{Component, Path, PathBuf};
 
+use chrono::Utc;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::adapters::docx::{render_docx, DocxRenderOptions};
+use super::adapters::epub::{render_epub, EpubCover as RenderedEpubCover, EpubRenderOptions};
 use super::artifacts::{
     list_history, manifest_for, safe_filename, ArtifactHistoryEntry, ArtifactWorkspace,
 };
 use super::compiler::compile;
 use super::config::{load_or_default, save_atomic, PublishingConfig};
-use super::model::{BookDocument, BookSection, SectionInclusion, SectionRole};
-use super::preflight::{has_blocking_diagnostics, run_preflight};
+use super::model::{
+    AssetSource, BookAsset, BookDocument, BookSection, SectionInclusion, SectionRole,
+};
+use super::preflight::{has_blocking_diagnostics, run_epub_source_preflight, run_preflight};
 use super::project_types::apply_project_strategy;
 use super::request::{
     Diagnostic, DiagnosticSeverity, DocxProfileId, PublishFormat, PublishPhase, PublishProgress,
@@ -229,6 +236,13 @@ fn publish_blocking(
         request.outline_confirmed || !outline_requires_confirmation(&document),
     );
     diagnostics.extend(derived_diagnostics);
+    if request.format == PublishFormat::Epub {
+        diagnostics.extend(run_epub_source_preflight(
+            &document,
+            &request.metadata,
+            &snapshot.project_root,
+        ));
+    }
     validate_profile(&request, &mut diagnostics);
     if has_blocking_diagnostics(&diagnostics) {
         return Err(PublishFailure {
@@ -236,6 +250,7 @@ fn publish_blocking(
             diagnostics,
         });
     }
+    persist_epub_cover(&snapshot.project_root, &mut request).map_err(PublishFailure::source)?;
 
     let workspace = ArtifactWorkspace::create(&snapshot.project_root, &request.export_id)
         .map_err(PublishFailure::source)?;
@@ -247,7 +262,7 @@ fn publish_blocking(
         3,
         6,
     );
-    let rendered = render_artifact(&workspace, &document, &request, app);
+    let rendered = render_artifact(&workspace, &document, &request, &snapshot.project_root, app);
     let artifact_path = match rendered {
         Ok(path) => path,
         Err(message) => {
@@ -287,10 +302,20 @@ fn publish_blocking(
         return Err(PublishFailure::source(message));
     }
 
+    let source_hash = publication_source_hash(
+        &snapshot.source_hash,
+        &request,
+        &snapshot.project_root,
+        &document.assets,
+    )
+    .map_err(|message| {
+        workspace.cleanup();
+        PublishFailure::source(message)
+    })?;
     let manifest = manifest_for(
         &request.export_id,
         &request.project_name,
-        &snapshot.source_hash,
+        &source_hash,
         &artifact_path,
         request.format,
         &request.profile_id,
@@ -334,6 +359,7 @@ fn render_artifact(
     workspace: &ArtifactWorkspace,
     document: &BookDocument,
     request: &PublishRequest,
+    project_root: &Path,
     app: &AppHandle,
 ) -> Result<PathBuf, String> {
     match request.format {
@@ -348,6 +374,50 @@ fn render_artifact(
                     profile,
                     author: request.metadata.author.clone(),
                     contact: request.metadata.contact.clone(),
+                },
+                &path,
+            )?;
+            Ok(path)
+        }
+        PublishFormat::Epub => {
+            let filename = safe_filename(&request.metadata.title, "Reflowable EPUB", "epub");
+            let path = workspace.artifact_path(&filename);
+            let cover = request
+                .metadata
+                .ebook
+                .cover
+                .as_ref()
+                .map(|cover| {
+                    resolve_ebook_source(project_root, &cover.source).map(|source_path| {
+                        RenderedEpubCover {
+                            source_path,
+                            alt_text: cover.alt_text.clone(),
+                        }
+                    })
+                })
+                .transpose()?;
+            let identifier = request
+                .metadata
+                .ebook
+                .identifier
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("urn:uuid:{}", request.export_id));
+            render_epub(
+                document,
+                &EpubRenderOptions {
+                    project_root: project_root.to_path_buf(),
+                    identifier,
+                    modified_utc: Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                    cover,
+                    page_progression_direction: request
+                        .metadata
+                        .ebook
+                        .page_progression_direction
+                        .clone(),
+                    include_front_matter: request.metadata.ebook.include_front_matter,
+                    include_back_matter: request.metadata.ebook.include_back_matter,
                 },
                 &path,
             )?;
@@ -368,6 +438,7 @@ fn validate_profile(request: &PublishRequest, diagnostics: &mut Vec<Diagnostic>)
     let valid = match request.format {
         PublishFormat::Pdf => request.profile_id == "proof_pdf",
         PublishFormat::Docx => parse_docx_profile(&request.profile_id).is_ok(),
+        PublishFormat::Epub => request.profile_id == "reflowable_epub",
     };
     if !valid {
         diagnostics.push(Diagnostic::error(
@@ -422,6 +493,10 @@ fn apply_metadata(document: &mut BookDocument, request: &PublishRequest) {
     document.metadata.title = request.metadata.title.clone();
     document.metadata.subtitle = request.metadata.subtitle.clone();
     document.metadata.language = request.metadata.language.clone();
+    document.metadata.identifier = request.metadata.ebook.identifier.clone();
+    document.metadata.publisher = request.metadata.ebook.publisher.clone();
+    document.metadata.description = request.metadata.ebook.description.clone();
+    document.metadata.rights = request.metadata.ebook.rights.clone();
     if let Some(author) = document.metadata.contributors.first_mut() {
         author.name = request.metadata.author.clone();
     }
@@ -470,7 +545,146 @@ fn format_name(format: PublishFormat) -> &'static str {
     match format {
         PublishFormat::Pdf => "pdf",
         PublishFormat::Docx => "docx",
+        PublishFormat::Epub => "epub",
     }
+}
+
+fn resolve_ebook_source(project_root: &Path, source: &str) -> Result<PathBuf, String> {
+    let path = Path::new(source);
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+    if path.as_os_str().is_empty()
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(format!(
+            "Ebook cover path {source:?} is not a safe project-relative path."
+        ));
+    }
+    Ok(project_root.join(path))
+}
+
+fn persist_epub_cover(project_root: &Path, request: &mut PublishRequest) -> Result<(), String> {
+    if request.format != PublishFormat::Epub {
+        return Ok(());
+    }
+    let Some(cover) = request.metadata.ebook.cover.as_mut() else {
+        return Ok(());
+    };
+    let source_path = resolve_ebook_source(project_root, &cover.source)?;
+    if !source_path.is_absolute() || !source_path.is_file() {
+        return Ok(());
+    }
+    let canonical_project_root = project_root
+        .canonicalize()
+        .unwrap_or_else(|_| project_root.to_path_buf());
+    if source_path
+        .canonicalize()
+        .map(|path| path.starts_with(&canonical_project_root))
+        .unwrap_or(false)
+    {
+        if let Ok(relative) = source_path.strip_prefix(project_root) {
+            cover.source = relative.to_string_lossy().replace('\\', "/");
+        }
+        return Ok(());
+    }
+
+    let bytes = fs::read(&source_path)
+        .map_err(|error| format!("Failed to read selected ebook cover: {error}"))?;
+    let digest = hex_digest(&bytes);
+    let extension = source_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("img")
+        .to_ascii_lowercase();
+    let relative =
+        PathBuf::from("publishing-assets").join(format!("cover-{}.{}", &digest[..12], extension));
+    let destination = project_root.join(&relative);
+    let parent = destination
+        .parent()
+        .ok_or_else(|| "Ebook cover destination has no parent directory.".to_string())?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Failed to create publishing asset directory: {error}"))?;
+    if !destination.exists() {
+        let mut temporary = tempfile::NamedTempFile::new_in(parent)
+            .map_err(|error| format!("Failed to stage ebook cover: {error}"))?;
+        temporary
+            .write_all(&bytes)
+            .map_err(|error| format!("Failed to stage ebook cover: {error}"))?;
+        temporary
+            .as_file()
+            .sync_all()
+            .map_err(|error| format!("Failed to sync ebook cover: {error}"))?;
+        temporary
+            .persist(&destination)
+            .map_err(|error| format!("Failed to save ebook cover: {error}"))?;
+    }
+    cover.source = relative.to_string_lossy().replace('\\', "/");
+    Ok(())
+}
+
+fn publication_source_hash(
+    snapshot_hash: &str,
+    request: &PublishRequest,
+    project_root: &Path,
+    assets: &[BookAsset],
+) -> Result<String, String> {
+    let mut hasher = Sha256::new();
+    hasher.update(snapshot_hash.as_bytes());
+    hasher.update(
+        serde_json::to_vec(&request.metadata)
+            .map_err(|error| format!("Failed to hash publishing metadata: {error}"))?,
+    );
+    hasher.update(
+        serde_json::to_vec(&request.scope)
+            .map_err(|error| format!("Failed to hash publication scope: {error}"))?,
+    );
+    hasher.update(format_name(request.format).as_bytes());
+    hasher.update(request.profile_id.as_bytes());
+    let mut overrides: Vec<_> = request.node_overrides.iter().collect();
+    overrides.sort_by(|left, right| left.0.cmp(right.0));
+    for (id, value) in overrides {
+        hasher.update(id.as_bytes());
+        hasher.update(
+            serde_json::to_vec(value)
+                .map_err(|error| format!("Failed to hash publishing override: {error}"))?,
+        );
+    }
+    let mut assets: Vec<_> = assets.iter().collect();
+    assets.sort_by(|left, right| left.id.0.cmp(&right.id.0));
+    for asset in assets {
+        hasher.update(asset.id.0.as_bytes());
+        hasher.update(asset.media_type.as_bytes());
+        let AssetSource::ProjectRelativePath { path } = &asset.source;
+        let relative = Path::new(path);
+        if relative.as_os_str().is_empty()
+            || relative
+                .components()
+                .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err(format!(
+                "Publication asset path {path:?} is not project-relative."
+            ));
+        }
+        hasher.update(path.as_bytes());
+        hasher.update(
+            fs::read(project_root.join(relative))
+                .map_err(|error| format!("Failed to hash publication asset {path:?}: {error}"))?,
+        );
+    }
+    if let Some(cover) = &request.metadata.ebook.cover {
+        let path = resolve_ebook_source(project_root, &cover.source)?;
+        hasher.update(
+            fs::read(path).map_err(|error| format!("Failed to hash ebook cover: {error}"))?,
+        );
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 fn profile_label(profile: DocxProfileId) -> &'static str {
@@ -484,7 +698,7 @@ fn profile_label(profile: DocxProfileId) -> &'static str {
 mod tests {
     use super::*;
     use crate::publishing::request::{
-        ContactInformation, ProjectType, PublicationScope, PublishMetadataOverrides,
+        ContactInformation, EbookCover, ProjectType, PublicationScope, PublishMetadataOverrides,
     };
     use std::collections::HashMap;
 
@@ -520,6 +734,11 @@ mod tests {
         let mut diagnostics = vec![];
         validate_profile(&valid, &mut diagnostics);
         assert!(diagnostics.is_empty());
+
+        let valid = request(PublishFormat::Epub, "reflowable_epub");
+        let mut diagnostics = vec![];
+        validate_profile(&valid, &mut diagnostics);
+        assert!(diagnostics.is_empty());
     }
 
     #[test]
@@ -542,5 +761,37 @@ mod tests {
 
         let invalid_tree = PublishFailure::compilation("Duplicate node ID 4".to_string());
         assert_eq!(invalid_tree.diagnostics[0].code, "PUBLISH_TREE_INVALID");
+    }
+
+    #[test]
+    fn selected_epub_cover_is_copied_into_a_content_addressed_project_asset() {
+        let project = tempfile::tempdir().unwrap();
+        let selected = tempfile::tempdir().unwrap();
+        let source = selected.path().join("cover.png");
+        fs::write(&source, b"cover-bytes").unwrap();
+        let mut request = request(PublishFormat::Epub, "reflowable_epub");
+        request.metadata.ebook.cover = Some(EbookCover {
+            source: source.to_string_lossy().to_string(),
+            alt_text: "Cover".to_string(),
+        });
+
+        persist_epub_cover(project.path(), &mut request).unwrap();
+
+        let stored = &request.metadata.ebook.cover.as_ref().unwrap().source;
+        assert!(stored.starts_with("publishing-assets/cover-"));
+        assert_eq!(
+            fs::read(project.path().join(stored)).unwrap(),
+            b"cover-bytes"
+        );
+    }
+
+    #[test]
+    fn publication_hash_changes_with_epub_metadata() {
+        let project = tempfile::tempdir().unwrap();
+        let mut request = request(PublishFormat::Epub, "reflowable_epub");
+        let first = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
+        request.metadata.ebook.publisher = Some("Publisher".to_string());
+        let second = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
+        assert_ne!(first, second);
     }
 }

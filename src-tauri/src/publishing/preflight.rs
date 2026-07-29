@@ -1,5 +1,9 @@
+use std::collections::{HashMap, HashSet};
+use std::path::{Component, Path, PathBuf};
+
 use super::model::{
-    Block, BookDocument, BookSection, Inline, OutputFormat, SectionInclusion, SectionRole,
+    AssetId, AssetSource, Block, BookDocument, BookSection, FootnoteId, Inline, OutputFormat,
+    SectionInclusion, SectionRole,
 };
 use super::request::{Diagnostic, DiagnosticSeverity, PublishFormat, PublishMetadataOverrides};
 
@@ -61,7 +65,131 @@ pub(crate) fn run_preflight(
             inspect_section_for_docx(section, &mut diagnostics);
         }
     }
+    if format == PublishFormat::Epub {
+        inspect_epub(document, metadata, &mut diagnostics);
+    }
 
+    diagnostics
+}
+
+pub(crate) fn run_epub_source_preflight(
+    document: &BookDocument,
+    metadata: &PublishMetadataOverrides,
+    project_root: &Path,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if let Some(cover) = &metadata.ebook.cover {
+        if cover.source.trim().is_empty() {
+            diagnostics.push(Diagnostic::error(
+                "EPUB_COVER_MISSING",
+                "The selected ebook cover has no source file.",
+                None,
+                Some("Choose a JPEG, PNG, GIF, or SVG cover image.".to_string()),
+            ));
+        } else {
+            match resolve_source_path(project_root, &cover.source, true) {
+                Ok(path) if path.is_file() => {
+                    if image_media_type(&path).is_none() {
+                        diagnostics.push(Diagnostic::error(
+                            "EPUB_COVER_TYPE_UNSUPPORTED",
+                            format!(
+                                "The ebook cover {:?} is not a supported image type.",
+                                cover.source
+                            ),
+                            None,
+                            Some("Choose a JPEG, PNG, GIF, or SVG cover image.".to_string()),
+                        ));
+                    }
+                }
+                Ok(_) => diagnostics.push(Diagnostic::error(
+                    "EPUB_COVER_MISSING",
+                    format!("The ebook cover {:?} could not be found.", cover.source),
+                    None,
+                    Some("Choose an existing cover image and retry.".to_string()),
+                )),
+                Err(message) => diagnostics.push(Diagnostic::error(
+                    "EPUB_COVER_MISSING",
+                    message,
+                    None,
+                    Some("Choose an existing cover image and retry.".to_string()),
+                )),
+            }
+        }
+    }
+
+    let mut asset_ids = HashSet::new();
+    for asset in &document.assets {
+        if !asset_ids.insert(asset.id.clone()) {
+            diagnostics.push(Diagnostic::error(
+                "EPUB_DUPLICATE_ID",
+                format!("Asset ID {:?} appears more than once.", asset.id.0),
+                None,
+                Some("Assign each publication asset a unique ID.".to_string()),
+            ));
+        }
+        let source = match &asset.source {
+            AssetSource::ProjectRelativePath { path } => path,
+        };
+        match resolve_source_path(project_root, source, false) {
+            Ok(path) if path.is_file() => {
+                if let Some(detected) = image_media_type(&path) {
+                    if detected != asset.media_type {
+                        diagnostics.push(Diagnostic::error(
+                            "EPUB_ASSET_MEDIA_TYPE_MISMATCH",
+                            format!(
+                                "Asset {:?} is declared as {:?}, but its file extension identifies {:?}.",
+                                asset.id.0, asset.media_type, detected
+                            ),
+                            None,
+                            Some("Correct the asset media type or replace the file.".to_string()),
+                        ));
+                    }
+                }
+            }
+            Ok(_) => diagnostics.push(Diagnostic::error(
+                "EPUB_ASSET_MISSING",
+                format!("Asset {:?} could not be found at {:?}.", asset.id.0, source),
+                None,
+                Some("Restore the asset or remove the image from the publication.".to_string()),
+            )),
+            Err(message) => diagnostics.push(Diagnostic::error(
+                "EPUB_ASSET_MISSING",
+                format!("Asset {:?}: {message}", asset.id.0),
+                None,
+                Some(
+                    "Use a project-relative asset path that stays inside the project.".to_string(),
+                ),
+            )),
+        }
+        if !matches!(
+            asset.media_type.as_str(),
+            "image/jpeg" | "image/png" | "image/gif" | "image/svg+xml"
+        ) {
+            diagnostics.push(Diagnostic::error(
+                "EPUB_ASSET_TYPE_UNSUPPORTED",
+                format!(
+                    "Asset {:?} uses unsupported media type {:?}.",
+                    asset.id.0, asset.media_type
+                ),
+                None,
+                Some("Use a JPEG, PNG, GIF, or SVG image.".to_string()),
+            ));
+        }
+    }
+    let mut referenced_assets = HashMap::new();
+    for section in &document.sections {
+        collect_asset_references(section, metadata, &mut referenced_assets);
+    }
+    for (asset_id, node_id) in referenced_assets {
+        if !asset_ids.contains(&asset_id) {
+            diagnostics.push(Diagnostic::error(
+                "EPUB_ASSET_MISSING",
+                format!("Image references missing asset {:?}.", asset_id.0),
+                node_id,
+                Some("Restore the asset record or remove the image.".to_string()),
+            ));
+        }
+    }
     diagnostics
 }
 
@@ -127,6 +255,370 @@ fn inspect_inlines(inlines: &[Inline], node_id: Option<i64>, diagnostics: &mut V
     }
 }
 
+fn inspect_epub(
+    document: &BookDocument,
+    metadata: &PublishMetadataOverrides,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !document
+        .sections
+        .iter()
+        .any(|section| has_included_epub_section(section, metadata))
+    {
+        diagnostics.push(Diagnostic::error(
+            "EPUB_EMPTY_SCOPE",
+            "The EPUB inclusion rules exclude every section.",
+            None,
+            Some("Include body content or enable the required front/back matter.".to_string()),
+        ));
+    }
+    let language = metadata.language.as_deref().unwrap_or_default().trim();
+    if language.is_empty() {
+        diagnostics.push(Diagnostic::error(
+            "EPUB_LANGUAGE_REQUIRED",
+            "EPUB metadata requires a language.",
+            None,
+            Some("Enter a BCP 47 language tag such as en-US.".to_string()),
+        ));
+    } else if !looks_like_bcp47(language) {
+        diagnostics.push(Diagnostic::error(
+            "EPUB_LANGUAGE_INVALID",
+            format!("EPUB language tag {language:?} is not a valid BCP 47 form."),
+            None,
+            Some("Use a language tag such as en, en-US, or zh-Hant.".to_string()),
+        ));
+    }
+    if metadata
+        .ebook
+        .identifier
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .is_empty()
+    {
+        diagnostics.push(Diagnostic::warning(
+            "EPUB_IDENTIFIER_DERIVED",
+            "No publication identifier was provided; this export will use its stable export ID.",
+            None,
+            Some(
+                "Enter an ISBN or another persistent publication identifier when available."
+                    .to_string(),
+            ),
+        ));
+    }
+    match &metadata.ebook.cover {
+        None => diagnostics.push(Diagnostic::warning(
+            "EPUB_COVER_MISSING",
+            "No ebook cover is selected.",
+            None,
+            Some("Choose a cover before retailer delivery.".to_string()),
+        )),
+        Some(cover) if cover.alt_text.trim().is_empty() => diagnostics.push(Diagnostic::error(
+            "EPUB_COVER_ALT_REQUIRED",
+            "The ebook cover requires alternative text.",
+            None,
+            Some("Describe the cover image for screen-reader users.".to_string()),
+        )),
+        Some(_) => {}
+    }
+
+    let mut source_ids = HashSet::new();
+    let mut footnote_definitions = HashMap::new();
+    let mut footnote_references = Vec::new();
+    for section in &document.sections {
+        inspect_section_for_epub(
+            section,
+            metadata,
+            &mut source_ids,
+            &mut footnote_definitions,
+            &mut footnote_references,
+            diagnostics,
+        );
+    }
+    for (id, node_id) in footnote_references {
+        if !footnote_definitions.contains_key(&id) {
+            diagnostics.push(Diagnostic::error(
+                "EPUB_LINK_BROKEN",
+                format!("Footnote reference {:?} has no definition.", id.0),
+                node_id,
+                Some("Restore the footnote definition or remove the reference.".to_string()),
+            ));
+        }
+    }
+}
+
+fn has_included_epub_section(section: &BookSection, metadata: &PublishMetadataOverrides) -> bool {
+    included_for_epub(section, metadata)
+        || section
+            .children
+            .iter()
+            .any(|child| has_included_epub_section(child, metadata))
+}
+
+fn collect_asset_references(
+    section: &BookSection,
+    metadata: &PublishMetadataOverrides,
+    references: &mut HashMap<AssetId, Option<i64>>,
+) {
+    if !included_for_epub(section, metadata) {
+        return;
+    }
+    collect_assets_from_blocks(&section.blocks, section.source_node_id, references);
+    for child in &section.children {
+        collect_asset_references(child, metadata, references);
+    }
+}
+
+fn collect_assets_from_blocks(
+    blocks: &[Block],
+    node_id: Option<i64>,
+    references: &mut HashMap<AssetId, Option<i64>>,
+) {
+    for block in blocks {
+        match block {
+            Block::Image { asset_id, .. } => {
+                references.entry(asset_id.clone()).or_insert(node_id);
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                for item in items {
+                    collect_assets_from_blocks(&item.blocks, node_id, references);
+                }
+            }
+            Block::BlockQuote { blocks } | Block::FootnoteDefinition { blocks, .. } => {
+                collect_assets_from_blocks(blocks, node_id, references);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn inspect_section_for_epub(
+    section: &BookSection,
+    metadata: &PublishMetadataOverrides,
+    source_ids: &mut HashSet<i64>,
+    footnote_definitions: &mut HashMap<FootnoteId, Option<i64>>,
+    footnote_references: &mut Vec<(FootnoteId, Option<i64>)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !included_for_epub(section, metadata) {
+        return;
+    }
+    if let Some(id) = section.source_node_id {
+        if !source_ids.insert(id) {
+            diagnostics.push(Diagnostic::error(
+                "EPUB_DUPLICATE_ID",
+                format!("Source node ID {id} appears more than once in the EPUB outline."),
+                Some(id),
+                Some(
+                    "Ensure every source node appears only once in the Publish outline."
+                        .to_string(),
+                ),
+            ));
+        }
+    }
+    for block in &section.blocks {
+        inspect_block_for_epub(
+            block,
+            section.source_node_id,
+            footnote_definitions,
+            footnote_references,
+            diagnostics,
+        );
+    }
+    for child in &section.children {
+        inspect_section_for_epub(
+            child,
+            metadata,
+            source_ids,
+            footnote_definitions,
+            footnote_references,
+            diagnostics,
+        );
+    }
+}
+
+fn inspect_block_for_epub(
+    block: &Block,
+    node_id: Option<i64>,
+    footnote_definitions: &mut HashMap<FootnoteId, Option<i64>>,
+    footnote_references: &mut Vec<(FootnoteId, Option<i64>)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match block {
+        Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
+            inspect_epub_inlines(inlines, node_id, footnote_references, diagnostics);
+        }
+        Block::OrderedList { items } | Block::BulletList { items } => {
+            for item in items {
+                for block in &item.blocks {
+                    inspect_block_for_epub(
+                        block,
+                        node_id,
+                        footnote_definitions,
+                        footnote_references,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+        Block::BlockQuote { blocks } => {
+            for block in blocks {
+                inspect_block_for_epub(
+                    block,
+                    node_id,
+                    footnote_definitions,
+                    footnote_references,
+                    diagnostics,
+                );
+            }
+        }
+        Block::Image {
+            asset_id,
+            alt,
+            caption,
+        } => {
+            if alt.as_deref().unwrap_or_default().trim().is_empty() {
+                diagnostics.push(Diagnostic::error(
+                    "EPUB_IMAGE_ALT_REQUIRED",
+                    format!("Image {:?} requires alternative text.", asset_id.0),
+                    node_id,
+                    Some("Add meaningful alt text or mark the image decorative.".to_string()),
+                ));
+            }
+            if let Some(caption) = caption {
+                inspect_epub_inlines(caption, node_id, footnote_references, diagnostics);
+            }
+        }
+        Block::FootnoteDefinition { id, blocks } => {
+            if footnote_definitions.insert(id.clone(), node_id).is_some() {
+                diagnostics.push(Diagnostic::error(
+                    "EPUB_DUPLICATE_ID",
+                    format!("Footnote ID {:?} appears more than once.", id.0),
+                    node_id,
+                    Some("Assign each footnote a unique ID.".to_string()),
+                ));
+            }
+            for block in blocks {
+                inspect_block_for_epub(
+                    block,
+                    node_id,
+                    footnote_definitions,
+                    footnote_references,
+                    diagnostics,
+                );
+            }
+        }
+        Block::SceneBreak { .. } | Block::PageBreak => {}
+    }
+}
+
+fn inspect_epub_inlines(
+    inlines: &[Inline],
+    node_id: Option<i64>,
+    footnote_references: &mut Vec<(FootnoteId, Option<i64>)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for inline in inlines {
+        match inline {
+            Inline::Text {
+                link: Some(link), ..
+            } if !valid_external_link(&link.0) => diagnostics.push(Diagnostic::error(
+                "EPUB_LINK_BROKEN",
+                format!("Link target {:?} is not a supported external URL.", link.0),
+                node_id,
+                Some("Use an http, https, mailto, or tel URL.".to_string()),
+            )),
+            Inline::FootnoteReference { id } => {
+                footnote_references.push((id.clone(), node_id));
+            }
+            _ => {}
+        }
+    }
+}
+
+fn valid_external_link(value: &str) -> bool {
+    let value = value.trim();
+    ["https://", "http://", "mailto:", "tel:"]
+        .iter()
+        .any(|prefix| value.starts_with(prefix) && value.len() > prefix.len())
+}
+
+fn looks_like_bcp47(value: &str) -> bool {
+    if value.contains('_') {
+        return false;
+    }
+    let mut segments = value.split('-');
+    let Some(primary) = segments.next() else {
+        return false;
+    };
+    if !((2..=8).contains(&primary.len())
+        && primary
+            .chars()
+            .all(|character| character.is_ascii_alphabetic())
+        || matches!(primary.to_ascii_lowercase().as_str(), "x" | "i"))
+    {
+        return false;
+    }
+    segments.all(|segment| {
+        (1..=8).contains(&segment.len())
+            && segment
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric())
+    })
+}
+
+fn included_for_epub(section: &BookSection, metadata: &PublishMetadataOverrides) -> bool {
+    let included = match &section.inclusion {
+        SectionInclusion::AllFormats => true,
+        SectionInclusion::SelectedFormats { formats } => formats.contains(&OutputFormat::Epub),
+        SectionInclusion::Excluded => false,
+    };
+    included
+        && (section.role != SectionRole::FrontMatter || metadata.ebook.include_front_matter)
+        && (section.role != SectionRole::BackMatter || metadata.ebook.include_back_matter)
+}
+
+fn resolve_source_path(
+    project_root: &Path,
+    source: &str,
+    allow_absolute: bool,
+) -> Result<PathBuf, String> {
+    let path = Path::new(source);
+    if path.is_absolute() {
+        return if allow_absolute {
+            Ok(path.to_path_buf())
+        } else {
+            Err(format!("Path {source:?} must be project-relative."))
+        };
+    }
+    if path.as_os_str().is_empty()
+        || path
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(format!(
+            "Path {source:?} is not a safe project-relative path."
+        ));
+    }
+    Ok(project_root.join(path))
+}
+
+fn image_media_type(path: &Path) -> Option<&'static str> {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "png" => Some("image/png"),
+        "gif" => Some("image/gif"),
+        "svg" => Some("image/svg+xml"),
+        _ => None,
+    }
+}
+
 fn section_has_prose(section: &BookSection) -> bool {
     section.blocks.iter().any(block_has_prose) || section.children.iter().any(section_has_prose)
 }
@@ -156,7 +648,9 @@ fn included_for_format(section: &BookSection, format: PublishFormat) -> bool {
         SectionInclusion::SelectedFormats { formats } => formats.iter().any(|candidate| {
             matches!(
                 (format, candidate),
-                (PublishFormat::Pdf, OutputFormat::Pdf) | (PublishFormat::Docx, OutputFormat::Docx)
+                (PublishFormat::Pdf, OutputFormat::Pdf)
+                    | (PublishFormat::Docx, OutputFormat::Docx)
+                    | (PublishFormat::Epub, OutputFormat::Epub)
             )
         }),
         SectionInclusion::Excluded => false,
@@ -172,7 +666,8 @@ fn included_for_format(section: &BookSection, format: PublishFormat) -> bool {
 mod tests {
     use super::*;
     use crate::publishing::model::{
-        AssetId, BookMetadata, ParagraphAlignment, ParagraphStyle, TextDirection,
+        AssetId, BookMetadata, InlineMarks, LinkTarget, ParagraphAlignment, ParagraphStyle,
+        TextDirection,
     };
     use crate::publishing::request::PublishMetadataOverrides;
 
@@ -184,6 +679,7 @@ mod tests {
                 contributors: vec![],
                 language: None,
                 series: None,
+                ..BookMetadata::default()
             },
             sections: vec![BookSection {
                 source_node_id: Some(1),
@@ -244,5 +740,104 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "DOCX_IMAGE_UNSUPPORTED"));
+    }
+
+    fn epub_metadata() -> PublishMetadataOverrides {
+        let mut metadata = PublishMetadataOverrides::default();
+        metadata.title = "Book".to_string();
+        metadata.author = "Author".to_string();
+        metadata.language = Some("en-US".to_string());
+        metadata
+    }
+
+    #[test]
+    fn epub_preflight_names_missing_language_alt_text_and_broken_links() {
+        let mut doc = document(Block::Paragraph {
+            inlines: vec![Inline::Text {
+                text: "Broken".to_string(),
+                marks: InlineMarks {
+                    bold: false,
+                    italic: false,
+                    underline: false,
+                    strike: false,
+                },
+                link: Some(LinkTarget("chapter-2.xhtml".to_string())),
+            }],
+            style: ParagraphStyle {
+                alignment: ParagraphAlignment::Start,
+                indent_level: 0,
+                direction: TextDirection::Auto,
+            },
+        });
+        doc.sections[0].blocks.push(Block::Image {
+            asset_id: AssetId("image-1".to_string()),
+            alt: Some(" ".to_string()),
+            caption: None,
+        });
+        let mut metadata = epub_metadata();
+        metadata.language = None;
+
+        let diagnostics = run_preflight(&doc, PublishFormat::Epub, &metadata, true);
+        for code in [
+            "EPUB_LANGUAGE_REQUIRED",
+            "EPUB_IMAGE_ALT_REQUIRED",
+            "EPUB_LINK_BROKEN",
+            "EPUB_COVER_MISSING",
+        ] {
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic.code == code),
+                "missing diagnostic {code}"
+            );
+        }
+    }
+
+    #[test]
+    fn epub_preflight_rejects_duplicate_source_and_footnote_ids() {
+        let mut doc = document(Block::FootnoteDefinition {
+            id: FootnoteId("note-1".to_string()),
+            blocks: vec![],
+        });
+        let mut duplicate = doc.sections[0].clone();
+        duplicate.blocks = vec![Block::FootnoteDefinition {
+            id: FootnoteId("note-1".to_string()),
+            blocks: vec![],
+        }];
+        doc.sections.push(duplicate);
+
+        let diagnostics = run_preflight(&doc, PublishFormat::Epub, &epub_metadata(), true);
+        assert_eq!(
+            diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == "EPUB_DUPLICATE_ID")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn epub_source_preflight_rejects_missing_asset_records_and_cover_files() {
+        let doc = document(Block::Image {
+            asset_id: AssetId("missing-image".to_string()),
+            alt: Some("Description".to_string()),
+            caption: None,
+        });
+        let root = tempfile::tempdir().unwrap();
+        let mut metadata = epub_metadata();
+        metadata.ebook.cover = Some(super::super::request::EbookCover {
+            source: root
+                .path()
+                .join("missing.png")
+                .to_string_lossy()
+                .to_string(),
+            alt_text: "Cover".to_string(),
+        });
+
+        let diagnostics = run_epub_source_preflight(&doc, &metadata, root.path());
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EPUB_COVER_MISSING"));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EPUB_ASSET_MISSING"));
     }
 }

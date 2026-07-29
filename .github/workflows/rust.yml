@@ -31,3 +31,30 @@ jobs:
         run: rustup toolchain install ${{ matrix.rust }} --profile minimal
       - name: Test
         run: cargo +${{ matrix.rust }} test --locked --manifest-path src-tauri/Cargo.toml
+
+  epubcheck:
+    runs-on: ubuntu-latest
+    env:
+      EPUBCHECK_VERSION: "5.3.0"
+      WM_EPUB_FIXTURE_PATH: ${{ runner.temp }}/wordsmaker9000-golden.epub
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Install Rust 1.88
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Install Java for official EPUBCheck
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Generate golden EPUB fixture
+        run: cargo +1.88.0 test --locked --manifest-path src-tauri/Cargo.toml publishing::adapters::epub::tests::writes_epubcheck_fixture -- --ignored --exact
+      - name: Download official EPUBCheck
+        run: |
+          curl --fail --location --output epubcheck.zip "https://github.com/w3c/epubcheck/releases/download/v${EPUBCHECK_VERSION}/epubcheck-${EPUBCHECK_VERSION}.zip"
+          unzip -q epubcheck.zip
+      - name: Validate golden EPUB with zero errors or warnings
+        run: java -jar "epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" --failonwarnings "${WM_EPUB_FIXTURE_PATH}"

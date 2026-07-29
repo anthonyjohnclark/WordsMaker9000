@@ -779,6 +779,7 @@ mod tests {
                 }],
                 language: Some("en-US".to_string()),
                 series: None,
+                ..BookMetadata::default()
             },
             sections: vec![BookSection {
                 source_node_id: Some(1),

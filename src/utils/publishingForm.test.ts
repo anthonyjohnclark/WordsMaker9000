@@ -1,10 +1,14 @@
 import {
+  outlineNodeRole,
   parsePublishFailure,
   profileForFormat,
   progressForExport,
   scopeForSelection,
 } from "./publishingForm";
-import type { PublishProgress } from "../types/PublishingTypes";
+import type {
+  PublishingOutlineNode,
+  PublishProgress,
+} from "../types/PublishingTypes";
 
 describe("publishing form decisions", () => {
   test("keeps one valid profile for the selected format", () => {
@@ -12,6 +16,9 @@ describe("publishing form decisions", () => {
     expect(profileForFormat("docx", "clean_handoff")).toBe("clean_handoff");
     expect(profileForFormat("docx", "unknown")).toBe(
       "standard_manuscript",
+    );
+    expect(profileForFormat("epub", "clean_handoff")).toBe(
+      "reflowable_epub",
     );
   });
 
@@ -28,6 +35,37 @@ describe("publishing form decisions", () => {
       type: "selected_nodes",
       node_ids: [9],
     });
+  });
+
+  test("uses the inferred role for synthetic outline nodes with null IDs", () => {
+    const frontMatter: PublishingOutlineNode = {
+      id: null,
+      title: "Front matter",
+      role: "front_matter",
+      inclusion: { type: "all_formats" },
+      children: [],
+    };
+
+    expect(outlineNodeRole(frontMatter, {})).toBe("front_matter");
+  });
+
+  test("uses role overrides for source-backed outline nodes", () => {
+    const chapter: PublishingOutlineNode = {
+      id: 42,
+      title: "Chapter One",
+      role: "chapter",
+      inclusion: { type: "all_formats" },
+      children: [],
+    };
+
+    expect(
+      outlineNodeRole(chapter, {
+        "42": {
+          role: "volume",
+          inclusion: { type: "all_formats" },
+        },
+      }),
+    ).toBe("volume");
   });
 
   test("ignores progress emitted by another publication job", () => {

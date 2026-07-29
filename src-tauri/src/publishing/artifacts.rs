@@ -200,7 +200,7 @@ pub(crate) fn list_history(project_root: &Path) -> Result<Vec<ArtifactHistoryEnt
         if path.is_file()
             && matches!(
                 path.extension().and_then(|extension| extension.to_str()),
-                Some("pdf" | "docx")
+                Some("pdf" | "docx" | "epub")
             )
         {
             let modified = entry
@@ -294,6 +294,7 @@ fn format_name(format: PublishFormat) -> &'static str {
     match format {
         PublishFormat::Pdf => "pdf",
         PublishFormat::Docx => "docx",
+        PublishFormat::Epub => "epub",
     }
 }
 

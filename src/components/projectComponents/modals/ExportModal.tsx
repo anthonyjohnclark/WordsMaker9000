@@ -8,7 +8,7 @@ import {
 } from "react-icons/fi";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { v4 as uuidv4 } from "uuid";
 
 import { useProjectContext } from "../../../contexts/pages/ProjectProvider";
@@ -16,6 +16,7 @@ import { useModal } from "../../../contexts/global/ModalContext";
 import { useErrorContext } from "../../../contexts/global/ErrorContext";
 import { prepareAndPublishProject } from "../../../utils/publishPreparation";
 import {
+  outlineNodeRole,
   parsePublishFailure,
   profileForFormat,
   progressForExport,
@@ -46,6 +47,10 @@ const emptyMetadata = (title: string): PublishingMetadata => ({
     mailing_address: "",
     header_surname: "",
     short_title: "",
+  },
+  ebook: {
+    include_front_matter: true,
+    include_back_matter: true,
   },
 });
 
@@ -107,6 +112,10 @@ export const ExportModal = () => {
             ...emptyMetadata("").contact,
             ...loaded.config.book_metadata.contact,
           },
+          ebook: {
+            ...emptyMetadata("").ebook,
+            ...loaded.config.book_metadata.ebook,
+          },
         });
         setNodeOverrides(loaded.config.node_roles);
         setOutlineConfirmed(loaded.config.project_type_strategy.confirmed);
@@ -144,18 +153,54 @@ export const ExportModal = () => {
     );
   };
 
+  const handleChooseCover = async () => {
+    try {
+      const selected = await open({
+        title: "Choose ebook cover",
+        multiple: false,
+        directory: false,
+        filters: [
+          {
+            name: "Ebook cover image",
+            extensions: ["jpg", "jpeg", "png", "gif", "svg"],
+          },
+        ],
+      });
+      const source = Array.isArray(selected) ? selected[0] : selected;
+      if (!source) return;
+      setMetadata({
+        ...metadata,
+        ebook: {
+          ...metadata.ebook,
+          cover: {
+            source,
+            alt_text: metadata.ebook.cover?.alt_text ?? "",
+          },
+        },
+      });
+    } catch (error) {
+      showError(error, "choosing ebook cover");
+    }
+  };
+
   const handlePublish = async () => {
     if (!setup) return;
     setFailure(null);
     setResult(null);
 
-    const extension = format === "pdf" ? "pdf" : "docx";
+    const extension = format;
+    const filterName =
+      format === "pdf"
+        ? "PDF Document"
+        : format === "docx"
+          ? "Word Document"
+          : "EPUB 3 Ebook";
     const destination = await save({
       title: `Save ${format.toUpperCase()} export`,
       defaultPath: `${safeFilename(metadata.title || "Untitled")}.${extension}`,
       filters: [
         {
-          name: format === "pdf" ? "PDF Document" : "Word Document",
+          name: filterName,
           extensions: [extension],
         },
       ],
@@ -287,7 +332,9 @@ export const ExportModal = () => {
           className="text-lg font-bold flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
         >
-          <FiDownload style={{ color: "var(--btn-primary)" }} />
+          <span aria-hidden="true" className="text-sm leading-none">
+            🚀
+          </span>
           Publishing…
         </h2>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -332,19 +379,28 @@ export const ExportModal = () => {
 
   const selectableNodes = flattenOutline(setup.outline).filter(
     (node): node is PublishingOutlineNode & { id: number } =>
-      node.id !== undefined &&
+      node.id !== null &&
       (scopeMode === "selected_nodes" ||
         (scopeMode === "single_work" &&
-          (nodeOverrides[node.id.toString()]?.role ?? node.role) === "work") ||
+          outlineNodeRole(node, nodeOverrides) === "work") ||
         (scopeMode === "single_installment" &&
-          (nodeOverrides[node.id.toString()]?.role ?? node.role) ===
-            "installment") ||
+          outlineNodeRole(node, nodeOverrides) === "installment") ||
         (scopeMode === "volume" &&
-          (nodeOverrides[node.id.toString()]?.role ?? node.role) === "volume")),
+          outlineNodeRole(node, nodeOverrides) === "volume")),
   );
   const publishBlockers: string[] = [];
   if (!metadata.title.trim()) publishBlockers.push("title");
   if (!metadata.author.trim()) publishBlockers.push("author");
+  if (format === "epub" && !metadata.language?.trim()) {
+    publishBlockers.push("ebook language");
+  }
+  if (
+    format === "epub" &&
+    metadata.ebook.cover &&
+    !metadata.ebook.cover.alt_text.trim()
+  ) {
+    publishBlockers.push("cover alt text");
+  }
   if (!outlineConfirmed) publishBlockers.push("outline confirmation");
   if (scopeMode !== "full_project" && selectedNodeId === null) {
     publishBlockers.push("included item");
@@ -356,7 +412,9 @@ export const ExportModal = () => {
         className="text-lg font-bold flex items-center gap-2"
         style={{ color: "var(--text-primary)" }}
       >
-        <FiDownload style={{ color: "var(--btn-primary)" }} />
+        <span aria-hidden="true" className="text-sm leading-none">
+          🚀
+        </span>
         Publish
       </h2>
       <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -420,7 +478,7 @@ export const ExportModal = () => {
         <legend className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
           Format
         </legend>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <ChoiceButton
             selected={format === "pdf"}
             onClick={() => chooseFormat("pdf")}
@@ -432,6 +490,12 @@ export const ExportModal = () => {
             onClick={() => chooseFormat("docx")}
             title="DOCX"
             description="Editable Word document"
+          />
+          <ChoiceButton
+            selected={format === "epub"}
+            onClick={() => chooseFormat("epub")}
+            title="EPUB 3"
+            description="Accessible reflowable ebook"
           />
         </div>
       </fieldset>
@@ -455,6 +519,14 @@ export const ExportModal = () => {
         </>
       )}
 
+      {format === "epub" && (
+        <EbookFields
+          metadata={metadata}
+          onChange={setMetadata}
+          onChooseCover={handleChooseCover}
+        />
+      )}
+
       <Field label="Publication scope">
         <select
           value={scopeMode}
@@ -474,11 +546,7 @@ export const ExportModal = () => {
             <option value="single_installment">Single installment</option>
           )}
           {flattenOutline(setup.outline).some(
-            (node) =>
-              (node.id === undefined
-                ? node.role
-                : nodeOverrides[node.id.toString()]?.role ?? node.role) ===
-              "volume",
+            (node) => outlineNodeRole(node, nodeOverrides) === "volume",
           ) && <option value="volume">Single volume</option>}
         </select>
       </Field>
@@ -739,6 +807,187 @@ function ContactFields({
   );
 }
 
+function EbookFields({
+  metadata,
+  onChange,
+  onChooseCover,
+}: {
+  metadata: PublishingMetadata;
+  onChange: (metadata: PublishingMetadata) => void;
+  onChooseCover: () => Promise<void>;
+}) {
+  const update = (
+    key: keyof Omit<
+      PublishingMetadata["ebook"],
+      "cover" | "include_front_matter" | "include_back_matter"
+    >,
+    value: string,
+  ) => {
+    onChange({
+      ...metadata,
+      ebook: {
+        ...metadata.ebook,
+        [key]: value || undefined,
+      },
+    });
+  };
+  const cover = metadata.ebook.cover;
+  return (
+    <div
+      className="rounded border p-3 grid gap-3"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <p className="text-sm font-medium">EPUB metadata</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Language (BCP 47)" required>
+          <input
+            value={metadata.language ?? ""}
+            onChange={(event) =>
+              onChange({ ...metadata, language: event.target.value })
+            }
+            placeholder="en-US"
+            className="border rounded w-full p-2"
+            style={inputStyle}
+            required
+          />
+        </Field>
+        <Field label="Publication identifier (optional)">
+          <input
+            value={metadata.ebook.identifier ?? ""}
+            onChange={(event) => update("identifier", event.target.value)}
+            placeholder="ISBN or other persistent ID"
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Publisher (optional)">
+          <input
+            value={metadata.ebook.publisher ?? ""}
+            onChange={(event) => update("publisher", event.target.value)}
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Reading direction">
+          <select
+            value={metadata.ebook.page_progression_direction ?? ""}
+            onChange={(event) =>
+              update("page_progression_direction", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          >
+            <option value="">Reader default</option>
+            <option value="left_to_right">Left to right</option>
+            <option value="right_to_left">Right to left</option>
+          </select>
+        </Field>
+      </div>
+      <Field label="Description (optional)">
+        <textarea
+          value={metadata.ebook.description ?? ""}
+          onChange={(event) => update("description", event.target.value)}
+          rows={2}
+          className="border rounded w-full p-2 resize-y"
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="Rights statement (optional)">
+        <input
+          value={metadata.ebook.rights ?? ""}
+          onChange={(event) => update("rights", event.target.value)}
+          className="border rounded w-full p-2"
+          style={inputStyle}
+        />
+      </Field>
+      <div className="grid grid-cols-[auto_1fr] items-center gap-3">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => void onChooseCover()}
+            className="px-3 py-2 rounded border input-button"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            {cover ? "Change cover" : "Choose cover"}
+          </button>
+          {cover && (
+            <button
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...metadata,
+                  ebook: { ...metadata.ebook, cover: undefined },
+                })
+              }
+              className="px-3 py-2 rounded border input-button"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+        <span className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
+          {cover ? displayFilename(cover.source) : "No cover selected"}
+        </span>
+      </div>
+      {cover && (
+        <Field label="Cover alt text" required>
+          <input
+            value={cover.alt_text}
+            onChange={(event) =>
+              onChange({
+                ...metadata,
+                ebook: {
+                  ...metadata.ebook,
+                  cover: { ...cover, alt_text: event.target.value },
+                },
+              })
+            }
+            placeholder="Describe the visible cover"
+            className="border rounded w-full p-2"
+            style={inputStyle}
+            required
+          />
+        </Field>
+      )}
+      <div className="flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={metadata.ebook.include_front_matter}
+            onChange={(event) =>
+              onChange({
+                ...metadata,
+                ebook: {
+                  ...metadata.ebook,
+                  include_front_matter: event.target.checked,
+                },
+              })
+            }
+          />
+          Include front matter in EPUB
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={metadata.ebook.include_back_matter}
+            onChange={(event) =>
+              onChange({
+                ...metadata,
+                ebook: {
+                  ...metadata.ebook,
+                  include_back_matter: event.target.checked,
+                },
+              })
+            }
+          />
+          Include back matter in EPUB
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function OutlineRow({
   node,
   depth,
@@ -867,7 +1116,24 @@ function cleanMetadata(metadata: PublishingMetadata): PublishingMetadata {
         value.trim(),
       ]),
     ) as unknown as PublishingMetadata["contact"],
+    ebook: {
+      ...metadata.ebook,
+      identifier: metadata.ebook.identifier?.trim() || undefined,
+      publisher: metadata.ebook.publisher?.trim() || undefined,
+      description: metadata.ebook.description?.trim() || undefined,
+      rights: metadata.ebook.rights?.trim() || undefined,
+      cover: metadata.ebook.cover
+        ? {
+            source: metadata.ebook.cover.source.trim(),
+            alt_text: metadata.ebook.cover.alt_text.trim(),
+          }
+        : undefined,
+    },
   };
+}
+
+function displayFilename(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
 }
 
 function safeFilename(title: string): string {

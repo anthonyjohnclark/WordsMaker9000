@@ -16,7 +16,11 @@
     "series": {
       "title": "Example Series",
       "position": 2
-    }
+    },
+    "identifier": "urn:isbn:9780000000000",
+    "publisher": "Example Press",
+    "description": "A fixture covering the complete semantic model.",
+    "rights": "Copyright A. Writer"
   },
   "sections": [
     {

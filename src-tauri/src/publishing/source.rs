@@ -247,4 +247,124 @@ mod tests {
 
         let _ = fs::remove_dir_all(app_data);
     }
+
+    #[test]
+    #[ignore = "validates generated Dev_Projects when WM_PUBLISH_QA_APP_DATA is set"]
+    fn generated_publish_qa_sources_match_expected_successes_and_failures() {
+        use crate::publishing::config::{load_or_default, PublishingConfig};
+        use crate::publishing::preflight::{
+            has_blocking_diagnostics, run_epub_source_preflight, run_preflight,
+        };
+        use crate::publishing::project_types::apply_project_strategy;
+        use crate::publishing::request::{
+            PublicationScope, PublishFormat, PublishMetadataOverrides,
+        };
+
+        fn request_metadata(config: &PublishingConfig) -> PublishMetadataOverrides {
+            PublishMetadataOverrides {
+                title: config.book_metadata.title.clone(),
+                subtitle: config.book_metadata.subtitle.clone(),
+                author: config.book_metadata.author.clone(),
+                language: config.book_metadata.language.clone(),
+                front_matter: config.book_metadata.front_matter.clone(),
+                back_matter: config.book_metadata.back_matter.clone(),
+                contact: config.book_metadata.contact.clone(),
+                ebook: config.book_metadata.ebook.clone(),
+            }
+        }
+
+        let app_data = env::var_os("WM_PUBLISH_QA_APP_DATA")
+            .map(PathBuf::from)
+            .expect("WM_PUBLISH_QA_APP_DATA must point to the WordsMaker9000 app-data root");
+        let successful_projects = [
+            "Publish QA 01 - Novel Structure",
+            "Publish QA 02 - Novella Root Chapters",
+            "Publish QA 03 - Collection Scopes",
+            "Publish QA 04 - Serial Scopes",
+            "Publish QA 05 - Format Inclusion",
+            "Publish QA 06 - Formatting and Unicode",
+            "Publish QA 92 - Expected Failure - Empty Scope",
+            "Publish QA 93 - Expected EPUB Failure - Missing Cover",
+        ];
+
+        for project_name in successful_projects {
+            let mut snapshot = load_snapshot(&app_data, project_name)
+                .unwrap_or_else(|error| panic!("{project_name}: source load failed: {error}"));
+            let config = load_or_default(
+                &snapshot.publishing_path,
+                snapshot.project_type,
+                &snapshot.project_title,
+            )
+            .unwrap_or_else(|error| panic!("{project_name}: config load failed: {error}"));
+            let metadata = request_metadata(&config);
+            snapshot.payload.options.title = metadata.title.clone();
+            snapshot.payload.options.author = metadata.author.clone();
+            snapshot.payload.options.front_matter = metadata.front_matter.clone();
+            snapshot.payload.options.back_matter = metadata.back_matter.clone();
+            let mut document = crate::publishing::compiler::compile(&snapshot.payload)
+                .unwrap_or_else(|error| panic!("{project_name}: compile failed: {error}"));
+            apply_project_strategy(
+                &mut document,
+                snapshot.project_type,
+                &config.node_roles,
+                &PublicationScope::FullProject,
+                true,
+            )
+            .unwrap_or_else(|error| panic!("{project_name}: strategy failed: {error}"));
+
+            if project_name.contains("Empty Scope") {
+                let diagnostics = run_preflight(&document, PublishFormat::Pdf, &metadata, true);
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == "PUBLISH_EMPTY_SCOPE"),
+                    "{project_name}: expected PUBLISH_EMPTY_SCOPE"
+                );
+                continue;
+            }
+            if project_name.contains("Missing Cover") {
+                let diagnostics =
+                    run_epub_source_preflight(&document, &metadata, &snapshot.project_root);
+                assert!(
+                    diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == "EPUB_COVER_MISSING"),
+                    "{project_name}: expected EPUB_COVER_MISSING"
+                );
+                continue;
+            }
+
+            for format in [PublishFormat::Pdf, PublishFormat::Docx, PublishFormat::Epub] {
+                let diagnostics = run_preflight(&document, format, &metadata, true);
+                assert!(
+                    !has_blocking_diagnostics(&diagnostics),
+                    "{project_name}: {format:?} preflight blocked: {diagnostics:?}"
+                );
+            }
+            let diagnostics =
+                run_epub_source_preflight(&document, &metadata, &snapshot.project_root);
+            assert!(
+                !has_blocking_diagnostics(&diagnostics),
+                "{project_name}: EPUB source preflight blocked: {diagnostics:?}"
+            );
+        }
+
+        let unsupported = load_snapshot(
+            &app_data,
+            "Publish QA 90 - Expected Failure - Unsupported HTML",
+        )
+        .expect("unsupported-HTML fixture should load before compilation");
+        let error = crate::publishing::compiler::compile(&unsupported.payload)
+            .expect_err("unsupported-HTML fixture should fail compilation");
+        assert!(error.contains("Unsupported Table"));
+        assert!(error.contains("<table>"));
+
+        let error = load_snapshot(
+            &app_data,
+            "Publish QA 91 - Expected Failure - Missing Source",
+        )
+        .expect_err("missing-source fixture should fail snapshot loading");
+        assert!(error.contains("Missing Source File"));
+        assert!(error.contains("node 1"));
+    }
 }

@@ -7,13 +7,21 @@ pub(crate) struct BookDocument {
     pub assets: Vec<BookAsset>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct BookMetadata {
     pub title: String,
     pub subtitle: Option<String>,
     pub contributors: Vec<BookContributor>,
     pub language: Option<String>,
     pub series: Option<SeriesMembership>,
+    #[serde(default)]
+    pub identifier: Option<String>,
+    #[serde(default)]
+    pub publisher: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub rights: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -267,6 +275,10 @@ mod tests {
                     title: "Example Series".to_string(),
                     position: Some(2),
                 }),
+                identifier: Some("urn:isbn:9780000000000".to_string()),
+                publisher: Some("Example Press".to_string()),
+                description: Some("A fixture covering the complete semantic model.".to_string()),
+                rights: Some("Copyright A. Writer".to_string()),
             },
             sections: vec![
                 BookSection {
@@ -405,7 +417,11 @@ mod tests {
                 "subtitle": null,
                 "contributors": [],
                 "language": null,
-                "series": null
+                "series": null,
+                "identifier": null,
+                "publisher": null,
+                "description": null,
+                "rights": null
             },
             "sections": [],
             "assets": []
@@ -452,6 +468,7 @@ mod tests {
                 contributors: vec![],
                 language: None,
                 series: None,
+                ..BookMetadata::default()
             },
             sections: vec![],
             assets: vec![],

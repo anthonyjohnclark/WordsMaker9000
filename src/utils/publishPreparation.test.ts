@@ -22,6 +22,10 @@ const request: PublishRequest = {
       header_surname: "Writer",
       short_title: "Book",
     },
+    ebook: {
+      include_front_matter: true,
+      include_back_matter: true,
+    },
   },
   node_overrides: {},
   outline_confirmed: true,

@@ -17,6 +17,7 @@ pub(crate) enum ProjectType {
 pub(crate) enum PublishFormat {
     Pdf,
     Docx,
+    Epub,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +53,48 @@ pub(crate) struct ContactInformation {
     pub short_title: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PageProgressionDirection {
+    LeftToRight,
+    RightToLeft,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct EbookCover {
+    pub source: String,
+    pub alt_text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct EbookMetadata {
+    pub identifier: Option<String>,
+    pub publisher: Option<String>,
+    pub description: Option<String>,
+    pub rights: Option<String>,
+    pub cover: Option<EbookCover>,
+    pub page_progression_direction: Option<PageProgressionDirection>,
+    #[serde(default = "default_include_shared_matter")]
+    pub include_front_matter: bool,
+    #[serde(default = "default_include_shared_matter")]
+    pub include_back_matter: bool,
+}
+
+impl Default for EbookMetadata {
+    fn default() -> Self {
+        Self {
+            identifier: None,
+            publisher: None,
+            description: None,
+            rights: None,
+            cover: None,
+            page_progression_direction: None,
+            include_front_matter: true,
+            include_back_matter: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct PublishMetadataOverrides {
     pub title: String,
@@ -61,6 +104,8 @@ pub(crate) struct PublishMetadataOverrides {
     pub front_matter: Option<String>,
     pub back_matter: Option<String>,
     pub contact: ContactInformation,
+    #[serde(default)]
+    pub ebook: EbookMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

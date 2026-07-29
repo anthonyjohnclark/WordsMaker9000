@@ -62,6 +62,7 @@ pub(crate) fn compile(payload: &ExportPayload) -> Result<BookDocument, String> {
             }],
             language: None,
             series: None,
+            ..BookMetadata::default()
         },
         sections,
         assets: vec![],
