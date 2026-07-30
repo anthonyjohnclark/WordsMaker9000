@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "jest --config jest.config.cjs"
+    "test": "jest --config jest.config.cjs",
+    "test:publish-artifacts": "powershell -ExecutionPolicy Bypass -File ./tests/publishing-qa/scripts/generate_publish_qa_outputs.ps1"
   },
   "dependencies": {
     "@minoru/react-dnd-treeview": "^3.4.4",

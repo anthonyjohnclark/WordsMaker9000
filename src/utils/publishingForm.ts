@@ -79,3 +79,20 @@ export function parsePublishFailure(error: unknown): PublishFailure {
   }
   return { message: String(error), diagnostics: [] };
 }
+
+export function formatPublishFailure(failure: PublishFailure): string {
+  const details = failure.diagnostics.map((diagnostic) => {
+    const remediation = diagnostic.remediation?.trim();
+    return `${diagnostic.code}: ${diagnostic.message}${
+      remediation ? `\n${remediation}` : ""
+    }`;
+  });
+  const message = failure.message.trim();
+  const messageAlreadyIncluded = failure.diagnostics.some(
+    (diagnostic) => diagnostic.message.trim() === message,
+  );
+  if (message && !messageAlreadyIncluded) {
+    details.push(message);
+  }
+  return details.join("\n\n") || "Publishing failed.";
+}

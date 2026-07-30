@@ -8,7 +8,7 @@ const ErrorModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]"
       onClick={clearError}
     >
       <div
@@ -25,7 +25,12 @@ const ErrorModal: React.FC = () => {
           Error {errorAction}
         </h2>
         <div className="flex-1 overflow-y-auto">
-          <p style={{ color: "var(--text-primary)" }}>{error.toString()}</p>
+          <p
+            className="whitespace-pre-wrap"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {error.toString()}
+          </p>
         </div>
         <div className="flex justify-end mt-4">
           <button

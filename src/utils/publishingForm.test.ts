@@ -1,4 +1,5 @@
 import {
+  formatPublishFailure,
   outlineNodeRole,
   parsePublishFailure,
   profileForFormat,
@@ -96,5 +97,25 @@ describe("publishing form decisions", () => {
     );
     expect(failure.message).toBe("Preflight failed");
     expect(failure.diagnostics[0].code).toBe("PUBLISH_TITLE_REQUIRED");
+  });
+
+  test("formats publish diagnostics and remediation without repeating the message", () => {
+    expect(
+      formatPublishFailure({
+        message:
+          'File "Unsupported Table" (node 1): Unsupported Quill block element <table>',
+        diagnostics: [
+          {
+            code: "PUBLISH_UNSUPPORTED_CONTENT",
+            severity: "error",
+            message:
+              'File "Unsupported Table" (node 1): Unsupported Quill block element <table>',
+            remediation: "Resolve the named source or outline problem and retry.",
+          },
+        ],
+      }),
+    ).toBe(
+      'PUBLISH_UNSUPPORTED_CONTENT: File "Unsupported Table" (node 1): Unsupported Quill block element <table>\nResolve the named source or outline problem and retry.',
+    );
   });
 });

@@ -151,7 +151,7 @@ pub(crate) async fn publish_project(
         .map_err(|error| PublishFailure::source(format!("Failed to resolve app data: {error}")))?;
     let worker_app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        publish_blocking(&worker_app, &app_data_dir, request)
+        publish_blocking(Some(&worker_app), &app_data_dir, request)
     })
     .await
     .map_err(|error| PublishFailure::source(format!("Publishing task failed: {error}")))?
@@ -174,8 +174,8 @@ pub(crate) async fn list_publication_history(
     .map_err(|error| format!("History task failed: {error}"))?
 }
 
-fn publish_blocking(
-    app: &AppHandle,
+pub(crate) fn publish_blocking(
+    app: Option<&AppHandle>,
     app_data_dir: &Path,
     mut request: PublishRequest,
 ) -> Result<PublishResult, PublishFailure> {
@@ -262,7 +262,13 @@ fn publish_blocking(
         3,
         6,
     );
-    let rendered = render_artifact(&workspace, &document, &request, &snapshot.project_root, app);
+    let rendered = render_artifact(
+        workspace.staging_dir(),
+        &document,
+        &request,
+        &snapshot.project_root,
+        app,
+    );
     let artifact_path = match rendered {
         Ok(path) => path,
         Err(message) => {
@@ -356,18 +362,18 @@ fn publish_blocking(
 }
 
 fn render_artifact(
-    workspace: &ArtifactWorkspace,
+    output_dir: &Path,
     document: &BookDocument,
     request: &PublishRequest,
     project_root: &Path,
-    app: &AppHandle,
+    app: Option<&AppHandle>,
 ) -> Result<PathBuf, String> {
     match request.format {
-        PublishFormat::Pdf => generate_pdf(document, workspace.staging_dir(), Some(app)),
+        PublishFormat::Pdf => generate_pdf(document, output_dir, app),
         PublishFormat::Docx => {
             let profile = parse_docx_profile(&request.profile_id)?;
             let filename = safe_filename(&request.metadata.title, profile_label(profile), "docx");
-            let path = workspace.artifact_path(&filename);
+            let path = output_dir.join(filename);
             render_docx(
                 document,
                 &DocxRenderOptions {
@@ -381,7 +387,7 @@ fn render_artifact(
         }
         PublishFormat::Epub => {
             let filename = safe_filename(&request.metadata.title, "Reflowable EPUB", "epub");
-            let path = workspace.artifact_path(&filename);
+            let path = output_dir.join(filename);
             let cover = request
                 .metadata
                 .ebook
@@ -521,13 +527,16 @@ fn outline_requires_confirmation(document: &BookDocument) -> bool {
 }
 
 fn emit_progress(
-    app: &AppHandle,
+    app: Option<&AppHandle>,
     export_id: &str,
     phase: PublishPhase,
     message: &str,
     current: usize,
     total: usize,
 ) {
+    let Some(app) = app else {
+        return;
+    };
     let _ = app.emit(
         "publish-progress",
         PublishProgress {
@@ -674,11 +683,13 @@ fn publication_source_hash(
                 .map_err(|error| format!("Failed to hash publication asset {path:?}: {error}"))?,
         );
     }
-    if let Some(cover) = &request.metadata.ebook.cover {
-        let path = resolve_ebook_source(project_root, &cover.source)?;
-        hasher.update(
-            fs::read(path).map_err(|error| format!("Failed to hash ebook cover: {error}"))?,
-        );
+    if request.format == PublishFormat::Epub {
+        if let Some(cover) = &request.metadata.ebook.cover {
+            let path = resolve_ebook_source(project_root, &cover.source)?;
+            hasher.update(
+                fs::read(path).map_err(|error| format!("Failed to hash ebook cover: {error}"))?,
+            );
+        }
     }
     Ok(format!("{:x}", hasher.finalize()))
 }
@@ -793,5 +804,36 @@ mod tests {
         request.metadata.ebook.publisher = Some("Publisher".to_string());
         let second = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn missing_epub_cover_does_not_block_pdf_or_docx_hashing() {
+        let project = tempfile::tempdir().unwrap();
+
+        for (format, profile_id) in [
+            (PublishFormat::Pdf, "proof_pdf"),
+            (PublishFormat::Docx, "clean_handoff"),
+        ] {
+            let mut request = request(format, profile_id);
+            request.metadata.ebook.cover = Some(EbookCover {
+                source: "missing-cover.svg".to_string(),
+                alt_text: "Intentionally missing cover".to_string(),
+            });
+
+            publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
+        }
+    }
+
+    #[test]
+    fn epub_hashing_requires_the_selected_cover_to_exist() {
+        let project = tempfile::tempdir().unwrap();
+        let mut request = request(PublishFormat::Epub, "reflowable_epub");
+        request.metadata.ebook.cover = Some(EbookCover {
+            source: "missing-cover.svg".to_string(),
+            alt_text: "Intentionally missing cover".to_string(),
+        });
+
+        let error = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap_err();
+        assert!(error.starts_with("Failed to hash ebook cover:"));
     }
 }

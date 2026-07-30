@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 
 use docx_rs::{
@@ -12,6 +12,7 @@ use docx_rs::{
 use crate::publishing::model::{
     Block, BookDocument, BookSection, HeadingLevel, Inline, InlineMarks, ListItem, OutputFormat,
     ParagraphAlignment, ParagraphStyle, SceneBreakStyle, SectionInclusion, SectionRole,
+    TextDirection,
 };
 use crate::publishing::request::{ContactInformation, DocxProfileId};
 
@@ -35,6 +36,12 @@ const STYLE_SCENE: &str = "WMScene";
 const STYLE_SCENE_BREAK: &str = "WMSceneBreak";
 const STYLE_QUOTE: &str = "WMQuote";
 const STYLE_LIST: &str = "WMList";
+const STYLE_HEADING_1: &str = "WMHeading1";
+const STYLE_HEADING_2: &str = "WMHeading2";
+const STYLE_HEADING_3: &str = "WMHeading3";
+const STYLE_HEADING_4: &str = "WMHeading4";
+const STYLE_HEADING_5: &str = "WMHeading5";
+const STYLE_HEADING_6: &str = "WMHeading6";
 
 #[derive(Debug, Clone)]
 pub(crate) struct DocxRenderOptions {
@@ -71,6 +78,7 @@ pub(crate) fn render_docx(
     docx.build()
         .pack(file)
         .map_err(|error| format!("Failed to package DOCX artifact: {error}"))?;
+    finalize_docx_package(output_path, &document.metadata.title, &options.author)?;
     validate_docx(output_path, options.profile)
 }
 
@@ -407,14 +415,21 @@ impl RenderState {
 }
 
 fn paragraph_for_style(style: &ParagraphStyle) -> Paragraph {
-    let mut paragraph = Paragraph::new()
-        .style(STYLE_BODY)
-        .align(match style.alignment {
-            ParagraphAlignment::Start => AlignmentType::Left,
-            ParagraphAlignment::Center => AlignmentType::Center,
-            ParagraphAlignment::End => AlignmentType::Right,
-            ParagraphAlignment::Justify => AlignmentType::Both,
-        });
+    let right_to_left = style.direction == TextDirection::RightToLeft;
+    let mut paragraph =
+        Paragraph::new()
+            .style(STYLE_BODY)
+            .align(match (&style.alignment, &style.direction) {
+                (ParagraphAlignment::Center, _) => AlignmentType::Center,
+                (ParagraphAlignment::Start, TextDirection::RightToLeft) => AlignmentType::Right,
+                (ParagraphAlignment::End, TextDirection::RightToLeft) => AlignmentType::Left,
+                (ParagraphAlignment::Start, _) => AlignmentType::Left,
+                (ParagraphAlignment::End, _) => AlignmentType::Right,
+                (ParagraphAlignment::Justify, _) => AlignmentType::Both,
+            });
+    if right_to_left {
+        paragraph.property = paragraph.property.bidi(true);
+    }
     if style.indent_level > 0 {
         paragraph = paragraph.indent(
             Some(i32::from(style.indent_level) * HALF_INCH),
@@ -552,7 +567,27 @@ fn named_styles(profile: DocxProfileId, fonts: RunFonts, body_spacing: LineSpaci
             .name("WM List")
             .fonts(fonts)
             .size(BODY_FONT_SIZE),
+        authored_heading_style(STYLE_HEADING_1, "WM Heading 1", 32, 0),
+        authored_heading_style(STYLE_HEADING_2, "WM Heading 2", 30, 1),
+        authored_heading_style(STYLE_HEADING_3, "WM Heading 3", 28, 2),
+        authored_heading_style(STYLE_HEADING_4, "WM Heading 4", 26, 3),
+        authored_heading_style(STYLE_HEADING_5, "WM Heading 5", 24, 4),
+        authored_heading_style(STYLE_HEADING_6, "WM Heading 6", 24, 5),
     ]
+}
+
+fn authored_heading_style(
+    id: &'static str,
+    name: &'static str,
+    size: usize,
+    outline_level: usize,
+) -> Style {
+    Style::new(id, StyleType::Paragraph)
+        .name(name)
+        .fonts(manuscript_fonts())
+        .size(size)
+        .bold()
+        .outline_lvl(outline_level)
 }
 
 fn add_numberings(mut docx: Docx) -> Docx {
@@ -633,8 +668,12 @@ fn body_spacing(profile: DocxProfileId) -> LineSpacing {
 
 fn heading_style(level: &HeadingLevel) -> &'static str {
     match level {
-        HeadingLevel::H1 | HeadingLevel::H2 => STYLE_CHAPTER,
-        HeadingLevel::H3 | HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => STYLE_SCENE,
+        HeadingLevel::H1 => STYLE_HEADING_1,
+        HeadingLevel::H2 => STYLE_HEADING_2,
+        HeadingLevel::H3 => STYLE_HEADING_3,
+        HeadingLevel::H4 => STYLE_HEADING_4,
+        HeadingLevel::H5 => STYLE_HEADING_5,
+        HeadingLevel::H6 => STYLE_HEADING_6,
     }
 }
 
@@ -688,16 +727,20 @@ fn scene_marker(marker: &str) -> Paragraph {
 }
 
 fn contact_lines(contact: &ContactInformation) -> Vec<String> {
-    [
-        contact.author_name.trim(),
-        contact.mailing_address.trim(),
-        contact.email.trim(),
-        contact.phone.trim(),
-    ]
-    .into_iter()
-    .filter(|line| !line.is_empty())
-    .map(ToString::to_string)
-    .collect()
+    let mut lines = Vec::new();
+    lines.extend(non_empty_lines(&contact.author_name));
+    lines.extend(non_empty_lines(&contact.mailing_address));
+    lines.extend(non_empty_lines(&contact.email));
+    lines.extend(non_empty_lines(&contact.phone));
+    lines
+}
+
+fn non_empty_lines(value: &str) -> impl Iterator<Item = String> + '_ {
+    value
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToString::to_string)
 }
 
 fn derive_header_surname(configured: &str, author: &str) -> String {
@@ -719,6 +762,133 @@ fn profile_name(profile: DocxProfileId) -> &'static str {
     }
 }
 
+fn finalize_docx_package(path: &Path, title: &str, author: &str) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "DOCX output path has no parent directory.".to_string())?;
+    let mut replacement = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|error| format!("Failed to prepare DOCX metadata update: {error}"))?;
+    let created_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let core_xml = format!(
+        concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<cp:coreProperties ",
+            "xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" ",
+            "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" ",
+            "xmlns:dcterms=\"http://purl.org/dc/terms/\" ",
+            "xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" ",
+            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
+            "<dcterms:created xsi:type=\"dcterms:W3CDTF\">{created_at}</dcterms:created>",
+            "<dc:creator>{author}</dc:creator>",
+            "<cp:lastModifiedBy>{author}</cp:lastModifiedBy>",
+            "<dcterms:modified xsi:type=\"dcterms:W3CDTF\">{created_at}</dcterms:modified>",
+            "<cp:revision>1</cp:revision>",
+            "<dc:title>{title}</dc:title>",
+            "</cp:coreProperties>"
+        ),
+        created_at = created_at,
+        author = xml_text(author),
+        title = xml_text(title),
+    );
+
+    {
+        let source = File::open(path)
+            .map_err(|error| format!("Failed to reopen DOCX for metadata update: {error}"))?;
+        let mut archive = zip::ZipArchive::new(source)
+            .map_err(|error| format!("DOCX is not a valid ZIP: {error}"))?;
+        let mut writer = zip::ZipWriter::new(replacement.as_file_mut());
+        let mut replaced_core = false;
+
+        for index in 0..archive.len() {
+            let entry = archive
+                .by_index(index)
+                .map_err(|error| format!("Failed to read DOCX package entry: {error}"))?;
+            if entry.name() == "docProps/core.xml" {
+                writer
+                    .start_file(
+                        "docProps/core.xml",
+                        zip::write::SimpleFileOptions::default()
+                            .compression_method(zip::CompressionMethod::Deflated),
+                    )
+                    .map_err(|error| format!("Failed to write DOCX core properties: {error}"))?;
+                writer
+                    .write_all(core_xml.as_bytes())
+                    .map_err(|error| format!("Failed to write DOCX core properties: {error}"))?;
+                replaced_core = true;
+            } else if entry.name() == "word/document.xml" {
+                let mut document_xml = String::new();
+                let mut entry = entry;
+                entry
+                    .read_to_string(&mut document_xml)
+                    .map_err(|error| format!("Failed to read DOCX document XML: {error}"))?;
+                writer
+                    .start_file(
+                        "word/document.xml",
+                        zip::write::SimpleFileOptions::default()
+                            .compression_method(zip::CompressionMethod::Deflated),
+                    )
+                    .map_err(|error| format!("Failed to update DOCX RTL semantics: {error}"))?;
+                writer
+                    .write_all(add_rtl_run_properties(&document_xml).as_bytes())
+                    .map_err(|error| format!("Failed to update DOCX RTL semantics: {error}"))?;
+            } else {
+                writer
+                    .raw_copy_file(entry)
+                    .map_err(|error| format!("Failed to copy DOCX package entry: {error}"))?;
+            }
+        }
+        if !replaced_core {
+            return Err("DOCX package is missing docProps/core.xml.".to_string());
+        }
+        writer
+            .finish()
+            .map_err(|error| format!("Failed to finish DOCX metadata update: {error}"))?;
+    }
+
+    replacement
+        .as_file_mut()
+        .sync_all()
+        .map_err(|error| format!("Failed to flush DOCX metadata update: {error}"))?;
+    std::fs::copy(replacement.path(), path)
+        .map_err(|error| format!("Failed to install DOCX metadata update: {error}"))?;
+    Ok(())
+}
+
+fn add_rtl_run_properties(document_xml: &str) -> String {
+    let mut updated = String::with_capacity(document_xml.len());
+    let mut remaining = document_xml;
+
+    while let Some(paragraph_start) = remaining.find("<w:p") {
+        updated.push_str(&remaining[..paragraph_start]);
+        let paragraph = &remaining[paragraph_start..];
+        let Some(relative_end) = paragraph.find("</w:p>") else {
+            updated.push_str(paragraph);
+            return updated;
+        };
+        let paragraph_end = relative_end + "</w:p>".len();
+        let paragraph = &paragraph[..paragraph_end];
+        if paragraph.contains("<w:bidi") {
+            updated.push_str(
+                &paragraph
+                    .replace("<w:rPr>", "<w:rPr><w:rtl />")
+                    .replace("<w:rPr />", "<w:rPr><w:rtl /></w:rPr>"),
+            );
+        } else {
+            updated.push_str(paragraph);
+        }
+        remaining = &remaining[paragraph_end..];
+    }
+    updated.push_str(remaining);
+    updated
+}
+
+fn xml_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
     let file = File::open(path)
         .map_err(|error| format!("Failed to reopen DOCX for validation: {error}"))?;
@@ -729,6 +899,7 @@ fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
         "word/document.xml",
         "word/styles.xml",
         "word/numbering.xml",
+        "docProps/core.xml",
         "docProps/custom.xml",
     ] {
         archive
@@ -800,6 +971,49 @@ mod tests {
                             indent_level: 0,
                             direction: TextDirection::Auto,
                         },
+                    },
+                    Block::Paragraph {
+                        inlines: vec![Inline::Text {
+                            text: "עברית".to_string(),
+                            marks: InlineMarks {
+                                bold: false,
+                                italic: false,
+                                underline: false,
+                                strike: false,
+                            },
+                            link: None,
+                        }],
+                        style: ParagraphStyle {
+                            alignment: ParagraphAlignment::Start,
+                            indent_level: 0,
+                            direction: TextDirection::RightToLeft,
+                        },
+                    },
+                    Block::Heading {
+                        level: HeadingLevel::H1,
+                        inlines: vec![Inline::Text {
+                            text: "Heading One".to_string(),
+                            marks: InlineMarks {
+                                bold: false,
+                                italic: false,
+                                underline: false,
+                                strike: false,
+                            },
+                            link: None,
+                        }],
+                    },
+                    Block::Heading {
+                        level: HeadingLevel::H6,
+                        inlines: vec![Inline::Text {
+                            text: "Heading Six".to_string(),
+                            marks: InlineMarks {
+                                bold: false,
+                                italic: false,
+                                underline: false,
+                                strike: false,
+                            },
+                            link: None,
+                        }],
                     },
                     Block::OrderedList {
                         items: vec![ListItem {
@@ -880,7 +1094,7 @@ mod tests {
                 author_name: "A. Writer".to_string(),
                 email: "writer@example.com".to_string(),
                 phone: "555-0100".to_string(),
-                mailing_address: "1 Main Street".to_string(),
+                mailing_address: "1 Main Street\nSecond Floor".to_string(),
                 header_surname: "Writer".to_string(),
                 short_title: "Unicode".to_string(),
             },
@@ -925,6 +1139,7 @@ mod tests {
         let header = zip_part(&path, "word/header1.xml");
         let relationships = zip_part(&path, "word/_rels/document.xml.rels");
         let properties = zip_part(&path, "docProps/custom.xml");
+        let core_properties = zip_part(&path, "docProps/core.xml");
 
         assert!(document.contains("Hello"));
         assert!(document.contains("世界"));
@@ -932,6 +1147,10 @@ mod tests {
         assert!(document.contains("<w:b"));
         assert!(document.contains("<w:i"));
         assert!(document.contains("<w:strike"));
+        assert!(document.contains("<w:bidi"));
+        assert!(document.contains("<w:rtl"));
+        assert!(document.contains("w:pStyle w:val=\"WMHeading1\""));
+        assert!(document.contains("w:pStyle w:val=\"WMHeading6\""));
         assert!(document.contains("w:pgSz w:w=\"12240\" w:h=\"15840\""));
         assert!(document.contains("w:pgMar w:top=\"1440\""));
         assert!(document.contains("w:pgNumType w:start=\"1\""));
@@ -957,6 +1176,18 @@ mod tests {
         );
         assert!(properties.contains("The Unicode Book"));
         assert!(properties.contains("standard_manuscript"));
+        assert!(core_properties.contains("<dc:title>The Unicode Book</dc:title>"));
+        assert!(core_properties.contains("<dc:creator>A. Writer</dc:creator>"));
+        assert_eq!(
+            contact_lines(&options(DocxProfileId::StandardManuscript).contact),
+            vec![
+                "A. Writer",
+                "1 Main Street",
+                "Second Floor",
+                "writer@example.com",
+                "555-0100"
+            ]
+        );
 
         let contact_style = style_definition(&styles, STYLE_CONTACT);
         assert!(!contact_style.contains("<w:ind"));
@@ -986,7 +1217,19 @@ mod tests {
         assert!(styles.contains("WM Scene Break"));
         assert!(styles.contains("WM Byline"));
         assert!(styles.contains("WM Body"));
+        assert!(styles.contains("WM Heading 1"));
+        assert!(styles.contains("WM Heading 6"));
         assert!(styles.contains("w:line=\"240\""));
         assert!(styles.contains("w:after=\"120\""));
+    }
+
+    #[test]
+    fn authored_heading_levels_have_distinct_named_styles() {
+        assert_eq!(heading_style(&HeadingLevel::H1), STYLE_HEADING_1);
+        assert_eq!(heading_style(&HeadingLevel::H2), STYLE_HEADING_2);
+        assert_eq!(heading_style(&HeadingLevel::H3), STYLE_HEADING_3);
+        assert_eq!(heading_style(&HeadingLevel::H4), STYLE_HEADING_4);
+        assert_eq!(heading_style(&HeadingLevel::H5), STYLE_HEADING_5);
+        assert_eq!(heading_style(&HeadingLevel::H6), STYLE_HEADING_6);
     }
 }

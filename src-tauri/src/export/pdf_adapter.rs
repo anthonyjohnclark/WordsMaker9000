@@ -2,16 +2,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use chrono::Local;
-use genpdf::elements::{Break, PageBreak, Paragraph};
+use genpdf::elements::{Break, BulletPoint, LinearLayout, PageBreak, Paragraph};
 use genpdf::fonts::{self, FontData, FontFamily};
 use genpdf::style::Style;
-use genpdf::{Document, Element};
+use genpdf::{Document, Element, Margins};
 use tauri::{AppHandle, Emitter};
 
 use crate::export::types::ExportProgress;
 use crate::publishing::model::{
     Block, BookDocument, BookSection, ContributorRole, HeadingLevel, Inline, InlineMarks, ListItem,
-    OutputFormat, SceneBreakStyle, SectionInclusion, SectionRole,
+    OutputFormat, ParagraphAlignment, ParagraphStyle, SceneBreakStyle, SectionInclusion,
+    SectionRole, TextDirection,
 };
 
 struct PdfSection<'a> {
@@ -197,6 +198,7 @@ pub fn generate_pdf(
 
     pdf.render_to_file(&output_path)
         .map_err(|e| format!("Failed to render PDF: {e}"))?;
+    write_author_metadata(&output_path, primary_author(document))?;
 
     Ok(output_path)
 }
@@ -209,6 +211,38 @@ fn primary_author(document: &BookDocument) -> &str {
         .find(|contributor| contributor.role == ContributorRole::Author)
         .map(|contributor| contributor.name.as_str())
         .unwrap_or_default()
+}
+
+fn write_author_metadata(path: &Path, author: &str) -> Result<(), String> {
+    let mut document =
+        lopdf::Document::load(path).map_err(|error| format!("Failed to reopen PDF: {error}"))?;
+    let author = lopdf::Object::string_literal(author);
+    let info_reference = document
+        .trailer
+        .get(b"Info")
+        .ok()
+        .and_then(|value| value.as_reference().ok());
+
+    if let Some(info_reference) = info_reference {
+        document
+            .get_object_mut(info_reference)
+            .and_then(lopdf::Object::as_dict_mut)
+            .map_err(|error| format!("PDF information dictionary is invalid: {error}"))?
+            .set("Author", author);
+    } else if let Ok(info) = document.trailer.get_mut(b"Info") {
+        info.as_dict_mut()
+            .map_err(|error| format!("PDF information dictionary is invalid: {error}"))?
+            .set("Author", author);
+    } else {
+        let info_reference =
+            document.add_object(lopdf::Dictionary::from_iter([(b"Author".to_vec(), author)]));
+        document.trailer.set("Info", info_reference);
+    }
+
+    document
+        .save(path)
+        .map_err(|error| format!("Failed to write PDF author metadata: {error}"))?;
+    Ok(())
 }
 
 fn included_for_pdf(inclusion: &SectionInclusion) -> bool {
@@ -303,21 +337,21 @@ fn collect_pdf_sections<'a>(
             continue;
         }
 
-        if child.role == SectionRole::Scene {
-            let file_title = child.title.as_deref().unwrap_or_default();
-            let title = if folder_path.is_empty() {
-                file_title.to_string()
-            } else {
-                format!("{} — {file_title}", folder_path.join(" — "))
-            };
+        let child_title = child.title.as_deref().unwrap_or_default();
+        if !child.blocks.is_empty() || child.children.is_empty() {
+            let title = folder_path
+                .iter()
+                .copied()
+                .chain((!child_title.is_empty()).then_some(child_title))
+                .collect::<Vec<_>>()
+                .join(" — ");
             sections.push(PdfSection {
                 title,
                 blocks: &child.blocks,
             });
-            continue;
         }
 
-        let added_title = child.title.as_deref();
+        let added_title = (!child_title.is_empty()).then_some(child_title);
         if let Some(title) = added_title {
             folder_path.push(title);
         }
@@ -344,11 +378,10 @@ fn render_section(pdf: &mut Document, section: &PdfSection<'_>) -> Result<(), St
 fn render_blocks(pdf: &mut Document, blocks: &[Block]) -> Result<(), String> {
     for block in blocks {
         match block {
-            Block::Paragraph { inlines, .. } => render_paragraph(pdf, inlines)?,
+            Block::Paragraph { inlines, style } => render_paragraph(pdf, inlines, style)?,
             Block::Heading { level, inlines } => render_heading(pdf, level, inlines)?,
-            Block::OrderedList { items } | Block::BulletList { items } => {
-                render_legacy_list(pdf, items)?
-            }
+            Block::OrderedList { items } => render_list(pdf, items, true)?,
+            Block::BulletList { items } => render_list(pdf, items, false)?,
             Block::BlockQuote { blocks } => render_blocks(pdf, blocks)?,
             Block::SceneBreak { style } => render_scene_break(pdf, style),
             Block::PageBreak => pdf.push(PageBreak::new()),
@@ -369,11 +402,23 @@ fn render_blocks(pdf: &mut Document, blocks: &[Block]) -> Result<(), String> {
     Ok(())
 }
 
-fn render_paragraph(pdf: &mut Document, inlines: &[Inline]) -> Result<(), String> {
-    let Some(paragraph) = styled_paragraph(inlines, 12, false)? else {
+fn render_paragraph(
+    pdf: &mut Document,
+    inlines: &[Inline],
+    paragraph_style: &ParagraphStyle,
+) -> Result<(), String> {
+    let paragraphs = styled_paragraphs(inlines, 12, false, Some(paragraph_style))?;
+    if paragraphs.is_empty() {
         return Ok(());
-    };
-    pdf.push(paragraph);
+    }
+    for paragraph in paragraphs {
+        if paragraph_style.indent_level > 0 {
+            let indent = f64::from(paragraph_style.indent_level) * 6.0;
+            pdf.push(paragraph.padded(Margins::trbl(0, 0, 0, indent)));
+        } else {
+            pdf.push(paragraph);
+        }
+    }
     pdf.push(Break::new(0.3));
     Ok(())
 }
@@ -388,30 +433,44 @@ fn render_heading(
         HeadingLevel::H2 => 15,
         HeadingLevel::H3 | HeadingLevel::H4 | HeadingLevel::H5 | HeadingLevel::H6 => 14,
     };
-    let Some(paragraph) = styled_paragraph(inlines, size, true)? else {
-        return Ok(());
-    };
-    pdf.push(paragraph);
+    for paragraph in styled_paragraphs(inlines, size, true, None)? {
+        pdf.push(paragraph);
+    }
     pdf.push(Break::new(0.3));
     Ok(())
 }
 
-fn styled_paragraph(
+fn styled_paragraphs(
     inlines: &[Inline],
     font_size: u8,
     force_bold: bool,
-) -> Result<Option<Paragraph>, String> {
+    paragraph_style: Option<&ParagraphStyle>,
+) -> Result<Vec<Paragraph>, String> {
     if inlines.is_empty() {
-        return Ok(None);
+        return Ok(Vec::new());
     }
 
-    let mut paragraph = Paragraph::default();
+    let alignment = paragraph_style.map(pdf_alignment);
+    let mut paragraphs = Vec::new();
+    let mut paragraph = aligned_paragraph(alignment);
+    let mut has_content = false;
     for inline in inlines {
         match inline {
             Inline::Text { text, marks, .. } => {
                 let mut effective_marks = marks.clone();
                 effective_marks.bold |= force_bold;
-                paragraph.push_styled(text, build_style(&effective_marks, font_size));
+                let inline_style = build_style(&effective_marks, font_size);
+                for (index, part) in text.split('\n').enumerate() {
+                    if index > 0 {
+                        paragraphs.push(paragraph);
+                        paragraph = aligned_paragraph(alignment);
+                        has_content = false;
+                    }
+                    if !part.is_empty() {
+                        paragraph.push_styled(part, inline_style);
+                        has_content = true;
+                    }
+                }
             }
             Inline::FootnoteReference { id } => {
                 return Err(format!(
@@ -421,34 +480,110 @@ fn styled_paragraph(
             }
         }
     }
-    Ok(Some(paragraph))
+    if has_content || !paragraphs.is_empty() {
+        paragraphs.push(paragraph);
+    }
+    Ok(paragraphs)
 }
 
-fn render_legacy_list(pdf: &mut Document, items: &[ListItem]) -> Result<(), String> {
-    for item in items {
+fn aligned_paragraph(alignment: Option<genpdf::Alignment>) -> Paragraph {
+    let paragraph = Paragraph::default();
+    match alignment {
+        Some(alignment) => paragraph.aligned(alignment),
+        None => paragraph,
+    }
+}
+
+fn pdf_alignment(style: &ParagraphStyle) -> genpdf::Alignment {
+    match (&style.alignment, &style.direction) {
+        (ParagraphAlignment::Center, _) => genpdf::Alignment::Center,
+        (ParagraphAlignment::End, TextDirection::RightToLeft) => genpdf::Alignment::Left,
+        (ParagraphAlignment::Start, TextDirection::RightToLeft) | (ParagraphAlignment::End, _) => {
+            genpdf::Alignment::Right
+        }
+        (ParagraphAlignment::Start | ParagraphAlignment::Justify, _) => genpdf::Alignment::Left,
+    }
+}
+
+fn render_list(pdf: &mut Document, items: &[ListItem], ordered: bool) -> Result<(), String> {
+    pdf.push(build_list(items, ordered)?);
+    pdf.push(Break::new(0.15));
+    Ok(())
+}
+
+fn build_list(items: &[ListItem], ordered: bool) -> Result<LinearLayout, String> {
+    let mut list = LinearLayout::vertical();
+    for (index, item) in items.iter().enumerate() {
+        let mut contents = LinearLayout::vertical();
         for block in &item.blocks {
             match block {
-                Block::Paragraph { inlines, .. } => {
-                    for inline in inlines {
-                        let Inline::Text { text, marks, .. } = inline else {
-                            let Inline::FootnoteReference { id } = inline else {
-                                unreachable!()
-                            };
-                            return Err(format!(
-                                "Current PDF adapter cannot render footnote reference \"{}\"",
-                                id.0
-                            ));
-                        };
-                        let mut paragraph = Paragraph::default();
-                        paragraph.push_styled(format!("  - {text}"), build_style(marks, 12));
-                        pdf.push(paragraph);
-                        pdf.push(Break::new(0.15));
+                Block::Paragraph { inlines, style } => {
+                    for paragraph in styled_paragraphs(inlines, 12, false, Some(style))? {
+                        contents.push(paragraph);
                     }
                 }
-                Block::OrderedList { items } | Block::BulletList { items } => {
-                    render_legacy_list(pdf, items)?
+                Block::OrderedList { items } => contents.push(build_list(items, true)?),
+                Block::BulletList { items } => contents.push(build_list(items, false)?),
+                Block::BlockQuote { blocks } => {
+                    append_plain_blocks(&mut contents, blocks)?;
                 }
-                other => render_blocks(pdf, std::slice::from_ref(other))?,
+                Block::Heading { level, inlines } => {
+                    let size = match level {
+                        HeadingLevel::H1 => 16,
+                        HeadingLevel::H2 => 15,
+                        _ => 14,
+                    };
+                    for paragraph in styled_paragraphs(inlines, size, true, None)? {
+                        contents.push(paragraph);
+                    }
+                }
+                Block::SceneBreak { style } => {
+                    let marker = match style {
+                        SceneBreakStyle::Whitespace => "",
+                        SceneBreakStyle::Asterisks => "* * *",
+                        SceneBreakStyle::Custom { marker } => marker,
+                    };
+                    contents.push(Paragraph::new(marker).aligned(genpdf::Alignment::Center));
+                }
+                Block::PageBreak => contents.push(PageBreak::new()),
+                Block::Image { asset_id, .. } => {
+                    return Err(format!(
+                        "Current PDF adapter cannot render image asset \"{}\"",
+                        asset_id.0
+                    ))
+                }
+                Block::FootnoteDefinition { id, .. } => {
+                    return Err(format!(
+                        "Current PDF adapter cannot render footnote definition \"{}\"",
+                        id.0
+                    ))
+                }
+            }
+        }
+        let marker = if ordered {
+            format!("{}.", index + 1)
+        } else {
+            "•".to_string()
+        };
+        list.push(BulletPoint::new(contents).with_bullet(marker));
+    }
+    Ok(list)
+}
+
+fn append_plain_blocks(layout: &mut LinearLayout, blocks: &[Block]) -> Result<(), String> {
+    for block in blocks {
+        match block {
+            Block::Paragraph { inlines, style } => {
+                for paragraph in styled_paragraphs(inlines, 12, false, Some(style))? {
+                    layout.push(paragraph);
+                }
+            }
+            Block::OrderedList { items } => layout.push(build_list(items, true)?),
+            Block::BulletList { items } => layout.push(build_list(items, false)?),
+            other => {
+                return Err(format!(
+                    "Current PDF adapter cannot render {other:?} inside a list or block quote"
+                ))
             }
         }
     }
@@ -623,6 +758,43 @@ mod tests {
     }
 
     #[test]
+    fn compatibility_projection_recurses_through_scene_role_containers() {
+        let scene_container = BookSection {
+            source_node_id: Some(20),
+            role: SectionRole::Scene,
+            title: Some("Sequence".to_string()),
+            inclusion: SectionInclusion::AllFormats,
+            blocks: vec![],
+            children: vec![scene("Deep Scene", "Deep prose")],
+        };
+        let chapter = section(SectionRole::Chapter, "Book", vec![scene_container]);
+
+        let projected = project_chapter_sections(&chapter);
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].title, "Sequence — Deep Scene");
+        assert_eq!(projected[0].blocks, [text_block("Deep prose")]);
+    }
+
+    #[test]
+    fn styled_paragraphs_preserve_soft_line_breaks() {
+        let inlines = vec![Inline::Text {
+            text: "first line\nsecond line".to_string(),
+            marks: InlineMarks {
+                bold: false,
+                italic: false,
+                underline: false,
+                strike: false,
+            },
+            link: None,
+        }];
+
+        let paragraphs = styled_paragraphs(&inlines, 12, false, None).unwrap();
+
+        assert_eq!(paragraphs.len(), 2);
+    }
+
+    #[test]
     fn excluded_and_non_pdf_sections_do_not_reach_the_adapter() {
         let mut excluded = scene("Excluded", "No");
         excluded.inclusion = SectionInclusion::Excluded;
@@ -673,5 +845,25 @@ mod tests {
         let doc = document("Test: A Book / With Special Chars", vec![front, back]);
         let output_dir = env::temp_dir().join("wm9000_test_exports_special");
         let _ = generate_pdf(&doc, &output_dir, None);
+    }
+
+    #[test]
+    fn generated_pdf_contains_author_metadata() {
+        let doc = document("Metadata Test", vec![]);
+        let output_dir = env::temp_dir().join("wm9000_test_exports_metadata");
+        let path = generate_pdf(&doc, &output_dir, None).unwrap();
+        let pdf = lopdf::Document::load(path).unwrap();
+        let info_id = pdf.trailer.get(b"Info").unwrap().as_reference().unwrap();
+        let author = pdf
+            .get_object(info_id)
+            .unwrap()
+            .as_dict()
+            .unwrap()
+            .get(b"Author")
+            .unwrap()
+            .as_str()
+            .unwrap();
+
+        assert_eq!(author, b"Test Author");
     }
 }

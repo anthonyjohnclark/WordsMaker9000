@@ -25,6 +25,7 @@ tauri = { version = "2.1.0", features = [] }
 tauri-plugin-log = "2.0.0-rc"
 tauri-plugin-fs = "2.0"
 genpdf = "0.2"
+lopdf = "=0.26.0"
 scraper = "0.21"
 ego-tree = "0.9"
 chrono = "0.4"

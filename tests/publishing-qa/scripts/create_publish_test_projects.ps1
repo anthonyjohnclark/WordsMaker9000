@@ -7,8 +7,8 @@ $ErrorActionPreference = "Stop"
 $createdAt = "2026-07-28T12:00:00.000Z"
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $devProjectsRoot = Join-Path $AppDataRoot "Dev_Projects"
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$qaExpectationsRoot = Join-Path $repoRoot "docs\publish-qa-expectations"
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\.."))
+$qaExpectationsRoot = Join-Path $repoRoot "tests\publishing-qa\expectations"
 
 function Write-Utf8Json {
     param(

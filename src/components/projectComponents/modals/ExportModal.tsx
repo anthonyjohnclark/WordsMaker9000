@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  FiAlertCircle,
   FiCheckCircle,
   FiChevronDown,
   FiDownload,
@@ -16,6 +15,7 @@ import { useModal } from "../../../contexts/global/ModalContext";
 import { useErrorContext } from "../../../contexts/global/ErrorContext";
 import { prepareAndPublishProject } from "../../../utils/publishPreparation";
 import {
+  formatPublishFailure,
   outlineNodeRole,
   parsePublishFailure,
   profileForFormat,
@@ -24,13 +24,12 @@ import {
 } from "../../../utils/publishingForm";
 import type {
   Diagnostic,
+  DocxProfileId,
   NodePublishingOverride,
   PublishingMetadata,
   PublishingOutlineNode,
   PublishingSetup,
-  PublishFailure,
   PublishFormat,
-  PublishProfileId,
   PublishProgress,
   PublishRequest,
   PublishResult,
@@ -76,8 +75,8 @@ export const ExportModal = () => {
     emptyMetadata(project.projectMetadata.projectName || ""),
   );
   const [format, setFormat] = useState<PublishFormat>("pdf");
-  const [profileId, setProfileId] =
-    useState<PublishProfileId>("proof_pdf");
+  const [docxProfileId, setDocxProfileId] =
+    useState<DocxProfileId>("standard_manuscript");
   const [nodeOverrides, setNodeOverrides] = useState<
     Record<string, NodePublishingOverride>
   >({});
@@ -88,7 +87,6 @@ export const ExportModal = () => {
   const [isSetupLoading, setIsSetupLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PublishResult | null>(null);
-  const [failure, setFailure] = useState<PublishFailure | null>(null);
   const [progress, setProgress] = useState<PublishProgress | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const currentExportIdRef = useRef<string | null>(null);
@@ -121,12 +119,15 @@ export const ExportModal = () => {
         setOutlineConfirmed(loaded.config.project_type_strategy.confirmed);
         const defaultFormat = loaded.config.default_profile_by_format;
         if (defaultFormat.docx === "clean_handoff") {
-          setProfileId("clean_handoff");
+          setDocxProfileId("clean_handoff");
         }
       } catch (error) {
         const parsed = parsePublishFailure(error);
-        setFailure(parsed);
-        showError(parsed.message, "loading publishing settings");
+        modal.handleClose();
+        showError(
+          formatPublishFailure(parsed),
+          "loading publishing settings",
+        );
       } finally {
         setIsSetupLoading(false);
       }
@@ -140,17 +141,12 @@ export const ExportModal = () => {
     project.flushProjectSnapshot,
     project.projectMetadata.projectName,
     project.projectName,
+    modal.handleClose,
     showError,
   ]);
 
   const chooseFormat = (nextFormat: PublishFormat) => {
     setFormat(nextFormat);
-    setProfileId(
-      profileForFormat(
-        nextFormat,
-        setup?.config.default_profile_by_format.docx,
-      ),
-    );
   };
 
   const handleChooseCover = async () => {
@@ -185,7 +181,6 @@ export const ExportModal = () => {
 
   const handlePublish = async () => {
     if (!setup) return;
-    setFailure(null);
     setResult(null);
 
     const extension = format;
@@ -238,7 +233,7 @@ export const ExportModal = () => {
         project_type: setup.project_type,
         scope: scopeForSelection(scopeMode, selectedNodeId),
         format,
-        profile_id: profileId,
+        profile_id: profileForFormat(format, docxProfileId),
         metadata: cleanMetadata(metadata),
         node_overrides: nodeOverrides,
         outline_confirmed: outlineConfirmed,
@@ -260,8 +255,7 @@ export const ExportModal = () => {
       setResult(publishResult);
     } catch (error) {
       const parsed = parsePublishFailure(error);
-      setFailure(parsed);
-      showError(parsed.message, "publishing project");
+      showError(formatPublishFailure(parsed), "publishing project");
     } finally {
       unlistenRef.current?.();
       unlistenRef.current = null;
@@ -360,21 +354,7 @@ export const ExportModal = () => {
   }
 
   if (!setup) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <FiAlertCircle style={{ color: "var(--btn-danger, #ef4444)" }} />
-          Publishing Unavailable
-        </h2>
-        <DiagnosticList diagnostics={failure?.diagnostics ?? []} />
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          {failure?.message}
-        </p>
-        <button onClick={modal.handleClose} className="px-4 py-2 rounded input-button self-end">
-          Close
-        </button>
-      </div>
-    );
+    return null;
   }
 
   const selectableNodes = flattenOutline(setup.outline).filter(
@@ -421,16 +401,6 @@ export const ExportModal = () => {
         Fields marked <span style={{ color: "var(--btn-danger)" }}>*</span> are
         required.
       </p>
-
-      {failure && (
-        <div
-          className="rounded border p-3"
-          style={{ borderColor: "var(--btn-danger, #ef4444)" }}
-        >
-          <p className="text-sm font-medium">{failure.message}</p>
-          <DiagnosticList diagnostics={failure.diagnostics} />
-        </div>
-      )}
 
       <Field label="Title" required>
         <input
@@ -504,9 +474,9 @@ export const ExportModal = () => {
         <>
           <Field label="DOCX profile">
             <select
-              value={profileId}
+              value={docxProfileId}
               onChange={(event) =>
-                setProfileId(event.target.value as PublishProfileId)
+                setDocxProfileId(event.target.value as DocxProfileId)
               }
               className="border rounded w-full p-2"
               style={inputStyle}
@@ -691,7 +661,7 @@ export const ExportModal = () => {
             }}
           >
             <FiDownload />
-            {failure ? "Retry" : "Publish"} {format.toUpperCase()}
+            Publish {format.toUpperCase()}
           </button>
         </div>
       </div>

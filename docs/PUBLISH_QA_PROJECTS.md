@@ -3,7 +3,7 @@
 Run the generator from the repository root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\create_publish_test_projects.ps1
+powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\create_publish_test_projects.ps1
 ```
 
 It creates ten projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuses to overwrite an existing fixture unless `-Force` is explicitly supplied.
@@ -38,3 +38,42 @@ For successful projects, compare:
 - EPUB 3 with EPUBCheck and a reflowable reader.
 
 The sentinel strings in the project guides make omissions and incorrect inclusion easy to search for.
+
+## Generate every artifact without using the app
+
+From the repository root, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\generate_publish_qa_outputs.ps1
+```
+
+The command generates a timestamped inspection directory under
+`tests/publishing-qa/output`. To choose the location:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\generate_publish_qa_outputs.ps1 `
+  -OutputPath C:\temp\wordsmaker-publish-qa
+```
+
+The destination must be new or empty; the command never deletes an existing
+inspection directory. It copies the ten projects to a temporary app-data root
+and runs those copies through the same Rust snapshot loading, compilation,
+project strategy, preflight, adapters, manifest creation, and destination-copy
+path used by the Publish modal. The live `_Dev` projects and their export
+histories are not changed.
+
+It generates:
+
+- full-project Proof PDF, Standard Manuscript DOCX, Clean Handoff DOCX, and EPUB
+  for QA01 through QA06;
+- all four outputs for QA03's `The Clockmaker's Map` Single Work scope;
+- all four outputs for QA04's Installment 02 and Volume One scopes;
+- PDF and both DOCX profiles for QA93;
+- `qa-results.json`, copied manifests, each project's `EXPECTATIONS.md`, and a
+  short generated README;
+- passing expected-failure records for representative QA90/QA91 attempts,
+  every QA92 format/profile, and QA93 EPUB.
+
+Any unexpected success or failure makes the command exit nonzero. The
+unsaved-buffer check in QA02 remains an interactive frontend test because a
+disk-only command intentionally has no editor buffer to flush.

@@ -103,6 +103,7 @@ dependencies = [
  "ego-tree",
  "genpdf",
  "log",
+ "lopdf",
  "scraper",
  "serde",
  "serde_json",
