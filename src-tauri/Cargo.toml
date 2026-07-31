@@ -36,6 +36,9 @@ zip = { version = "8.6", default-features = false, features = ["deflate"] }
 tauri-plugin-dialog = "=2.2.0"
 tauri-plugin-opener = "=2.5.4"
 tempfile = "3"
+typst = "=0.13.1"
+typst-as-lib = "=0.14.4"
+typst-pdf = "=0.13.1"
 
 # Windows-only: WebView2 context-menu bridge (matches versions Tauri pulls in)
 [target.'cfg(windows)'.dependencies]

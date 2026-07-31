@@ -1,0 +1,532 @@
+{
+  "metadata": {
+    "title": "PDF Renderer Acceptance Manuscript",
+    "subtitle": "Unicode, direction, justification, and pagination",
+    "contributors": [
+      {
+        "name": "A. Writer",
+        "role": "author"
+      }
+    ],
+    "language": "en-US",
+    "series": null,
+    "identifier": null,
+    "publisher": null,
+    "description": null,
+    "rights": null
+  },
+  "sections": [
+    {
+      "source_node_id": 100,
+      "role": "front_matter",
+      "title": "Front Matter",
+      "inclusion": {
+        "type": "all_formats"
+      },
+      "blocks": [
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "FRONT-MATTER-SENTINEL",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "center",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        }
+      ],
+      "children": []
+    },
+    {
+      "source_node_id": 1,
+      "role": "chapter",
+      "title": "Chapter One — A Wide Character Test",
+      "inclusion": {
+        "type": "all_formats"
+      },
+      "blocks": [
+        {
+          "type": "heading",
+          "level": "h2",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "Marks and soft breaks",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "Bold",
+              "marks": {
+                "bold": true,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            },
+            {
+              "type": "text",
+              "text": ", italic",
+              "marks": {
+                "bold": false,
+                "italic": true,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            },
+            {
+              "type": "text",
+              "text": ", underline",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": true,
+                "strike": false
+              },
+              "link": null
+            },
+            {
+              "type": "text",
+              "text": ", strike",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": true
+              },
+              "link": null
+            },
+            {
+              "type": "text",
+              "text": ", and a link",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": "https://example.com"
+            },
+            {
+              "type": "text",
+              "text": ".\nSOFT-BREAK-SENTINEL",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "start",
+            "indent_level": 0,
+            "direction": "left_to_right"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "This deliberately long paragraph exercises real justification across several lines. The spaces between words should expand so that each complete line reaches both margins, while the final line remains natural. It also creates enough prose to expose wrapping and page-boundary defects without depending on a particular project. Repeated evidence makes the result easy to inspect: alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu, then alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu, and once more alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu.",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "justify",
+            "indent_level": 1,
+            "direction": "left_to_right"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "Centered paragraph sentinel",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "center",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "Right-aligned paragraph sentinel",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "end",
+            "indent_level": 0,
+            "direction": "left_to_right"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "Greek: Καλημέρα. Cyrillic: Здравствуйте. CJK: 你好世界. Symbols: ★ ✓. Emoji: 🚀.",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "start",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "العربية: مرحبًا بالعالم، هذا سطر من اليمين إلى اليسار.",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "start",
+            "indent_level": 1,
+            "direction": "right_to_left"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "עברית: שלום עולם, זהו משפט מימין לשמאל.",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "justify",
+            "indent_level": 0,
+            "direction": "right_to_left"
+          }
+        },
+        {
+          "type": "ordered_list",
+          "items": [
+            {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "inlines": [
+                    {
+                      "type": "text",
+                      "text": "First ordered item",
+                      "marks": {
+                        "bold": false,
+                        "italic": false,
+                        "underline": false,
+                        "strike": false
+                      },
+                      "link": null
+                    }
+                  ],
+                  "style": {
+                    "alignment": "start",
+                    "indent_level": 0,
+                    "direction": "auto"
+                  }
+                },
+                {
+                  "type": "bullet_list",
+                  "items": [
+                    {
+                      "blocks": [
+                        {
+                          "type": "paragraph",
+                          "inlines": [
+                            {
+                              "type": "text",
+                              "text": "Nested bullet item",
+                              "marks": {
+                                "bold": false,
+                                "italic": false,
+                                "underline": false,
+                                "strike": false
+                              },
+                              "link": null
+                            }
+                          ],
+                          "style": {
+                            "alignment": "start",
+                            "indent_level": 0,
+                            "direction": "auto"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "inlines": [
+                    {
+                      "type": "text",
+                      "text": "Second ordered item",
+                      "marks": {
+                        "bold": false,
+                        "italic": false,
+                        "underline": false,
+                        "strike": false
+                      },
+                      "link": null
+                    }
+                  ],
+                  "style": {
+                    "alignment": "start",
+                    "indent_level": 0,
+                    "direction": "auto"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "block_quote",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "inlines": [
+                {
+                  "type": "text",
+                  "text": "Quoted material remains distinct from body prose.",
+                  "marks": {
+                    "bold": false,
+                    "italic": true,
+                    "underline": false,
+                    "strike": false
+                  },
+                  "link": null
+                }
+              ],
+              "style": {
+                "alignment": "start",
+                "indent_level": 0,
+                "direction": "auto"
+              }
+            }
+          ]
+        },
+        {
+          "type": "scene_break",
+          "style": {
+            "type": "asterisks"
+          }
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "POST-SCENE-BREAK-SENTINEL",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "start",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        },
+        {
+          "type": "page_break"
+        },
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "POST-PAGE-BREAK-SENTINEL",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "start",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        }
+      ],
+      "children": [
+        {
+          "source_node_id": 2,
+          "role": "unassigned",
+          "title": "Folder",
+          "inclusion": {
+            "type": "all_formats"
+          },
+          "blocks": [],
+          "children": [
+            {
+              "source_node_id": 3,
+              "role": "unassigned",
+              "title": "Subfolder",
+              "inclusion": {
+                "type": "all_formats"
+              },
+              "blocks": [],
+              "children": [
+                {
+                  "source_node_id": 4,
+                  "role": "scene",
+                  "title": "Deep Scene",
+                  "inclusion": {
+                    "type": "all_formats"
+                  },
+                  "blocks": [
+                    {
+                      "type": "paragraph",
+                      "inlines": [
+                        {
+                          "type": "text",
+                          "text": "DEEP-SCENE-SENTINEL",
+                          "marks": {
+                            "bold": false,
+                            "italic": false,
+                            "underline": false,
+                            "strike": false
+                          },
+                          "link": null
+                        }
+                      ],
+                      "style": {
+                        "alignment": "start",
+                        "indent_level": 0,
+                        "direction": "auto"
+                      }
+                    }
+                  ],
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "source_node_id": 200,
+      "role": "back_matter",
+      "title": "Back Matter",
+      "inclusion": {
+        "type": "all_formats"
+      },
+      "blocks": [
+        {
+          "type": "paragraph",
+          "inlines": [
+            {
+              "type": "text",
+              "text": "BACK-MATTER-SENTINEL",
+              "marks": {
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strike": false
+              },
+              "link": null
+            }
+          ],
+          "style": {
+            "alignment": "center",
+            "indent_level": 0,
+            "direction": "auto"
+          }
+        }
+      ],
+      "children": []
+    }
+  ],
+  "assets": []
+}

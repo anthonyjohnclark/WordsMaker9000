@@ -1,8 +1,10 @@
+#[allow(dead_code)] // Retained temporarily for the renderer comparison harness.
 pub mod pdf_adapter;
+pub mod pdf_typst_adapter;
 pub mod types;
 
 use crate::publishing::compiler::compile;
-use pdf_adapter::generate_pdf;
+use pdf_typst_adapter::generate_pdf;
 use types::{ExportPayload, ExportResult};
 
 use tauri::AppHandle;

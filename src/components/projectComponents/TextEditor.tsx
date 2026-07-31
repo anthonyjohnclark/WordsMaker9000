@@ -17,8 +17,15 @@ import { normalizeWord } from "../../agents/dictionaryAgent";
 import DefinitionModal from "./DefinitionModal";
 import FindBar from "./FindBar";
 import "../../utils/quillSmartTypography";
-import ReactQuill from "react-quill-new";
+import ReactQuill, { Quill } from "react-quill-new";
+import {
+  insertSoftBreak,
+  softBreakClipboardMatcher,
+} from "../../utils/quillSoftBreak";
+import { SoftBreakBlot } from "../../utils/quillSoftBreakBlot";
 import "../../styles/quill.snow.css";
+
+Quill.register(SoftBreakBlot, true);
 
 type TextEditorProps = {
   selectedFile: ExtendedNodeModel | null;
@@ -150,6 +157,18 @@ const TextEditor: React.FC<TextEditorProps> = ({
         [{ list: "ordered" }, { list: "bullet" }],
       ],
       smartTypography: true,
+      clipboard: {
+        matchers: [["BR", softBreakClipboardMatcher]],
+      },
+      keyboard: {
+        bindings: {
+          softBreak: {
+            key: "Enter",
+            shiftKey: true,
+            handler: insertSoftBreak,
+          },
+        },
+      },
     };
   }, []);
 

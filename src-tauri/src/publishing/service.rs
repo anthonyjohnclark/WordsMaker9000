@@ -24,7 +24,7 @@ use super::request::{
     PublishRequest, PublishResult,
 };
 use super::source::{load_snapshot, project_root};
-use crate::export::pdf_adapter::generate_pdf;
+use crate::export::pdf_typst_adapter::generate_pdf;
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PublishingOutlineNode {

@@ -1,6 +1,6 @@
 # Publish QA Regression Report
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 This report consolidates the regressions and coverage gaps found while comparing
 the artifacts in `tests/publishing-qa/output/manual-regression-baseline` with
@@ -21,20 +21,20 @@ the expected behavior in `docs/PUBLISH_QA_EXPECTATIONS.md`.
 
 ## Working-tree remediation
 
-Implemented on 2026-07-29:
+Implemented through 2026-07-30:
 
 | Regression | Status | Remediation |
 | --- | --- | --- |
 | PQA-001 | Fixed; automated | The PDF compatibility projection now emits a node's own blocks and always recurses into included children, even when an intermediate container is assigned the `scene` role. A regression test covers a scene-role container with a deeper scene. |
-| PQA-002 | Not reproduced structurally; visual recheck required | Inspection of the reported `Small Weather.pdf` content stream found the complete Chapter Two paragraph in one text line at x=56.69 pt, y=725.91 pt—inside the normal page bounds. No deterministic clipping path was found. Regenerate QA02 and visually inspect it before deciding whether the original screenshot was a viewer/rendering artifact. |
-| PQA-003 | Partially fixed | PDF soft breaks are now emitted as actual line boundaries instead of newline glyphs. Emoji/CJK font fallback and Arabic/Hebrew shaping remain unsupported by the current `genpdf` backend. |
-| PQA-004 | Partially fixed; automated | PDF now preserves centered/right logical alignment, indentation, ordered versus bullet markers, and recursive list depth. `genpdf` has no justified-paragraph mode, so justified paragraphs still fall back to left alignment. |
+| PQA-002 | Closed; not reproduced | Both the reported baseline PDF and a freshly generated QA02 PDF were rendered and inspected. The complete Chapter Two line is inside the page bounds in both artifacts (body block x=56.69–473.25 pt, y=94.08–121.30 pt on an A4 page). No clipping defect is present in the reproducible artifacts, so no layout change was made. |
+| PQA-003 | Fixed; automated and visually verified | Proof PDF now uses Typst with bundled Libertinus and Noto fallback fonts. The acceptance manuscript compiles without warnings, embeds fonts, preserves soft breaks, shapes Arabic/Hebrew bidirectionally, and renders Greek, Cyrillic, CJK, symbols, and the rocket glyph. Missing-glyph warnings block artifact creation. |
+| PQA-004 | Fixed; automated and visually verified | Proof PDF now preserves logical alignment, indentation, true justification, ordered/bullet distinction, recursive list depth, inline marks, and links. The checked-in acceptance manuscript and side-by-side renderer harness cover these properties. |
 | PQA-005 | Fixed; automated | The generated PDF is reopened through `lopdf` and its document-information `Author` property is populated from the primary author. |
 | PQA-006 | Fixed; automated | Standard Manuscript contact construction now splits every configured multiline field into separate contact paragraphs. |
 | PQA-007 | Fixed; automated | Right-to-left DOCX paragraphs now carry `w:bidi`; their run properties are finalized with `w:rtl` in the OOXML package. |
 | PQA-008 | Fixed; automated | DOCX package finalization now writes publication title and author to `docProps/core.xml`, in addition to the existing custom properties. |
 | PQA-009 | Fixed; automated | Authored H1 through H6 blocks now map one-to-one to `WMHeading1` through `WMHeading6` named styles with distinct outline levels. |
-| PQA-010 | Open; source normalization confirmed | The Rust parser and DOCX adapter already preserve a persisted `<br>` as one paragraph containing `w:br`, and the fixture script writes that form. A read-only inspection of the current QA01 source found it had been rewritten to `<p>Soft line one</p><p>Soft line two.</p>` after editor use. Preserving soft breaks through editing therefore needs a dedicated editor-level soft-break model. |
+| PQA-010 | Fixed; automated, manual round-trip recommended | Quill now registers an explicit inline `softbreak` blot backed by `<br>`, imports pasted/loaded `<br>` nodes as that embed, and maps Shift+Enter to insert it without creating a new paragraph. Jest covers matcher and keyboard behavior; the existing Rust/DOCX tests continue to cover persisted `<br>` output. Reopen/save/reopen in the desktop editor remains a useful release smoke check. |
 
 ## Confirmed regressions
 
