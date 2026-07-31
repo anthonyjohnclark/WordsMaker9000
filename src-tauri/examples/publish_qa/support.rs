@@ -4,9 +4,10 @@ use std::path::Path;
 use chrono::Utc;
 use serde::Serialize;
 
-use crate::publishing::config::{load_or_default, PublishingConfig};
+use crate::publishing::config::{load_or_default, PublishingConfig, PRINT_INTERIOR_PROFILE_ID};
 use crate::publishing::request::{
-    Diagnostic, PublicationScope, PublishFormat, PublishMetadataOverrides, PublishRequest,
+    Diagnostic, PrintInteriorPdfSettings, PublicationScope, PublishFormat,
+    PublishMetadataOverrides, PublishRequest,
 };
 use crate::publishing::service::{publish_blocking, PublishFailure};
 use crate::publishing::source::load_snapshot;
@@ -301,6 +302,12 @@ fn request_for_attempt(
         scope: attempt.scope.clone(),
         format: attempt.format,
         profile_id: attempt.profile_id.to_string(),
+        pdf_settings: config
+            .profiles
+            .get(PRINT_INTERIOR_PROFILE_ID)
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_else(PrintInteriorPdfSettings::default),
         metadata: metadata_from_config(&config),
         node_overrides: config.node_roles.clone(),
         outline_confirmed: config.project_type_strategy.confirmed,
@@ -455,12 +462,18 @@ struct FormatSpec {
     extension: &'static str,
 }
 
-fn format_matrix() -> [FormatSpec; 4] {
+fn format_matrix() -> [FormatSpec; 5] {
     [
         FormatSpec {
             format: PublishFormat::Pdf,
             profile_id: "proof_pdf",
             file_label: "proof",
+            extension: "pdf",
+        },
+        FormatSpec {
+            format: PublishFormat::Pdf,
+            profile_id: "print_interior",
+            file_label: "print-interior",
             extension: "pdf",
         },
         FormatSpec {
@@ -616,14 +629,14 @@ mod tests {
                 .iter()
                 .filter(|attempt| attempt.expected_failure.is_none())
                 .count(),
-            39
+            49
         );
         assert_eq!(
             attempts
                 .iter()
                 .filter(|attempt| attempt.expected_failure.is_some())
                 .count(),
-            7
+            8
         );
         assert!(attempts
             .iter()

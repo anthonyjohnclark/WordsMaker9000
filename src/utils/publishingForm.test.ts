@@ -1,7 +1,10 @@
 import {
+  defaultPrintInteriorPdfSettings,
   formatPublishFailure,
   outlineNodeRole,
   parsePublishFailure,
+  printInteriorSettingsErrors,
+  printInteriorSettingsFromProfiles,
   profileForFormat,
   progressForExport,
   scopeForSelection,
@@ -13,14 +16,66 @@ import type {
 
 describe("publishing form decisions", () => {
   test("keeps one valid profile for the selected format", () => {
-    expect(profileForFormat("pdf", "clean_handoff")).toBe("proof_pdf");
-    expect(profileForFormat("docx", "clean_handoff")).toBe("clean_handoff");
-    expect(profileForFormat("docx", "unknown")).toBe(
+    expect(profileForFormat("pdf", { docx: "clean_handoff" })).toBe(
+      "proof_pdf",
+    );
+    expect(profileForFormat("pdf", { pdf: "print_interior" })).toBe(
+      "print_interior",
+    );
+    expect(profileForFormat("docx", { docx: "clean_handoff" })).toBe(
+      "clean_handoff",
+    );
+    expect(profileForFormat("docx", { docx: "unknown" })).toBe(
       "standard_manuscript",
     );
-    expect(profileForFormat("epub", "clean_handoff")).toBe(
+    expect(profileForFormat("epub", { docx: "clean_handoff" })).toBe(
       "reflowable_epub",
     );
+  });
+
+  test("loads saved print settings without trusting malformed profile values", () => {
+    expect(
+      printInteriorSettingsFromProfiles({
+        print_interior: {
+          ...defaultPrintInteriorPdfSettings(),
+          trim_size: "five_by_eight",
+          gutter_inches: 0.25,
+          running_headers: false,
+        },
+      }),
+    ).toEqual({
+      ...defaultPrintInteriorPdfSettings(),
+      trim_size: "five_by_eight",
+      gutter_inches: 0.25,
+      running_headers: false,
+    });
+
+    expect(
+      printInteriorSettingsFromProfiles({
+        print_interior: {
+          trim_size: null,
+          gutter_inches: "wide",
+          running_headers: null,
+        },
+      }),
+    ).toEqual(defaultPrintInteriorPdfSettings());
+  });
+
+  test("rejects print margins that exceed the selected trim", () => {
+    const settings = {
+      ...defaultPrintInteriorPdfSettings(),
+      trim_size: "five_by_eight" as const,
+      inside_margin_inches: 2,
+      outside_margin_inches: 2,
+      gutter_inches: 1,
+    };
+
+    expect(printInteriorSettingsErrors(settings)).toContain(
+      "Horizontal settings leave too little page width.",
+    );
+    expect(
+      printInteriorSettingsErrors(defaultPrintInteriorPdfSettings()),
+    ).toEqual([]);
   });
 
   test("builds type-appropriate scopes without dropping the selected node", () => {

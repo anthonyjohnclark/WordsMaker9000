@@ -5,11 +5,13 @@ use std::io::Write;
 use std::path::Path;
 
 use super::request::{
-    ContactInformation, NodePublishingOverride, ProjectType, PublishMetadataOverrides,
+    ContactInformation, NodePublishingOverride, PrintInteriorPdfSettings, ProjectType,
+    PublishFormat, PublishMetadataOverrides,
 };
 
-pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 2;
+pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 3;
 pub(crate) const STRATEGY_VERSION: u32 = 1;
+pub(crate) const PRINT_INTERIOR_PROFILE_ID: &str = "print_interior";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ProjectTypeStrategyConfig {
@@ -58,6 +60,8 @@ pub(crate) struct PublishingConfig {
 
 impl PublishingConfig {
     pub(crate) fn defaults(project_type: ProjectType, project_title: &str) -> Self {
+        let print_interior = serde_json::to_value(PrintInteriorPdfSettings::default())
+            .expect("default print settings must serialize");
         Self {
             schema_version: PUBLISHING_SCHEMA_VERSION,
             project_type_strategy: ProjectTypeStrategyConfig {
@@ -70,7 +74,7 @@ impl PublishingConfig {
                 ..PublishingBookMetadata::default()
             },
             node_roles: HashMap::new(),
-            profiles: HashMap::new(),
+            profiles: HashMap::from([(PRINT_INTERIOR_PROFILE_ID.to_string(), print_interior)]),
             default_profile_by_format: HashMap::from([
                 ("pdf".to_string(), "proof_pdf".to_string()),
                 ("docx".to_string(), "standard_manuscript".to_string()),
@@ -84,10 +88,20 @@ impl PublishingConfig {
         metadata: &PublishMetadataOverrides,
         node_roles: &HashMap<String, NodePublishingOverride>,
         confirmed: bool,
+        format: PublishFormat,
+        profile_id: &str,
+        pdf_settings: &PrintInteriorPdfSettings,
     ) {
         self.book_metadata = PublishingBookMetadata::from(metadata);
         self.node_roles = node_roles.clone();
         self.project_type_strategy.confirmed = confirmed;
+        if format == PublishFormat::Pdf && profile_id == PRINT_INTERIOR_PROFILE_ID {
+            self.profiles.insert(
+                PRINT_INTERIOR_PROFILE_ID.to_string(),
+                serde_json::to_value(pdf_settings)
+                    .expect("validated print interior settings must serialize"),
+            );
+        }
     }
 }
 
@@ -117,6 +131,21 @@ pub(crate) fn load_or_default(
         .default_profile_by_format
         .entry("epub".to_string())
         .or_insert_with(|| "reflowable_epub".to_string());
+    config
+        .default_profile_by_format
+        .entry("pdf".to_string())
+        .or_insert_with(|| "proof_pdf".to_string());
+    config
+        .default_profile_by_format
+        .entry("docx".to_string())
+        .or_insert_with(|| "standard_manuscript".to_string());
+    config
+        .profiles
+        .entry(PRINT_INTERIOR_PROFILE_ID.to_string())
+        .or_insert_with(|| {
+            serde_json::to_value(PrintInteriorPdfSettings::default())
+                .expect("default print settings must serialize")
+        });
     if config.project_type_strategy.version > STRATEGY_VERSION {
         return Err(format!(
             "Unsupported publishing strategy version {}; expected at most {}",
@@ -205,12 +234,15 @@ mod tests {
     }
 
     #[test]
-    fn schema_one_configuration_migrates_epub_defaults_in_memory() {
+    fn legacy_configuration_migrates_format_and_print_defaults_in_memory() {
         let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
         let path = root.join("publishing.json");
         let mut config = PublishingConfig::defaults(ProjectType::Novel, "Draft");
-        config.schema_version = 1;
+        config.schema_version = 2;
         config.default_profile_by_format.remove("epub");
+        config.default_profile_by_format.remove("pdf");
+        config.default_profile_by_format.remove("docx");
+        config.profiles.remove(PRINT_INTERIOR_PROFILE_ID);
         let mut legacy = serde_json::to_value(config).unwrap();
         legacy["book_metadata"]
             .as_object_mut()
@@ -225,9 +257,50 @@ mod tests {
             migrated.default_profile_by_format.get("epub"),
             Some(&"reflowable_epub".to_string())
         );
+        assert_eq!(
+            migrated.default_profile_by_format.get("pdf"),
+            Some(&"proof_pdf".to_string())
+        );
+        assert_eq!(
+            migrated.default_profile_by_format.get("docx"),
+            Some(&"standard_manuscript".to_string())
+        );
+        assert_eq!(
+            serde_json::from_value::<PrintInteriorPdfSettings>(
+                migrated.profiles[PRINT_INTERIOR_PROFILE_ID].clone()
+            )
+            .unwrap(),
+            PrintInteriorPdfSettings::default()
+        );
         assert!(migrated.book_metadata.ebook.include_front_matter);
         assert!(migrated.book_metadata.ebook.include_back_matter);
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn successful_print_request_persists_its_profile_settings() {
+        let mut config = PublishingConfig::defaults(ProjectType::Novel, "Draft");
+        let mut settings = PrintInteriorPdfSettings::default();
+        settings.trim_size =
+            crate::publishing::request::PrintTrimSize::FivePointFiveByEightPointFive;
+        settings.gutter_inches = 0.25;
+
+        config.merge_request(
+            &PublishMetadataOverrides::default(),
+            &HashMap::new(),
+            true,
+            PublishFormat::Pdf,
+            PRINT_INTERIOR_PROFILE_ID,
+            &settings,
+        );
+
+        assert_eq!(
+            serde_json::from_value::<PrintInteriorPdfSettings>(
+                config.profiles[PRINT_INTERIOR_PROFILE_ID].clone()
+            )
+            .unwrap(),
+            settings
+        );
     }
 }

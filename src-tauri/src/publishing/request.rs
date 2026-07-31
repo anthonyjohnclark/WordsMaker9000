@@ -27,6 +27,116 @@ pub(crate) enum DocxProfileId {
     CleanHandoff,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PdfProfileId {
+    ProofPdf,
+    PrintInterior,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PrintTrimSize {
+    FiveByEight,
+    FivePointTwoFiveByEight,
+    FivePointFiveByEightPointFive,
+    SixByNine,
+}
+
+impl Default for PrintTrimSize {
+    fn default() -> Self {
+        Self::SixByNine
+    }
+}
+
+impl PrintTrimSize {
+    pub(crate) fn dimensions_inches(self) -> (f64, f64) {
+        match self {
+            Self::FiveByEight => (5.0, 8.0),
+            Self::FivePointTwoFiveByEight => (5.25, 8.0),
+            Self::FivePointFiveByEightPointFive => (5.5, 8.5),
+            Self::SixByNine => (6.0, 9.0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ChapterStartSide {
+    NextPage,
+    Recto,
+}
+
+impl Default for ChapterStartSide {
+    fn default() -> Self {
+        Self::Recto
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct PrintInteriorPdfSettings {
+    pub trim_size: PrintTrimSize,
+    pub top_margin_inches: f64,
+    pub bottom_margin_inches: f64,
+    pub inside_margin_inches: f64,
+    pub outside_margin_inches: f64,
+    pub gutter_inches: f64,
+    pub chapter_start: ChapterStartSide,
+    pub running_headers: bool,
+    pub front_matter_page_numbers: bool,
+    pub body_page_numbers: bool,
+}
+
+impl Default for PrintInteriorPdfSettings {
+    fn default() -> Self {
+        Self {
+            trim_size: PrintTrimSize::SixByNine,
+            top_margin_inches: 0.75,
+            bottom_margin_inches: 0.75,
+            inside_margin_inches: 0.75,
+            outside_margin_inches: 0.625,
+            gutter_inches: 0.125,
+            chapter_start: ChapterStartSide::Recto,
+            running_headers: true,
+            front_matter_page_numbers: true,
+            body_page_numbers: true,
+        }
+    }
+}
+
+impl PrintInteriorPdfSettings {
+    pub(crate) fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        for (label, value) in [
+            ("top margin", self.top_margin_inches),
+            ("bottom margin", self.bottom_margin_inches),
+            ("inside margin", self.inside_margin_inches),
+            ("outside margin", self.outside_margin_inches),
+        ] {
+            if !value.is_finite() || !(0.25..=2.0).contains(&value) {
+                errors.push(format!("{label} must be between 0.25 and 2 inches"));
+            }
+        }
+        if !self.gutter_inches.is_finite() || !(0.0..=1.0).contains(&self.gutter_inches) {
+            errors.push("gutter must be between 0 and 1 inch".to_string());
+        }
+
+        let (width, height) = self.trim_size.dimensions_inches();
+        let body_width =
+            width - self.inside_margin_inches - self.outside_margin_inches - self.gutter_inches;
+        if !body_width.is_finite() || body_width < 2.0 {
+            errors.push(
+                "inside, outside, and gutter settings leave too little page width".to_string(),
+            );
+        }
+        let body_height = height - self.top_margin_inches - self.bottom_margin_inches;
+        if !body_height.is_finite() || body_height < 2.0 {
+            errors.push("top and bottom margins leave too little page height".to_string());
+        }
+        errors
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum PublicationScope {
@@ -123,6 +233,8 @@ pub(crate) struct PublishRequest {
     pub scope: PublicationScope,
     pub format: PublishFormat,
     pub profile_id: String,
+    #[serde(default)]
+    pub pdf_settings: PrintInteriorPdfSettings,
     pub metadata: PublishMetadataOverrides,
     #[serde(default)]
     pub node_overrides: HashMap<String, NodePublishingOverride>,
@@ -135,6 +247,37 @@ pub(crate) struct PublishRequest {
 
 fn default_include_shared_matter() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn print_trim_presets_have_exact_dimensions() {
+        assert_eq!(PrintTrimSize::FiveByEight.dimensions_inches(), (5.0, 8.0));
+        assert_eq!(
+            PrintTrimSize::FivePointTwoFiveByEight.dimensions_inches(),
+            (5.25, 8.0)
+        );
+        assert_eq!(
+            PrintTrimSize::FivePointFiveByEightPointFive.dimensions_inches(),
+            (5.5, 8.5)
+        );
+        assert_eq!(PrintTrimSize::SixByNine.dimensions_inches(), (6.0, 9.0));
+    }
+
+    #[test]
+    fn default_print_settings_are_valid_and_round_trip() {
+        let settings = PrintInteriorPdfSettings::default();
+        assert!(settings.validation_errors().is_empty());
+
+        let serialized = serde_json::to_string(&settings).unwrap();
+        assert_eq!(
+            serde_json::from_str::<PrintInteriorPdfSettings>(&serialized).unwrap(),
+            settings
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

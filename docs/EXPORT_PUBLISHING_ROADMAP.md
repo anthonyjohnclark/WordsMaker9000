@@ -600,6 +600,13 @@ Exit criteria:
 - Page numbering and intentional blank pages follow profile rules.
 - The acceptance manuscript passes the selected print-provider checks.
 
+Implementation status (2026-07-30): the renderer ADR, bundled fonts, Proof PDF
+compatibility, initial Print Interior profile, four trim presets, mirrored
+margins/gutter, structural recto starts, running heads, and front/body folio
+rules are implemented. Automated structural and headless Publish QA checks are
+in place. KDP/IngramSpark qualification remains a manual release gate, and
+image/bleed preflight remains deferred until project asset support is available.
+
 ### Phase 5 — complete the Publish experience
 
 The current modal can evolve incrementally; a big-bang UI rewrite is unnecessary.

@@ -15,9 +15,12 @@ import { useModal } from "../../../contexts/global/ModalContext";
 import { useErrorContext } from "../../../contexts/global/ErrorContext";
 import { prepareAndPublishProject } from "../../../utils/publishPreparation";
 import {
+  defaultPrintInteriorPdfSettings,
   formatPublishFailure,
   outlineNodeRole,
   parsePublishFailure,
+  printInteriorSettingsErrors,
+  printInteriorSettingsFromProfiles,
   profileForFormat,
   progressForExport,
   scopeForSelection,
@@ -26,6 +29,9 @@ import type {
   Diagnostic,
   DocxProfileId,
   NodePublishingOverride,
+  PdfProfileId,
+  PrintInteriorPdfSettings,
+  PrintTrimSize,
   PublishingMetadata,
   PublishingOutlineNode,
   PublishingSetup,
@@ -75,6 +81,12 @@ export const ExportModal = () => {
     emptyMetadata(project.projectMetadata.projectName || ""),
   );
   const [format, setFormat] = useState<PublishFormat>("pdf");
+  const [pdfProfileId, setPdfProfileId] =
+    useState<PdfProfileId>("proof_pdf");
+  const [printInteriorSettings, setPrintInteriorSettings] =
+    useState<PrintInteriorPdfSettings>(() =>
+      defaultPrintInteriorPdfSettings(),
+    );
   const [docxProfileId, setDocxProfileId] =
     useState<DocxProfileId>("standard_manuscript");
   const [nodeOverrides, setNodeOverrides] = useState<
@@ -118,6 +130,12 @@ export const ExportModal = () => {
         setNodeOverrides(loaded.config.node_roles);
         setOutlineConfirmed(loaded.config.project_type_strategy.confirmed);
         const defaultFormat = loaded.config.default_profile_by_format;
+        if (defaultFormat.pdf === "print_interior") {
+          setPdfProfileId("print_interior");
+        }
+        setPrintInteriorSettings(
+          printInteriorSettingsFromProfiles(loaded.config.profiles),
+        );
         if (defaultFormat.docx === "clean_handoff") {
           setDocxProfileId("clean_handoff");
         }
@@ -233,7 +251,11 @@ export const ExportModal = () => {
         project_type: setup.project_type,
         scope: scopeForSelection(scopeMode, selectedNodeId),
         format,
-        profile_id: profileForFormat(format, docxProfileId),
+        profile_id: profileForFormat(format, {
+          pdf: pdfProfileId,
+          docx: docxProfileId,
+        }),
+        pdf_settings: printInteriorSettings,
         metadata: cleanMetadata(metadata),
         node_overrides: nodeOverrides,
         outline_confirmed: outlineConfirmed,
@@ -369,6 +391,10 @@ export const ExportModal = () => {
           outlineNodeRole(node, nodeOverrides) === "volume")),
   );
   const publishBlockers: string[] = [];
+  const printSettingsErrors =
+    format === "pdf" && pdfProfileId === "print_interior"
+      ? printInteriorSettingsErrors(printInteriorSettings)
+      : [];
   if (!metadata.title.trim()) publishBlockers.push("title");
   if (!metadata.author.trim()) publishBlockers.push("author");
   if (format === "epub" && !metadata.language?.trim()) {
@@ -382,6 +408,9 @@ export const ExportModal = () => {
     publishBlockers.push("cover alt text");
   }
   if (!outlineConfirmed) publishBlockers.push("outline confirmation");
+  if (printSettingsErrors.length > 0) {
+    publishBlockers.push("valid print settings");
+  }
   if (scopeMode !== "full_project" && selectedNodeId === null) {
     publishBlockers.push("included item");
   }
@@ -452,8 +481,8 @@ export const ExportModal = () => {
           <ChoiceButton
             selected={format === "pdf"}
             onClick={() => chooseFormat("pdf")}
-            title="Proof PDF"
-            description="Current proof layout"
+            title="PDF"
+            description="Proof or print interior"
           />
           <ChoiceButton
             selected={format === "docx"}
@@ -469,6 +498,31 @@ export const ExportModal = () => {
           />
         </div>
       </fieldset>
+
+      {format === "pdf" && (
+        <>
+          <Field label="PDF profile">
+            <select
+              value={pdfProfileId}
+              onChange={(event) =>
+                setPdfProfileId(event.target.value as PdfProfileId)
+              }
+              className="border rounded w-full p-2"
+              style={inputStyle}
+            >
+              <option value="proof_pdf">Proof PDF</option>
+              <option value="print_interior">Print Interior PDF</option>
+            </select>
+          </Field>
+          {pdfProfileId === "print_interior" && (
+            <PrintInteriorFields
+              settings={printInteriorSettings}
+              onChange={setPrintInteriorSettings}
+              errors={printSettingsErrors}
+            />
+          )}
+        </>
+      )}
 
       {format === "docx" && (
         <>
@@ -728,6 +782,163 @@ function ChoiceButton({
         {description}
       </span>
     </button>
+  );
+}
+
+function PrintInteriorFields({
+  settings,
+  onChange,
+  errors,
+}: {
+  settings: PrintInteriorPdfSettings;
+  onChange: (settings: PrintInteriorPdfSettings) => void;
+  errors: string[];
+}) {
+  type MarginKey =
+    | "top_margin_inches"
+    | "bottom_margin_inches"
+    | "inside_margin_inches"
+    | "outside_margin_inches"
+    | "gutter_inches";
+  const updateNumber = (key: MarginKey, value: string) => {
+    onChange({ ...settings, [key]: Number(value) });
+  };
+  const marginFields: Array<{
+    key: MarginKey;
+    label: string;
+    min: number;
+  }> = [
+    { key: "top_margin_inches", label: "Top", min: 0.25 },
+    { key: "bottom_margin_inches", label: "Bottom", min: 0.25 },
+    { key: "inside_margin_inches", label: "Inside", min: 0.25 },
+    { key: "outside_margin_inches", label: "Outside", min: 0.25 },
+    { key: "gutter_inches", label: "Gutter", min: 0 },
+  ];
+
+  return (
+    <fieldset
+      className="rounded border p-3 grid gap-3"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <legend
+        className="px-1 text-sm font-medium"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Print interior settings
+      </legend>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Trim size">
+          <select
+            value={settings.trim_size}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                trim_size: event.target.value as PrintTrimSize,
+              })
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          >
+            <option value="five_by_eight">5 × 8 in</option>
+            <option value="five_point_two_five_by_eight">
+              5.25 × 8 in
+            </option>
+            <option value="five_point_five_by_eight_point_five">
+              5.5 × 8.5 in
+            </option>
+            <option value="six_by_nine">6 × 9 in</option>
+          </select>
+        </Field>
+        <Field label="Chapter starts">
+          <select
+            value={settings.chapter_start}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                chapter_start: event.target
+                  .value as PrintInteriorPdfSettings["chapter_start"],
+              })
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          >
+            <option value="recto">Right-hand page (recto)</option>
+            <option value="next_page">Next page</option>
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {marginFields.map(({ key, label, min }) => (
+          <Field key={key} label={`${label} (in)`}>
+            <input
+              type="number"
+              value={settings[key]}
+              min={min}
+              max={key === "gutter_inches" ? 1 : 2}
+              step={0.125}
+              onChange={(event) => updateNumber(key, event.target.value)}
+              className="border rounded w-full p-2"
+              style={inputStyle}
+            />
+          </Field>
+        ))}
+      </div>
+      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+        The gutter is added to the inside margin. These are provider-neutral
+        settings and are not yet labeled KDP- or Ingram-ready.
+      </p>
+      {errors.length > 0 && (
+        <ul
+          className="text-xs list-disc pl-5"
+          style={{ color: "var(--btn-danger)" }}
+        >
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.running_headers}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                running_headers: event.target.checked,
+              })
+            }
+          />
+          Alternating running heads
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.front_matter_page_numbers}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                front_matter_page_numbers: event.target.checked,
+              })
+            }
+          />
+          Roman front-matter numbers
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.body_page_numbers}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                body_page_numbers: event.target.checked,
+              })
+            }
+          />
+          Body page numbers
+        </label>
+      </div>
+    </fieldset>
   );
 }
 

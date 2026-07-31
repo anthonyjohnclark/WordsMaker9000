@@ -13,18 +13,18 @@ use super::artifacts::{
     list_history, manifest_for, safe_filename, ArtifactHistoryEntry, ArtifactWorkspace,
 };
 use super::compiler::compile;
-use super::config::{load_or_default, save_atomic, PublishingConfig};
+use super::config::{load_or_default, save_atomic, PublishingConfig, PRINT_INTERIOR_PROFILE_ID};
 use super::model::{
     AssetSource, BookAsset, BookDocument, BookSection, SectionInclusion, SectionRole,
 };
 use super::preflight::{has_blocking_diagnostics, run_epub_source_preflight, run_preflight};
 use super::project_types::apply_project_strategy;
 use super::request::{
-    Diagnostic, DiagnosticSeverity, DocxProfileId, PublishFormat, PublishPhase, PublishProgress,
-    PublishRequest, PublishResult,
+    Diagnostic, DiagnosticSeverity, DocxProfileId, PdfProfileId, PublishFormat, PublishPhase,
+    PublishProgress, PublishRequest, PublishResult,
 };
 use super::source::{load_snapshot, project_root};
-use crate::export::pdf_typst_adapter::generate_pdf;
+use crate::export::pdf_typst_adapter::generate_pdf_for_profile;
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PublishingOutlineNode {
@@ -298,6 +298,9 @@ pub(crate) fn publish_blocking(
         &request.metadata,
         &request.node_overrides,
         request.outline_confirmed,
+        request.format,
+        &request.profile_id,
+        &request.pdf_settings,
     );
     config.default_profile_by_format.insert(
         format_name(request.format).to_string(),
@@ -369,7 +372,13 @@ fn render_artifact(
     app: Option<&AppHandle>,
 ) -> Result<PathBuf, String> {
     match request.format {
-        PublishFormat::Pdf => generate_pdf(document, output_dir, app),
+        PublishFormat::Pdf => generate_pdf_for_profile(
+            document,
+            output_dir,
+            app,
+            parse_pdf_profile(&request.profile_id)?,
+            &request.pdf_settings,
+        ),
         PublishFormat::Docx => {
             let profile = parse_docx_profile(&request.profile_id)?;
             let filename = safe_filename(&request.metadata.title, profile_label(profile), "docx");
@@ -440,9 +449,17 @@ fn parse_docx_profile(profile_id: &str) -> Result<DocxProfileId, String> {
     }
 }
 
+fn parse_pdf_profile(profile_id: &str) -> Result<PdfProfileId, String> {
+    match profile_id {
+        "proof_pdf" => Ok(PdfProfileId::ProofPdf),
+        PRINT_INTERIOR_PROFILE_ID => Ok(PdfProfileId::PrintInterior),
+        other => Err(format!("Unknown PDF profile {other:?}")),
+    }
+}
+
 fn validate_profile(request: &PublishRequest, diagnostics: &mut Vec<Diagnostic>) {
     let valid = match request.format {
-        PublishFormat::Pdf => request.profile_id == "proof_pdf",
+        PublishFormat::Pdf => parse_pdf_profile(&request.profile_id).is_ok(),
         PublishFormat::Docx => parse_docx_profile(&request.profile_id).is_ok(),
         PublishFormat::Epub => request.profile_id == "reflowable_epub",
     };
@@ -457,6 +474,21 @@ fn validate_profile(request: &PublishRequest, diagnostics: &mut Vec<Diagnostic>)
             None,
             Some("Choose one of the available profiles for this format.".to_string()),
         ));
+        return;
+    }
+    if request.format == PublishFormat::Pdf && request.profile_id == PRINT_INTERIOR_PROFILE_ID {
+        let errors = request.pdf_settings.validation_errors();
+        if !errors.is_empty() {
+            diagnostics.push(Diagnostic::error(
+                "PDF_SETTINGS_INVALID",
+                format!(
+                    "Print Interior settings are invalid: {}.",
+                    errors.join("; ")
+                ),
+                None,
+                Some("Adjust the trim, margins, or gutter and retry.".to_string()),
+            ));
+        }
     }
 }
 
@@ -652,6 +684,12 @@ fn publication_source_hash(
     );
     hasher.update(format_name(request.format).as_bytes());
     hasher.update(request.profile_id.as_bytes());
+    if request.format == PublishFormat::Pdf && request.profile_id == PRINT_INTERIOR_PROFILE_ID {
+        hasher.update(
+            serde_json::to_vec(&request.pdf_settings)
+                .map_err(|error| format!("Failed to hash PDF settings: {error}"))?,
+        );
+    }
     let mut overrides: Vec<_> = request.node_overrides.iter().collect();
     overrides.sort_by(|left, right| left.0.cmp(right.0));
     for (id, value) in overrides {
@@ -721,6 +759,7 @@ mod tests {
             scope: PublicationScope::FullProject,
             format,
             profile_id: profile_id.to_string(),
+            pdf_settings: Default::default(),
             metadata: PublishMetadataOverrides {
                 title: "Book".to_string(),
                 author: "A. Writer".to_string(),
@@ -750,6 +789,24 @@ mod tests {
         let mut diagnostics = vec![];
         validate_profile(&valid, &mut diagnostics);
         assert!(diagnostics.is_empty());
+
+        let valid = request(PublishFormat::Pdf, "print_interior");
+        let mut diagnostics = vec![];
+        validate_profile(&valid, &mut diagnostics);
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn invalid_print_geometry_is_a_blocking_profile_diagnostic() {
+        let mut request = request(PublishFormat::Pdf, "print_interior");
+        request.pdf_settings.inside_margin_inches = 4.0;
+        let mut diagnostics = vec![];
+
+        validate_profile(&request, &mut diagnostics);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, "PDF_SETTINGS_INVALID");
+        assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Error);
     }
 
     #[test]
@@ -804,6 +861,23 @@ mod tests {
         request.metadata.ebook.publisher = Some("Publisher".to_string());
         let second = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn print_settings_change_only_the_print_interior_source_hash() {
+        let project = tempfile::tempdir().unwrap();
+        let mut print = request(PublishFormat::Pdf, "print_interior");
+        let first = publication_source_hash("snapshot", &print, project.path(), &[]).unwrap();
+        print.pdf_settings.gutter_inches = 0.25;
+        let second = publication_source_hash("snapshot", &print, project.path(), &[]).unwrap();
+        assert_ne!(first, second);
+
+        let mut proof = request(PublishFormat::Pdf, "proof_pdf");
+        let proof_first = publication_source_hash("snapshot", &proof, project.path(), &[]).unwrap();
+        proof.pdf_settings.gutter_inches = 0.25;
+        let proof_second =
+            publication_source_hash("snapshot", &proof, project.path(), &[]).unwrap();
+        assert_eq!(proof_first, proof_second);
     }
 
     #[test]

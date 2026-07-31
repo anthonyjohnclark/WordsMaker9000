@@ -126,7 +126,7 @@ function New-PublishingConfig {
         "urn:wordsmaker9000:publish-qa:$identifierSlug"
     }
     return [ordered]@{
-        schema_version = 2
+        schema_version = 3
         project_type_strategy = [ordered]@{
             project_type = $ProjectType
             version = 1
@@ -159,7 +159,20 @@ function New-PublishingConfig {
             }
         }
         node_roles = $NodeRoles
-        profiles = [ordered]@{}
+        profiles = [ordered]@{
+            print_interior = [ordered]@{
+                trim_size = "six_by_nine"
+                top_margin_inches = 0.75
+                bottom_margin_inches = 0.75
+                inside_margin_inches = 0.75
+                outside_margin_inches = 0.625
+                gutter_inches = 0.125
+                chapter_start = "recto"
+                running_headers = $true
+                front_matter_page_numbers = $true
+                body_page_numbers = $true
+            }
+        }
         default_profile_by_format = [ordered]@{
             pdf = "proof_pdf"
             docx = "standard_manuscript"

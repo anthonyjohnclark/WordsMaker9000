@@ -2,6 +2,7 @@ import {
   prepareAndPublishProject,
   type PublishPreparationDependencies,
 } from "./publishPreparation";
+import { defaultPrintInteriorPdfSettings } from "./publishingForm";
 import type { PublishRequest } from "../types/PublishingTypes";
 
 const request: PublishRequest = {
@@ -11,6 +12,7 @@ const request: PublishRequest = {
   scope: { type: "full_project" },
   format: "docx",
   profile_id: "standard_manuscript",
+  pdf_settings: defaultPrintInteriorPdfSettings(),
   metadata: {
     title: "Book",
     author: "A. Writer",

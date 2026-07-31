@@ -2,6 +2,7 @@ import type {
   Diagnostic,
   NodePublishingOverride,
   PublicationScope,
+  PrintInteriorPdfSettings,
   PublishFailure,
   PublishFormat,
   PublishProfileId,
@@ -12,13 +13,154 @@ import type {
 
 export function profileForFormat(
   format: PublishFormat,
-  configuredDocxProfile?: string,
+  configuredProfiles: {
+    pdf?: string;
+    docx?: string;
+  } = {},
 ): PublishProfileId {
-  if (format === "pdf") return "proof_pdf";
+  if (format === "pdf") {
+    return configuredProfiles.pdf === "print_interior"
+      ? "print_interior"
+      : "proof_pdf";
+  }
   if (format === "epub") return "reflowable_epub";
-  return configuredDocxProfile === "clean_handoff"
+  return configuredProfiles.docx === "clean_handoff"
     ? "clean_handoff"
     : "standard_manuscript";
+}
+
+export function defaultPrintInteriorPdfSettings(): PrintInteriorPdfSettings {
+  return {
+    trim_size: "six_by_nine",
+    top_margin_inches: 0.75,
+    bottom_margin_inches: 0.75,
+    inside_margin_inches: 0.75,
+    outside_margin_inches: 0.625,
+    gutter_inches: 0.125,
+    chapter_start: "recto",
+    running_headers: true,
+    front_matter_page_numbers: true,
+    body_page_numbers: true,
+  };
+}
+
+export function printInteriorSettingsFromProfiles(
+  profiles: Record<string, unknown>,
+): PrintInteriorPdfSettings {
+  const fallback = defaultPrintInteriorPdfSettings();
+  const value = profiles.print_interior;
+  if (typeof value !== "object" || value === null) return fallback;
+  const profile = value as Record<string, unknown>;
+  const trimSizes = new Set<PrintInteriorPdfSettings["trim_size"]>([
+    "five_by_eight",
+    "five_point_two_five_by_eight",
+    "five_point_five_by_eight_point_five",
+    "six_by_nine",
+  ]);
+  const chapterStarts = new Set<PrintInteriorPdfSettings["chapter_start"]>([
+    "next_page",
+    "recto",
+  ]);
+  const number = (
+    key: keyof PrintInteriorPdfSettings,
+    defaultValue: number,
+  ) =>
+    typeof profile[key] === "number" && Number.isFinite(profile[key])
+      ? (profile[key] as number)
+      : defaultValue;
+  const boolean = (
+    key: keyof PrintInteriorPdfSettings,
+    defaultValue: boolean,
+  ) => (typeof profile[key] === "boolean" ? profile[key] : defaultValue);
+
+  return {
+    trim_size: trimSizes.has(
+      profile.trim_size as PrintInteriorPdfSettings["trim_size"],
+    )
+      ? (profile.trim_size as PrintInteriorPdfSettings["trim_size"])
+      : fallback.trim_size,
+    top_margin_inches: number(
+      "top_margin_inches",
+      fallback.top_margin_inches,
+    ),
+    bottom_margin_inches: number(
+      "bottom_margin_inches",
+      fallback.bottom_margin_inches,
+    ),
+    inside_margin_inches: number(
+      "inside_margin_inches",
+      fallback.inside_margin_inches,
+    ),
+    outside_margin_inches: number(
+      "outside_margin_inches",
+      fallback.outside_margin_inches,
+    ),
+    gutter_inches: number("gutter_inches", fallback.gutter_inches),
+    chapter_start: chapterStarts.has(
+      profile.chapter_start as PrintInteriorPdfSettings["chapter_start"],
+    )
+      ? (profile.chapter_start as PrintInteriorPdfSettings["chapter_start"])
+      : fallback.chapter_start,
+    running_headers: boolean(
+      "running_headers",
+      fallback.running_headers,
+    ),
+    front_matter_page_numbers: boolean(
+      "front_matter_page_numbers",
+      fallback.front_matter_page_numbers,
+    ),
+    body_page_numbers: boolean(
+      "body_page_numbers",
+      fallback.body_page_numbers,
+    ),
+  };
+}
+
+export function printInteriorSettingsErrors(
+  settings: PrintInteriorPdfSettings,
+): string[] {
+  const errors: string[] = [];
+  const margins: Array<[string, number]> = [
+    ["Top margin", settings.top_margin_inches],
+    ["Bottom margin", settings.bottom_margin_inches],
+    ["Inside margin", settings.inside_margin_inches],
+    ["Outside margin", settings.outside_margin_inches],
+  ];
+  for (const [label, value] of margins) {
+    if (!Number.isFinite(value) || value < 0.25 || value > 2) {
+      errors.push(`${label} must be between 0.25 and 2 inches.`);
+    }
+  }
+  if (
+    !Number.isFinite(settings.gutter_inches) ||
+    settings.gutter_inches < 0 ||
+    settings.gutter_inches > 1
+  ) {
+    errors.push("Gutter must be between 0 and 1 inch.");
+  }
+
+  const [width, height] = {
+    five_by_eight: [5, 8],
+    five_point_two_five_by_eight: [5.25, 8],
+    five_point_five_by_eight_point_five: [5.5, 8.5],
+    six_by_nine: [6, 9],
+  }[settings.trim_size];
+  if (
+    width -
+      settings.inside_margin_inches -
+      settings.outside_margin_inches -
+      settings.gutter_inches <
+    2
+  ) {
+    errors.push("Horizontal settings leave too little page width.");
+  }
+  if (
+    height - settings.top_margin_inches - settings.bottom_margin_inches <
+    2
+  ) {
+    errors.push("Vertical settings leave too little page height.");
+  }
+  return errors;
 }
 
 export function scopeForSelection(

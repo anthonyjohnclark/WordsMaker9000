@@ -33,6 +33,7 @@ The source-controlled [Publish QA expectations](PUBLISH_QA_EXPECTATIONS.md) are 
 For successful projects, compare:
 
 - Proof PDF;
+- Print Interior PDF;
 - Standard Manuscript DOCX;
 - Clean Handoff DOCX;
 - EPUB 3 with EPUBCheck and a reflowable reader.
@@ -64,11 +65,11 @@ histories are not changed.
 
 It generates:
 
-- full-project Proof PDF, Standard Manuscript DOCX, Clean Handoff DOCX, and EPUB
-  for QA01 through QA06;
-- all four outputs for QA03's `The Clockmaker's Map` Single Work scope;
-- all four outputs for QA04's Installment 02 and Volume One scopes;
-- PDF and both DOCX profiles for QA93;
+- full-project Proof PDF, Print Interior PDF, Standard Manuscript DOCX, Clean
+  Handoff DOCX, and EPUB for QA01 through QA06;
+- all five outputs for QA03's `The Clockmaker's Map` Single Work scope;
+- all five outputs for QA04's Installment 02 and Volume One scopes;
+- both PDF and both DOCX profiles for QA93;
 - `qa-results.json`, copied manifests, each project's `EXPECTATIONS.md`, and a
   short generated README;
 - passing expected-failure records for representative QA90/QA91 attempts,

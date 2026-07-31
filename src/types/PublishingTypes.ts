@@ -1,11 +1,31 @@
 import type { ProjectType } from "../utils/fileManager";
 
 export type PublishFormat = "pdf" | "docx" | "epub";
+export type PdfProfileId = "proof_pdf" | "print_interior";
 export type DocxProfileId = "standard_manuscript" | "clean_handoff";
 export type PublishProfileId =
-  | "proof_pdf"
+  | PdfProfileId
   | DocxProfileId
   | "reflowable_epub";
+export type PrintTrimSize =
+  | "five_by_eight"
+  | "five_point_two_five_by_eight"
+  | "five_point_five_by_eight_point_five"
+  | "six_by_nine";
+export type ChapterStartSide = "next_page" | "recto";
+
+export interface PrintInteriorPdfSettings {
+  trim_size: PrintTrimSize;
+  top_margin_inches: number;
+  bottom_margin_inches: number;
+  inside_margin_inches: number;
+  outside_margin_inches: number;
+  gutter_inches: number;
+  chapter_start: ChapterStartSide;
+  running_headers: boolean;
+  front_matter_page_numbers: boolean;
+  body_page_numbers: boolean;
+}
 export type SectionRole =
   | "front_matter"
   | "part"
@@ -77,6 +97,7 @@ export interface PublishRequest {
   scope: PublicationScope;
   format: PublishFormat;
   profile_id: PublishProfileId;
+  pdf_settings: PrintInteriorPdfSettings;
   metadata: PublishingMetadata;
   node_overrides: Record<string, NodePublishingOverride>;
   outline_confirmed: boolean;
