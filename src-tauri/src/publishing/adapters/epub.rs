@@ -8,8 +8,8 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::publishing::model::{
     AssetId, AssetSource, Block, BookAsset, BookDocument, BookSection, FootnoteId, HeadingLevel,
-    Inline, ListItem, OutputFormat, ParagraphAlignment, SectionInclusion, SectionRole,
-    TextDirection,
+    ImagePresentation, Inline, ListItem, OutputFormat, ParagraphAlignment, SectionInclusion,
+    SectionRole, TextDirection,
 };
 use crate::publishing::request::PageProgressionDirection;
 
@@ -71,6 +71,12 @@ blockquote {
 }
 figure {
   margin-inline: 0;
+}
+.image-block img {
+  max-width: 75%;
+}
+.image-full-width img {
+  width: 100%;
 }
 figcaption {
   font-size: 0.9em;
@@ -781,6 +787,8 @@ fn render_blocks(
                 asset_id,
                 alt,
                 caption,
+                decorative,
+                presentation,
             } => {
                 let href = asset_hrefs
                     .get(asset_id)
@@ -795,11 +803,22 @@ fn render_blocks(
                         )
                     })
                     .unwrap_or_default();
+                let class_name = match presentation {
+                    ImagePresentation::Block => "image-block",
+                    ImagePresentation::FullWidth => "image-full-width",
+                    ImagePresentation::Bleed => "image-bleed",
+                };
+                let accessibility = if *decorative {
+                    "alt=\"\" role=\"presentation\" aria-hidden=\"true\"".to_string()
+                } else {
+                    format!(
+                        "alt=\"{}\"",
+                        escape_attr(alt.as_deref().unwrap_or_default())
+                    )
+                };
                 format!(
-                    "<figure><img src=\"{}\" alt=\"{}\" />{}</figure>",
-                    escape_attr(href),
-                    escape_attr(alt.as_deref().unwrap_or_default()),
-                    caption
+                    "<figure class=\"{class_name}\"><img src=\"{}\" {} />{}</figure>",
+                    escape_attr(href), accessibility, caption
                 )
             }
             Block::FootnoteDefinition { id, blocks } => format!(
@@ -1085,6 +1104,7 @@ fn escape_attr(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::publishing::html::parse_quill_html;
     use crate::publishing::model::{
         BookContributor, BookMetadata, ContributorRole, InlineMarks, LinkTarget, ParagraphStyle,
         SceneBreakStyle,
@@ -1272,6 +1292,32 @@ mod tests {
     }
 
     #[test]
+    fn rich_editor_fixture_keeps_semantic_xhtml_and_scene_order() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("rich-editor.epub");
+        let mut document = fixture_document();
+        document.sections[1].blocks =
+            parse_quill_html(include_str!("../fixtures/quill/rich_content.html")).unwrap();
+
+        render_epub(&document, &options(root.path()), &path).unwrap();
+
+        let xhtml = read_entry(&path, "OEBPS/text/section-0002.xhtml");
+        assert!(xhtml.contains("<h1>Heading <strong>One</strong></h1>"));
+        assert!(xhtml.contains(concat!(
+            "<h2>Heading <a href=\"https://example.com/heading\">",
+            "Two</a></h2>"
+        )));
+        assert!(xhtml.contains("<h6>Heading Six</h6>"));
+        assert!(xhtml.contains("<blockquote><p>Quoted <em>emphasis</em>"));
+        assert!(xhtml.contains("href=\"https://example.com/quote\""));
+
+        let before = xhtml.find("First scene.").unwrap();
+        let marker = xhtml.find("class=\"scene-break\"").unwrap();
+        let after = xhtml.find("Second scene.").unwrap();
+        assert!(before < marker && marker < after);
+    }
+
+    #[test]
     fn front_and_back_matter_inclusion_is_epub_specific() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("fixture.epub");
@@ -1309,6 +1355,58 @@ mod tests {
         assert!(!toc.contains(">Front Matter<"));
         assert!(!toc.contains(">Back Matter<"));
         assert!(nav.contains(r#"epub:type="backmatter""#));
+    }
+
+    #[test]
+    fn project_images_are_packaged_with_informative_and_decorative_semantics() {
+        let root = tempfile::tempdir().unwrap();
+        let asset_dir = root.path().join("assets");
+        fs::create_dir_all(&asset_dir).unwrap();
+        image::DynamicImage::new_rgb8(900, 600)
+            .save(asset_dir.join("figure.png"))
+            .unwrap();
+        let mut document = fixture_document();
+        let asset_id = AssetId("asset-figure".to_string());
+        document.assets.push(BookAsset {
+            id: asset_id.clone(),
+            kind: crate::publishing::model::AssetKind::Image,
+            media_type: "image/png".to_string(),
+            source: AssetSource::ProjectRelativePath {
+                path: "assets/figure.png".to_string(),
+            },
+        });
+        document.sections[1].blocks.extend([
+            Block::Image {
+                asset_id: asset_id.clone(),
+                alt: Some("Moonlit water".to_string()),
+                caption: Some(vec![Inline::Text {
+                    text: "Night study".to_string(),
+                    marks: InlineMarks::default(),
+                    link: None,
+                }]),
+                decorative: false,
+                presentation: ImagePresentation::FullWidth,
+            },
+            Block::Image {
+                asset_id,
+                alt: None,
+                caption: None,
+                decorative: true,
+                presentation: ImagePresentation::Block,
+            },
+        ]);
+        let output = root.path().join("images.epub");
+
+        render_epub(&document, &options(root.path()), &output).unwrap();
+
+        let xhtml = read_entry(&output, "OEBPS/text/section-0002.xhtml");
+        assert!(xhtml.contains(r#"class="image-full-width""#));
+        assert!(xhtml.contains(r#"alt="Moonlit water""#));
+        assert!(xhtml.contains("<figcaption>Night study</figcaption>"));
+        assert!(xhtml.contains(r#"alt="" role="presentation" aria-hidden="true""#));
+        assert!(!xhtml.contains(root.path().to_string_lossy().as_ref()));
+        let package = read_entry(&output, "OEBPS/package.opf");
+        assert!(package.contains("media-type=\"image/png\""));
     }
 
     #[test]

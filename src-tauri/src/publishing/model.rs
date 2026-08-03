@@ -113,6 +113,10 @@ pub(crate) enum Block {
         asset_id: AssetId,
         alt: Option<String>,
         caption: Option<Vec<Inline>>,
+        #[serde(default)]
+        decorative: bool,
+        #[serde(default)]
+        presentation: ImagePresentation,
     },
     FootnoteDefinition {
         id: FootnoteId,
@@ -168,6 +172,15 @@ pub(crate) enum SceneBreakStyle {
     Custom { marker: String },
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ImagePresentation {
+    #[default]
+    Block,
+    FullWidth,
+    Bleed,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum Inline {
@@ -181,7 +194,7 @@ pub(crate) enum Inline {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct InlineMarks {
     pub bold: bool,
     pub italic: bool,
@@ -362,6 +375,8 @@ mod tests {
                                 asset_id: AssetId("image-1".to_string()),
                                 alt: Some("A sample illustration".to_string()),
                                 caption: Some(vec![text("Figure one")]),
+                                decorative: false,
+                                presentation: ImagePresentation::FullWidth,
                             },
                             Block::FootnoteDefinition {
                                 id: FootnoteId("note-1".to_string()),

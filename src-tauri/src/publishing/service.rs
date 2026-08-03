@@ -18,19 +18,22 @@ use super::artifacts::{
     manifest_for_with_recipe, resolve_history_artifact, safe_filename, ArtifactHistoryEntry,
     ArtifactWorkspace, CANCELLED_ERROR,
 };
-use super::compiler::compile;
+use super::assets::as_book_assets;
+use super::compiler::compile_with_assets;
 use super::config::{load_or_default, save_atomic, PublishingConfig, PRINT_INTERIOR_PROFILE_ID};
 use super::model::{
     AssetSource, BookAsset, BookDocument, BookSection, SectionInclusion, SectionRole,
 };
-use super::preflight::{has_blocking_diagnostics, run_epub_source_preflight, run_preflight};
+use super::preflight::{
+    has_blocking_diagnostics, run_asset_source_preflight, run_epub_source_preflight, run_preflight,
+};
 use super::project_types::apply_project_strategy;
 use super::request::{
     Diagnostic, DiagnosticSeverity, DocxProfileId, PdfProfileId, PublishFormat, PublishPhase,
     PublishProgress, PublishRecipe, PublishRequest, PublishResult, SavedPublishingProfile,
 };
 use super::source::{load_snapshot, project_root};
-use crate::export::pdf_typst_adapter::generate_pdf_for_profile;
+use crate::export::pdf_typst_adapter::generate_pdf_for_profile_with_root;
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PublishingOutlineNode {
@@ -158,12 +161,14 @@ pub(crate) async fn get_publishing_setup(
             &snapshot.project_title,
         )
         .map_err(PublishFailure::source)?;
+        let assets = as_book_assets(&snapshot.asset_registry);
         let mut payload = snapshot.payload;
         payload.options.title = config.book_metadata.title.clone();
         payload.options.author = config.book_metadata.author.clone();
         payload.options.front_matter = config.book_metadata.front_matter.clone();
         payload.options.back_matter = config.book_metadata.back_matter.clone();
-        let mut document = compile(&payload).map_err(PublishFailure::compilation)?;
+        let mut document =
+            compile_with_assets(&payload, assets).map_err(PublishFailure::compilation)?;
         document.metadata.subtitle = config.book_metadata.subtitle.clone();
         document.metadata.language = config.book_metadata.language.clone();
         apply_project_strategy(
@@ -518,7 +523,9 @@ fn publish_blocking_with_cancellation(
         6,
     );
     check_cancelled(cancellation)?;
-    let mut document = compile(&snapshot.payload).map_err(PublishFailure::compilation)?;
+    let mut document =
+        compile_with_assets(&snapshot.payload, as_book_assets(&snapshot.asset_registry))
+            .map_err(PublishFailure::compilation)?;
     apply_metadata(&mut document, &request);
     apply_project_strategy(
         &mut document,
@@ -545,6 +552,12 @@ fn publish_blocking_with_cancellation(
         request.outline_confirmed || !outline_requires_confirmation(&document),
     );
     diagnostics.extend(derived_diagnostics);
+    diagnostics.extend(run_asset_source_preflight(
+        &document,
+        request.format,
+        &request.metadata,
+        &snapshot.project_root,
+    ));
     if request.format == PublishFormat::Epub {
         diagnostics.extend(run_epub_source_preflight(
             &document,
@@ -717,8 +730,9 @@ fn render_artifact(
     app: Option<&AppHandle>,
 ) -> Result<PathBuf, String> {
     match request.format {
-        PublishFormat::Pdf => generate_pdf_for_profile(
+        PublishFormat::Pdf => generate_pdf_for_profile_with_root(
             document,
+            project_root,
             output_dir,
             app,
             parse_pdf_profile(&request.profile_id)?,
@@ -734,6 +748,7 @@ fn render_artifact(
                     profile,
                     author: request.metadata.author.clone(),
                     contact: request.metadata.contact.clone(),
+                    project_root: project_root.to_path_buf(),
                 },
                 &path,
             )?;

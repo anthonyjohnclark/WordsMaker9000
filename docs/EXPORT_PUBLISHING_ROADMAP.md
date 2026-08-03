@@ -644,6 +644,9 @@ as legacy history.
 
 Add only after the core formats are stable:
 
+Detailed sequencing and acceptance criteria are maintained in
+[`PHASE_6_IMPLEMENTATION_SLICES.md`](PHASE_6_IMPLEMENTATION_SLICES.md).
+
 - explicit scene-break editor element;
 - headings, links, and block quotes in the editor;
 - project asset management and accessible images;

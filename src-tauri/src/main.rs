@@ -8,6 +8,10 @@ mod publishing;
 use tauri_plugin_fs;
 
 use export::{export_project, list_project_exports, open_file_default};
+use publishing::assets::{
+    cleanup_project_assets, import_project_asset, list_project_assets, remove_project_asset,
+    replace_project_asset,
+};
 use publishing::service::{
     cancel_publish, copy_publication_artifact, delete_publication_history_entry,
     delete_publishing_profile, get_publishing_setup, list_publication_history, publish_project,
@@ -42,7 +46,12 @@ fn main() {
             copy_publication_artifact,
             reveal_publication_artifact,
             delete_publication_history_entry,
-            regenerate_publication
+            regenerate_publication,
+            list_project_assets,
+            import_project_asset,
+            replace_project_asset,
+            remove_project_asset,
+            cleanup_project_assets
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

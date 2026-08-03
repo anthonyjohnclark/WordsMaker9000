@@ -6,7 +6,7 @@ entry points, and local inspection output.
 From the repository root:
 
 ```powershell
-# Create the ten QA projects under the app's Dev_Projects directory.
+# Create the eleven QA projects under the app's Dev_Projects directory.
 powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\create_publish_test_projects.ps1
 
 # Replace existing QA projects when needed.

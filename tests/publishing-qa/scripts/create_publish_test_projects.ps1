@@ -189,6 +189,7 @@ function New-QaProjectDefinition {
         [Parameter(Mandatory = $true)][object[]]$Nodes,
         [Parameter(Mandatory = $true)]$PublishingConfig,
         [Parameter(Mandatory = $true)][string]$Guide,
+        [object[]]$Assets = @(),
         [ValidateSet("valid", "missing", "none")][string]$CoverMode = "valid"
     )
     return [pscustomobject]@{
@@ -198,6 +199,7 @@ function New-QaProjectDefinition {
         Nodes = $Nodes
         PublishingConfig = $PublishingConfig
         Guide = $Guide
+        Assets = @($Assets)
         CoverMode = $CoverMode
     }
 }
@@ -255,6 +257,42 @@ function New-QaProject {
     })
     Write-Utf8Json -Path (Join-Path $projectPath "publishing.json") -Value $Definition.PublishingConfig
     Write-Utf8Text -Path (Join-Path $projectPath "PUBLISH_QA_EXPECTATIONS.md") -Value $Definition.Guide
+
+    if ($Definition.Assets.Count -gt 0) {
+        $assetDirectory = Join-Path $projectPath "assets"
+        New-Item -ItemType Directory -Path $assetDirectory | Out-Null
+        $assetRecords = @()
+        foreach ($asset in $Definition.Assets) {
+            $encoded = if ($asset.BuiltIn -eq "pixel") {
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+            } else {
+                $asset.Base64
+            }
+            $bytes = [Convert]::FromBase64String($encoded)
+            $hasher = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $sha = ([BitConverter]::ToString($hasher.ComputeHash($bytes))).Replace("-", "").ToLowerInvariant()
+            } finally {
+                $hasher.Dispose()
+            }
+            $filename = "$sha.png"
+            [System.IO.File]::WriteAllBytes((Join-Path $assetDirectory $filename), $bytes)
+            $assetRecords += [ordered]@{
+                id = $asset.Id
+                display_name = $asset.DisplayName
+                relative_path = "assets/$filename"
+                media_type = "image/png"
+                byte_size = $bytes.Length
+                width_px = $asset.Width
+                height_px = $asset.Height
+                sha256 = $sha
+            }
+        }
+        Write-Utf8Json -Path (Join-Path $projectPath "assets.json") -Value ([ordered]@{
+            schema_version = 1
+            assets = @($assetRecords)
+        })
+    }
 
     if ($Definition.CoverMode -eq "valid") {
         $escapedTitle = [System.Security.SecurityElement]::Escape($Definition.PublishingConfig.book_metadata.title)
@@ -395,7 +433,7 @@ $inclusionGuide = Read-QaExpectation "05-format-inclusion.md"
 
 $formattingNodes = @(
     (New-NodeSpec -Id 1 -Parent 0 -Text "Formatting Laboratory" -Type file -Content @'
-<h1>Heading One</h1><h2>Heading Two</h2><h3>Heading Three</h3><h4>Heading Four</h4><h5>Heading Five</h5><h6>Heading Six</h6><p>XML characters: fish &amp; chips, 3 &lt; 5, “quotes,” apostrophe’s, and emoji 🚀.</p><p><strong>Bold</strong> <em>italic</em> <u>underline</u> <s>strike</s> <strong><em><u><s>combined</s></u></em></strong>.</p><p class="ql-align-center">Centered paragraph</p><p class="ql-align-right">Right-aligned paragraph</p><p class="ql-align-justify">Justified paragraph with enough words to make its alignment visually noticeable across the available line width.</p><p class="ql-indent-2">Two-level indented paragraph</p><blockquote><p>A block quotation with <em>emphasis</em> and a <a href="https://example.com/accessibility">live external link</a>.</p></blockquote><ol><li data-list="ordered"><span class="ql-ui"></span>Ordered one</li><li data-list="ordered"><span class="ql-ui"></span>Ordered two</li><li class="ql-indent-1" data-list="bullet"><span class="ql-ui"></span>Nested bullet</li><li class="ql-indent-2" data-list="ordered"><span class="ql-ui"></span>Deep ordered item</li><li data-list="bullet"><span class="ql-ui"></span>Top-level bullet</li></ol><p>Soft break before<br>soft break after.</p><p class="ql-align-center">#</p><p>After scene break.</p>
+<h1>Heading <strong>One</strong></h1><h2>Heading <a href="https://example.com/heading">Two</a></h2><h3>Heading Three</h3><h4>Heading Four</h4><h5>Heading Five</h5><h6>Heading Six</h6><p>XML characters: fish &amp; chips, 3 &lt; 5, “quotes,” apostrophe’s, and emoji 🚀.</p><p><strong>Bold</strong> <em>italic</em> <u>underline</u> <s>strike</s> <strong><em><u><s>combined</s></u></em></strong>.</p><p class="ql-align-center">Centered paragraph</p><p class="ql-align-right">Right-aligned paragraph</p><p class="ql-align-justify">Justified paragraph with enough words to make its alignment visually noticeable across the available line width.</p><p class="ql-indent-2">Two-level indented paragraph</p><blockquote><p>A block quotation with <em>emphasis</em> and a <a href="https://example.com/accessibility">live external link</a>.</p></blockquote><ol><li data-list="ordered"><span class="ql-ui"></span>Ordered one</li><li data-list="ordered"><span class="ql-ui"></span>Ordered two</li><li class="ql-indent-1" data-list="bullet"><span class="ql-ui"></span>Nested bullet</li><li class="ql-indent-2" data-list="ordered"><span class="ql-ui"></span>Deep ordered item</li><li data-list="bullet"><span class="ql-ui"></span>Top-level bullet</li></ol><p>Soft break before<br>soft break after.</p><p>Before semantic scene break.</p><hr class="wm-scene-break" data-wm-scene-break="asterisks" role="separator" aria-label="Scene break"><p>After semantic scene break.</p>
 '@
     )
     (New-NodeSpec -Id 2 -Parent 0 -Text "Unicode and Direction" -Type file -Content @'
@@ -408,6 +446,26 @@ $formattingRoles = [ordered]@{
     "900" = (New-NodeRole -Role "unassigned" -Inclusion (New-Inclusion -Type excluded))
 }
 $formattingGuide = Read-QaExpectation "06-formatting-and-unicode.md"
+
+$imageAssetId = "asset-qa07-moon"
+$imageNodes = @(
+    (New-NodeSpec -Id 1 -Parent 0 -Text "Chapter With Accessible Images" -Type file -Content @"
+<p>IMAGE-QA-BEFORE. The informative figure follows this paragraph.</p><figure class="wm-image" data-wm-asset-id="$imageAssetId" data-wm-alt="A white moon above a navy field" data-wm-caption="Moon study — informative image" data-wm-decorative="false" data-wm-image-intent="full_width"><span class="wm-image-placeholder">Image: A white moon above a navy field</span><figcaption>Moon study — informative image</figcaption></figure><p>IMAGE-QA-BETWEEN. The decorative figure follows this paragraph.</p><figure class="wm-image" data-wm-asset-id="$imageAssetId" data-wm-alt="" data-wm-caption="" data-wm-decorative="true" data-wm-image-intent="block"><span class="wm-image-placeholder">Decorative image</span></figure><p>IMAGE-QA-AFTER. Both figures must remain in source order.</p>
+"@)
+    (New-NodeSpec -Id 900 -Parent 0 -Text "_QA Guide — Excluded" -Type file -Content "<p>$guidePrefix</p>")
+)
+$imageRoles = [ordered]@{
+    "900" = (New-NodeRole -Role "unassigned" -Inclusion (New-Inclusion -Type excluded))
+}
+$imageGuide = Read-QaExpectation "07-accessible-images.md"
+$imageAssets = @([pscustomobject]@{
+    Id = $imageAssetId
+    DisplayName = "qa-moon.png"
+    Width = 1
+    Height = 1
+    BuiltIn = "pixel"
+    Base64 = "iVBORw0KGgoAAAANSUhEUgAAAUAAAAC0CAYAAADl5PURAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAOLSURBVHhe7dTLbRtREAVRheE0HIvzj8WGDGhANv8/iTN1LnA2XHBeb+rj1+8/fwGKPuYPABUCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYA8nKPbP4XPJMA8hKv2PwGPEoAearv2Pwm3EsAeYqf2HwD3EoAecg7bL4JriWA3O2dNt8G1xBAbvbOm2+FcwSQm6xh881wigBytTVtvh2OEUCussbNG2ASQC5a8+YtsEsAuWjNm7fALgHkrC1s3gRfBJCTtrR5G3wSQE7a0uZt8EkAOWqLmzeCAHLUFjdvBAHkwJY3b6VNADmw5c1baRNA9hQ2b6ZLANlT2LyZLgFkT2HzZroEkEVp83aaBJBFafN2mgSQRWnzdpoEkEVp83aaBJBFafN2mgSQRWnzdpoEkEVp83aaBJD/apv30ySALEqbt9MkgCxKm7fTJIAsSpu30ySALEqbt9MkgCxKm7fTJIAsSpu30ySALEqbt9MkgOwpbN5MlwCyp7B5M10CyJ7C5s10CSAHtrx5K20CyIEtb95KmwBy1BY3bwQB5Kgtbt4IAshJW9q8DT4JICdtafM2+CSAnLWFzZvgiwBy0Zo3b4FdAshFa968BXYJIFdZ4+YNMAkgV1vT5tvhGAHkJmvYfDOcIoDc7J033wrnCCB3e6fNt8E1BJCHvMPmm+BaAshT/MTmG+BWAshTfcfmN+FeAshLvGLzG/AoAeTlHtn8L3gmAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIGsf/8HW2CcPEIdAAAAAElFTkSuQmCC"
+})
 
 $unsupportedNodes = @(
     (New-NodeSpec -Id 1 -Parent 0 -Text "Unsupported Table" -Type file -Content "<p>Before the unsupported block.</p><table><tr><td>THIS TABLE MUST NOT BE SILENTLY DROPPED</td></tr></table><p>After the unsupported block.</p>")
@@ -453,6 +511,7 @@ $definitions = @(
     (New-QaProjectDefinition -Name "Publish QA 04 - Serial Scopes" -Slug "publish-qa-04" -ProjectType "serial" -Nodes $serialNodes -PublishingConfig (New-PublishingConfig -ProjectType "serial" -Title "The Signal Cycle" -Subtitle "Serial, Installment, and Volume Fixture" -NodeRoles $serialRoles -FrontMatter "SHARED SERIAL FRONT MATTER." -BackMatter "SHARED SERIAL BACK MATTER." -CoverMode valid) -Guide $serialGuide -CoverMode valid)
     (New-QaProjectDefinition -Name "Publish QA 05 - Format Inclusion" -Slug "publish-qa-05" -ProjectType "novel" -Nodes $inclusionNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "The Three-Format Ledger" -Subtitle "Format Inclusion Fixture" -NodeRoles $inclusionRoles -FrontMatter "FORMAT FRONT MATTER SENTINEL." -BackMatter "FORMAT BACK MATTER SENTINEL." -CoverMode valid -IncludeFrontMatter $false -IncludeBackMatter $true) -Guide $inclusionGuide -CoverMode valid)
     (New-QaProjectDefinition -Name "Publish QA 06 - Formatting and Unicode" -Slug "publish-qa-06" -ProjectType "novel" -Nodes $formattingNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Glyphs & Garlands" -Subtitle "Formatting, Unicode, and Reflow Fixture" -NodeRoles $formattingRoles -FrontMatter "FORMATTING FIXTURE FRONT MATTER." -BackMatter "FORMATTING FIXTURE BACK MATTER." -CoverMode valid) -Guide $formattingGuide -CoverMode valid)
+    (New-QaProjectDefinition -Name "Publish QA 07 - Accessible Images" -Slug "publish-qa-07" -ProjectType "novel" -Nodes $imageNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "The Moon Registry" -Subtitle "Project Assets and Accessible Images Fixture" -NodeRoles $imageRoles -FrontMatter $null -BackMatter $null -CoverMode valid) -Guide $imageGuide -Assets $imageAssets -CoverMode valid)
     (New-QaProjectDefinition -Name "Publish QA 90 - Expected Failure - Unsupported HTML" -Slug "publish-qa-90" -ProjectType "novel" -Nodes $unsupportedNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Unsupported HTML Failure" -Subtitle "Expected Compilation Failure" -NodeRoles $unsupportedRoles -FrontMatter $null -BackMatter $null -CoverMode none) -Guide $unsupportedGuide -CoverMode none)
     (New-QaProjectDefinition -Name "Publish QA 91 - Expected Failure - Missing Source" -Slug "publish-qa-91" -ProjectType "novel" -Nodes $missingSourceNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Missing Source Failure" -Subtitle "Expected Snapshot Failure" -NodeRoles $missingSourceRoles -FrontMatter $null -BackMatter $null -CoverMode none) -Guide $missingSourceGuide -CoverMode none)
     (New-QaProjectDefinition -Name "Publish QA 92 - Expected Failure - Empty Scope" -Slug "publish-qa-92" -ProjectType "novel" -Nodes $emptyScopeNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Empty Scope Failure" -Subtitle "Expected Preflight Failure" -NodeRoles $emptyScopeRoles -FrontMatter $null -BackMatter $null -CoverMode none) -Guide $emptyScopeGuide -CoverMode none)

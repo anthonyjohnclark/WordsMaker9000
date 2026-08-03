@@ -9,6 +9,13 @@ use super::model::{
 };
 
 pub(crate) fn compile(payload: &ExportPayload) -> Result<BookDocument, String> {
+    compile_with_assets(payload, vec![])
+}
+
+pub(crate) fn compile_with_assets(
+    payload: &ExportPayload,
+    assets: Vec<super::model::BookAsset>,
+) -> Result<BookDocument, String> {
     let children = validate_and_index_nodes(&payload.nodes)?;
     let top_level_nodes = children.get(&0).cloned().unwrap_or_default();
     let top_level_file_count = top_level_nodes
@@ -65,7 +72,7 @@ pub(crate) fn compile(payload: &ExportPayload) -> Result<BookDocument, String> {
             ..BookMetadata::default()
         },
         sections,
-        assets: vec![],
+        assets,
     })
 }
 
@@ -244,6 +251,7 @@ fn validate_parent_chain(
 mod tests {
     use super::*;
     use crate::export::types::{ExportOptions, ExportPayload};
+    use crate::publishing::model::SceneBreakStyle;
 
     fn make_payload(nodes: Vec<ExportFileNode>) -> ExportPayload {
         ExportPayload {
@@ -437,6 +445,38 @@ mod tests {
         assert!(error.contains("Broken Scene"));
         assert!(error.contains("node 7"));
         assert!(error.contains("<table>"));
+    }
+
+    #[test]
+    fn semantic_scene_breaks_compile_and_invalid_styles_name_the_source() {
+        let document = compile(&make_payload(vec![file(
+            7,
+            0,
+            "Scene Break Chapter",
+            Some(concat!(
+                "<p>Before.</p>",
+                "<hr data-wm-scene-break=\"asterisks\">",
+                "<p>After.</p>"
+            )),
+        )]))
+        .unwrap();
+        assert!(matches!(
+            body_sections(&document)[0].children[0].blocks[1],
+            Block::SceneBreak {
+                style: SceneBreakStyle::Asterisks
+            }
+        ));
+
+        let error = compile(&make_payload(vec![file(
+            8,
+            0,
+            "Bad Scene Break",
+            Some("<hr data-wm-scene-break=\"unknown\">"),
+        )]))
+        .unwrap_err();
+        assert!(error.contains("Bad Scene Break"));
+        assert!(error.contains("node 8"));
+        assert!(error.contains("scene break style"));
     }
 
     #[test]

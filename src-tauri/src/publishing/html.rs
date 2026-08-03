@@ -3,8 +3,8 @@ use scraper::node::Node;
 use scraper::Html;
 
 use super::model::{
-    Block, HeadingLevel, Inline, InlineMarks, LinkTarget, ListItem, ParagraphAlignment,
-    ParagraphStyle, SceneBreakStyle, TextDirection,
+    AssetId, Block, HeadingLevel, ImagePresentation, Inline, InlineMarks, LinkTarget, ListItem,
+    ParagraphAlignment, ParagraphStyle, SceneBreakStyle, TextDirection,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,8 +70,9 @@ fn parse_top_level_node(node: NodeRef<'_, Node>, blocks: &mut Vec<Block>) -> Res
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => blocks.push(parse_heading(node)?),
             "ol" | "ul" => blocks.extend(parse_list(node)?),
             "blockquote" => blocks.push(parse_block_quote(node)?),
+            "figure" => blocks.push(parse_image(node)?),
             "hr" => blocks.push(Block::SceneBreak {
-                style: SceneBreakStyle::Asterisks,
+                style: explicit_scene_break_style(element.attr("data-wm-scene-break"))?,
             }),
             "br" => blocks.push(Block::Paragraph {
                 inlines: vec![plain_text("\n")],
@@ -87,6 +88,97 @@ fn parse_top_level_node(node: NodeRef<'_, Node>, blocks: &mut Vec<Block>) -> Res
     }
 
     Ok(())
+}
+
+fn parse_image(node: NodeRef<'_, Node>) -> Result<Block, String> {
+    let element = match node.value() {
+        Node::Element(element) => element,
+        _ => return Err("Expected a WordsMaker image element".to_string()),
+    };
+    if !element
+        .attr("class")
+        .unwrap_or_default()
+        .split_whitespace()
+        .any(|class| class == "wm-image")
+    {
+        return Err("Unsupported Quill <figure>; export would omit content".to_string());
+    }
+
+    let asset_id = element
+        .attr("data-wm-asset-id")
+        .filter(|value| valid_asset_id(value))
+        .ok_or_else(|| "WordsMaker image has a missing or invalid asset ID".to_string())?;
+    let decorative = match element.attr("data-wm-decorative").unwrap_or("false") {
+        "true" => true,
+        "false" => false,
+        value => {
+            return Err(format!(
+                "WordsMaker image has unsupported decorative value {value:?}"
+            ))
+        }
+    };
+    let alt = element
+        .attr("data-wm-alt")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if !decorative && alt.is_none() {
+        return Err(
+            "WordsMaker image requires alt text unless it is explicitly decorative".to_string(),
+        );
+    }
+    let caption = element
+        .attr("data-wm-caption")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| vec![plain_text(value)]);
+    let presentation = match element.attr("data-wm-image-intent").unwrap_or("block") {
+        "block" => ImagePresentation::Block,
+        "full_width" => ImagePresentation::FullWidth,
+        "bleed" => ImagePresentation::Bleed,
+        value => {
+            return Err(format!(
+                "WordsMaker image has unsupported presentation intent {value:?}"
+            ))
+        }
+    };
+
+    Ok(Block::Image {
+        asset_id: AssetId(asset_id.to_string()),
+        alt: (!decorative).then_some(alt).flatten(),
+        caption,
+        decorative,
+        presentation,
+    })
+}
+
+fn valid_asset_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 100
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+}
+
+fn explicit_scene_break_style(value: Option<&str>) -> Result<SceneBreakStyle, String> {
+    match value {
+        None | Some("asterisks") => Ok(SceneBreakStyle::Asterisks),
+        Some("whitespace") => Ok(SceneBreakStyle::Whitespace),
+        Some(value) => {
+            if let Some(marker) = value.strip_prefix("custom:") {
+                let marker = marker.trim();
+                if !marker.is_empty() {
+                    return Ok(SceneBreakStyle::Custom {
+                        marker: marker.to_string(),
+                    });
+                }
+            }
+
+            Err(format!(
+                "Unsupported WordsMaker scene break style \"{value}\"; export would omit content"
+            ))
+        }
+    }
 }
 
 fn parse_paragraph(node: NodeRef<'_, Node>) -> Result<Block, String> {
@@ -550,6 +642,131 @@ mod tests {
         };
         let (quoted, _) = paragraph(&quote[0]);
         assert_eq!(text(&quoted[1]).2, Some("https://example.com"));
+    }
+
+    #[test]
+    fn parses_rich_editor_fixture_and_explicit_scene_break() {
+        let blocks = parse_quill_html(include_str!("fixtures/quill/rich_content.html")).unwrap();
+
+        assert_eq!(blocks.len(), 10);
+        for (index, expected_level) in [
+            HeadingLevel::H1,
+            HeadingLevel::H2,
+            HeadingLevel::H3,
+            HeadingLevel::H4,
+            HeadingLevel::H5,
+            HeadingLevel::H6,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert!(matches!(
+                &blocks[index],
+                Block::Heading { level, .. } if *level == expected_level
+            ));
+        }
+
+        let heading_inlines = match &blocks[0] {
+            Block::Heading { inlines, .. } => inlines,
+            _ => unreachable!(),
+        };
+        assert!(text(&heading_inlines[1]).1.bold);
+
+        let linked_heading_inlines = match &blocks[1] {
+            Block::Heading { inlines, .. } => inlines,
+            _ => unreachable!(),
+        };
+        assert_eq!(
+            text(&linked_heading_inlines[1]).2,
+            Some("https://example.com/heading")
+        );
+
+        let quote = match &blocks[6] {
+            Block::BlockQuote { blocks } => blocks,
+            _ => panic!("expected block quote"),
+        };
+        let (quote_inlines, _) = paragraph(&quote[0]);
+        assert!(text(&quote_inlines[1]).1.italic);
+        assert_eq!(text(&quote_inlines[3]).2, Some("https://example.com/quote"));
+
+        assert_eq!(
+            blocks[8],
+            Block::SceneBreak {
+                style: SceneBreakStyle::Asterisks
+            }
+        );
+    }
+
+    #[test]
+    fn parses_semantic_images_with_accessibility_and_presentation_intent() {
+        let blocks = parse_quill_html(include_str!("fixtures/quill/image_content.html")).unwrap();
+
+        assert_eq!(blocks.len(), 4);
+        assert_eq!(
+            blocks[1],
+            Block::Image {
+                asset_id: AssetId("asset-1234".to_string()),
+                alt: Some("An old railway station in rain".to_string()),
+                caption: Some(vec![plain_text("The last train")]),
+                decorative: false,
+                presentation: ImagePresentation::FullWidth,
+            }
+        );
+        assert_eq!(
+            blocks[2],
+            Block::Image {
+                asset_id: AssetId("asset-decorative".to_string()),
+                alt: None,
+                caption: None,
+                decorative: true,
+                presentation: ImagePresentation::Block,
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_missing_alt_invalid_ids_and_unknown_image_intents() {
+        for html in [
+            r#"<figure class="wm-image" data-wm-asset-id="asset-1"></figure>"#,
+            r#"<figure class="wm-image" data-wm-asset-id="../asset" data-wm-alt="Alt"></figure>"#,
+            r#"<figure class="wm-image" data-wm-asset-id="asset-1" data-wm-alt="Alt" data-wm-image-intent="floating"></figure>"#,
+            r#"<figure><figcaption>Unsupported generic figure</figcaption></figure>"#,
+        ] {
+            assert!(parse_quill_html(html).is_err(), "{html}");
+        }
+    }
+
+    #[test]
+    fn parses_supported_explicit_scene_break_styles_and_rejects_unknown_values() {
+        let blocks = parse_quill_html(concat!(
+            "<hr data-wm-scene-break=\"whitespace\">",
+            "<hr data-wm-scene-break=\"custom:~ ~ ~\">"
+        ))
+        .unwrap();
+
+        assert_eq!(
+            blocks,
+            vec![
+                Block::SceneBreak {
+                    style: SceneBreakStyle::Whitespace
+                },
+                Block::SceneBreak {
+                    style: SceneBreakStyle::Custom {
+                        marker: "~ ~ ~".to_string()
+                    }
+                }
+            ]
+        );
+
+        for html in [
+            "<hr data-wm-scene-break=\"\">",
+            "<hr data-wm-scene-break=\"future-style\">",
+            "<hr data-wm-scene-break=\"custom:   \">",
+        ] {
+            let error = parse_quill_html(html).unwrap_err();
+            assert!(error.contains("scene break style"));
+            assert!(error.contains("omit content"));
+        }
     }
 
     #[test]

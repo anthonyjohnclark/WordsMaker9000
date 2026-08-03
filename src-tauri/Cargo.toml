@@ -29,7 +29,8 @@ lopdf = "=0.26.0"
 scraper = "0.21"
 ego-tree = "0.9"
 chrono = "0.4"
-docx-rs = { version = "=0.4.22", default-features = false }
+docx-rs = { version = "=0.4.22", default-features = false, features = ["image"] }
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["serde", "v4"] }
 zip = { version = "8.6", default-features = false, features = ["deflate"] }

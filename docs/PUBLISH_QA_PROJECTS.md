@@ -6,7 +6,7 @@ Run the generator from the repository root:
 powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\create_publish_test_projects.ps1
 ```
 
-It creates ten projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuses to overwrite an existing fixture unless `-Force` is explicitly supplied.
+It creates eleven projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuses to overwrite an existing fixture unless `-Force` is explicitly supplied.
 
 ## Successful fixtures
 
@@ -18,6 +18,7 @@ It creates ten projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuses t
 | Publish QA 04 - Serial Scopes | Volume, installments, chapters, scenes, root-file installment, Full Project, Single Installment, and Volume scopes |
 | Publish QA 05 - Format Inclusion | All/PDF-only/DOCX-only/EPUB-only/excluded nodes, empty included chapter, EPUB-specific front/back inclusion |
 | Publish QA 06 - Formatting and Unicode | All supported headings and inline marks, alignment, indentation, RTL, block quote, nested mixed lists, link, soft break, scene break, multilingual text, EPUB reflow |
+| Publish QA 07 - Accessible Images | Versioned project asset registry, informative/decorative body images, alt text, captions, placement intent, PDF/DOCX/EPUB packaging |
 
 ## Expected-failure fixtures
 
@@ -57,7 +58,7 @@ powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\generate_
 ```
 
 The destination must be new or empty; the command never deletes an existing
-inspection directory. It copies the ten projects to a temporary app-data root
+inspection directory. It copies the eleven projects to a temporary app-data root
 and runs those copies through the same Rust snapshot loading, compilation,
 project strategy, preflight, adapters, manifest creation, and destination-copy
 path used by the Publish modal. The live `_Dev` projects and their export
@@ -66,7 +67,7 @@ histories are not changed.
 It generates:
 
 - full-project Proof PDF, Print Interior PDF, Standard Manuscript DOCX, Clean
-  Handoff DOCX, and EPUB for QA01 through QA06;
+  Handoff DOCX, and EPUB for QA01 through QA07;
 - all five outputs for QA03's `The Clockmaker's Map` Single Work scope;
 - all five outputs for QA04's Installment 02 and Volume One scopes;
 - both PDF and both DOCX profiles for QA93;

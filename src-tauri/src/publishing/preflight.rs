@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
 
+use super::assets::inspect_project_asset;
 use super::model::{
-    AssetId, AssetSource, Block, BookDocument, BookSection, FootnoteId, Inline, OutputFormat,
-    SectionInclusion, SectionRole,
+    AssetId, AssetSource, Block, BookDocument, BookSection, FootnoteId, ImagePresentation, Inline,
+    OutputFormat, SectionInclusion, SectionRole,
 };
 use super::request::{Diagnostic, DiagnosticSeverity, PublishFormat, PublishMetadataOverrides};
 
@@ -65,6 +66,9 @@ pub(crate) fn run_preflight(
             inspect_section_for_docx(section, &mut diagnostics);
         }
     }
+    for section in &document.sections {
+        inspect_section_images(section, format, metadata, &mut diagnostics);
+    }
     if format == PublishFormat::Epub {
         inspect_epub(document, metadata, &mut diagnostics);
     }
@@ -72,8 +76,116 @@ pub(crate) fn run_preflight(
     diagnostics
 }
 
-pub(crate) fn run_epub_source_preflight(
+pub(crate) fn run_asset_source_preflight(
     document: &BookDocument,
+    format: PublishFormat,
+    metadata: &PublishMetadataOverrides,
+    project_root: &Path,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut asset_ids = HashSet::new();
+    for asset in &document.assets {
+        if !asset_ids.insert(asset.id.clone()) {
+            diagnostics.push(Diagnostic::error(
+                "PUBLISH_ASSET_ID_DUPLICATE",
+                format!("Asset ID {:?} appears more than once.", asset.id.0),
+                None,
+                Some("Assign each project asset a unique ID.".to_string()),
+            ));
+        }
+        let source = match &asset.source {
+            AssetSource::ProjectRelativePath { path } => path,
+        };
+        match resolve_source_path(project_root, source, false) {
+            Ok(path) if path.is_file() => match inspect_project_asset(&path) {
+                Ok(inspected) => {
+                    if inspected.media_type != asset.media_type {
+                        diagnostics.push(Diagnostic::error(
+                            "PUBLISH_ASSET_MEDIA_TYPE_MISMATCH",
+                            format!(
+                                "Asset {:?} is declared as {:?}, but its contents are {:?}.",
+                                asset.id.0, asset.media_type, inspected.media_type
+                            ),
+                            None,
+                            Some("Replace or re-import the asset.".to_string()),
+                        ));
+                    }
+                    if format == PublishFormat::Docx && inspected.media_type == "image/svg+xml" {
+                        diagnostics.push(Diagnostic::error(
+                            "DOCX_ASSET_TYPE_UNSUPPORTED",
+                            format!(
+                                "Asset {:?} is SVG, which this DOCX adapter cannot embed.",
+                                asset.id.0
+                            ),
+                            None,
+                            Some(
+                                "Replace the image with a PNG or JPEG for DOCX output.".to_string(),
+                            ),
+                        ));
+                    }
+                    if format == PublishFormat::Pdf
+                        && inspected
+                            .width_px
+                            .zip(inspected.height_px)
+                            .is_some_and(|(width, height)| width < 600 || height < 400)
+                    {
+                        diagnostics.push(Diagnostic::warning(
+                            "PDF_IMAGE_LOW_RESOLUTION",
+                            format!(
+                                "Asset {:?} is only {} x {} pixels and may print softly.",
+                                asset.id.0,
+                                inspected.width_px.unwrap_or_default(),
+                                inspected.height_px.unwrap_or_default()
+                            ),
+                            None,
+                            Some(
+                                "Use a higher-resolution source image for print output."
+                                    .to_string(),
+                            ),
+                        ));
+                    }
+                }
+                Err(message) => diagnostics.push(Diagnostic::error(
+                    "PUBLISH_ASSET_INVALID",
+                    format!("Asset {:?}: {message}", asset.id.0),
+                    None,
+                    Some("Replace or re-import the asset.".to_string()),
+                )),
+            },
+            Ok(_) => diagnostics.push(Diagnostic::error(
+                "PUBLISH_ASSET_MISSING",
+                format!("Asset {:?} could not be found at {:?}.", asset.id.0, source),
+                None,
+                Some("Restore, replace, or remove the project asset.".to_string()),
+            )),
+            Err(message) => diagnostics.push(Diagnostic::error(
+                "PUBLISH_ASSET_PATH_INVALID",
+                format!("Asset {:?}: {message}", asset.id.0),
+                None,
+                Some("Relink the asset to a file stored inside the project.".to_string()),
+            )),
+        }
+    }
+
+    let mut referenced_assets = HashMap::new();
+    for section in &document.sections {
+        collect_asset_references_for_format(section, format, metadata, &mut referenced_assets);
+    }
+    for (asset_id, node_id) in referenced_assets {
+        if !asset_ids.contains(&asset_id) {
+            diagnostics.push(Diagnostic::error(
+                "PUBLISH_ASSET_MISSING",
+                format!("Image references missing project asset {:?}.", asset_id.0),
+                node_id,
+                Some("Relink the image or remove its image block.".to_string()),
+            ));
+        }
+    }
+    diagnostics
+}
+
+pub(crate) fn run_epub_source_preflight(
+    _document: &BookDocument,
     metadata: &PublishMetadataOverrides,
     project_root: &Path,
 ) -> Vec<Diagnostic> {
@@ -117,79 +229,6 @@ pub(crate) fn run_epub_source_preflight(
         }
     }
 
-    let mut asset_ids = HashSet::new();
-    for asset in &document.assets {
-        if !asset_ids.insert(asset.id.clone()) {
-            diagnostics.push(Diagnostic::error(
-                "EPUB_DUPLICATE_ID",
-                format!("Asset ID {:?} appears more than once.", asset.id.0),
-                None,
-                Some("Assign each publication asset a unique ID.".to_string()),
-            ));
-        }
-        let source = match &asset.source {
-            AssetSource::ProjectRelativePath { path } => path,
-        };
-        match resolve_source_path(project_root, source, false) {
-            Ok(path) if path.is_file() => {
-                if let Some(detected) = image_media_type(&path) {
-                    if detected != asset.media_type {
-                        diagnostics.push(Diagnostic::error(
-                            "EPUB_ASSET_MEDIA_TYPE_MISMATCH",
-                            format!(
-                                "Asset {:?} is declared as {:?}, but its file extension identifies {:?}.",
-                                asset.id.0, asset.media_type, detected
-                            ),
-                            None,
-                            Some("Correct the asset media type or replace the file.".to_string()),
-                        ));
-                    }
-                }
-            }
-            Ok(_) => diagnostics.push(Diagnostic::error(
-                "EPUB_ASSET_MISSING",
-                format!("Asset {:?} could not be found at {:?}.", asset.id.0, source),
-                None,
-                Some("Restore the asset or remove the image from the publication.".to_string()),
-            )),
-            Err(message) => diagnostics.push(Diagnostic::error(
-                "EPUB_ASSET_MISSING",
-                format!("Asset {:?}: {message}", asset.id.0),
-                None,
-                Some(
-                    "Use a project-relative asset path that stays inside the project.".to_string(),
-                ),
-            )),
-        }
-        if !matches!(
-            asset.media_type.as_str(),
-            "image/jpeg" | "image/png" | "image/gif" | "image/svg+xml"
-        ) {
-            diagnostics.push(Diagnostic::error(
-                "EPUB_ASSET_TYPE_UNSUPPORTED",
-                format!(
-                    "Asset {:?} uses unsupported media type {:?}.",
-                    asset.id.0, asset.media_type
-                ),
-                None,
-                Some("Use a JPEG, PNG, GIF, or SVG image.".to_string()),
-            ));
-        }
-    }
-    let mut referenced_assets = HashMap::new();
-    for section in &document.sections {
-        collect_asset_references(section, metadata, &mut referenced_assets);
-    }
-    for (asset_id, node_id) in referenced_assets {
-        if !asset_ids.contains(&asset_id) {
-            diagnostics.push(Diagnostic::error(
-                "EPUB_ASSET_MISSING",
-                format!("Image references missing asset {:?}.", asset_id.0),
-                node_id,
-                Some("Restore the asset record or remove the image.".to_string()),
-            ));
-        }
-    }
     diagnostics
 }
 
@@ -210,12 +249,11 @@ fn inspect_section_for_docx(section: &BookSection, diagnostics: &mut Vec<Diagnos
 
 fn inspect_block_for_docx(block: &Block, node_id: Option<i64>, diagnostics: &mut Vec<Diagnostic>) {
     match block {
-        Block::Image { .. } => diagnostics.push(Diagnostic::error(
-            "DOCX_IMAGE_UNSUPPORTED",
-            "Images are not supported by the initial DOCX adapter.",
-            node_id,
-            Some("Remove the image or exclude this section.".to_string()),
-        )),
+        Block::Image { caption, .. } => {
+            if let Some(caption) = caption {
+                inspect_inlines(caption, node_id, diagnostics);
+            }
+        }
         Block::FootnoteDefinition { .. } => diagnostics.push(Diagnostic::error(
             "DOCX_FOOTNOTE_UNSUPPORTED",
             "Footnotes are not supported by the initial DOCX adapter.",
@@ -238,6 +276,64 @@ fn inspect_block_for_docx(block: &Block, node_id: Option<i64>, diagnostics: &mut
             }
         }
         Block::SceneBreak { .. } | Block::PageBreak => {}
+    }
+}
+
+fn inspect_section_images(
+    section: &BookSection,
+    format: PublishFormat,
+    metadata: &PublishMetadataOverrides,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let included = match format {
+        PublishFormat::Epub => included_for_epub(section, metadata),
+        _ => included_for_format(section, format),
+    };
+    if included {
+        inspect_image_blocks(&section.blocks, section.source_node_id, diagnostics);
+    }
+    for child in &section.children {
+        inspect_section_images(child, format, metadata, diagnostics);
+    }
+}
+
+fn inspect_image_blocks(blocks: &[Block], node_id: Option<i64>, diagnostics: &mut Vec<Diagnostic>) {
+    for block in blocks {
+        match block {
+            Block::Image {
+                asset_id,
+                alt,
+                decorative,
+                presentation,
+                ..
+            } => {
+                if !decorative && alt.as_deref().unwrap_or_default().trim().is_empty() {
+                    diagnostics.push(Diagnostic::error(
+                        "PUBLISH_IMAGE_ALT_REQUIRED",
+                        format!("Image {:?} requires alternative text.", asset_id.0),
+                        node_id,
+                        Some("Add meaningful alt text or mark the image decorative.".to_string()),
+                    ));
+                }
+                if *presentation == ImagePresentation::Bleed {
+                    diagnostics.push(Diagnostic::error(
+                        "PUBLISH_IMAGE_BLEED_UNSUPPORTED",
+                        format!("Image {:?} requests bleed placement, which no current profile supports.", asset_id.0),
+                        node_id,
+                        Some("Use block or full-width placement.".to_string()),
+                    ));
+                }
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                for item in items {
+                    inspect_image_blocks(&item.blocks, node_id, diagnostics);
+                }
+            }
+            Block::BlockQuote { blocks } | Block::FootnoteDefinition { blocks, .. } => {
+                inspect_image_blocks(blocks, node_id, diagnostics);
+            }
+            _ => {}
+        }
     }
 }
 
@@ -355,17 +451,21 @@ fn has_included_epub_section(section: &BookSection, metadata: &PublishMetadataOv
             .any(|child| has_included_epub_section(child, metadata))
 }
 
-fn collect_asset_references(
+fn collect_asset_references_for_format(
     section: &BookSection,
+    format: PublishFormat,
     metadata: &PublishMetadataOverrides,
     references: &mut HashMap<AssetId, Option<i64>>,
 ) {
-    if !included_for_epub(section, metadata) {
-        return;
+    let included = match format {
+        PublishFormat::Epub => included_for_epub(section, metadata),
+        _ => included_for_format(section, format),
+    };
+    if included {
+        collect_assets_from_blocks(&section.blocks, section.source_node_id, references);
     }
-    collect_assets_from_blocks(&section.blocks, section.source_node_id, references);
     for child in &section.children {
-        collect_asset_references(child, metadata, references);
+        collect_asset_references_for_format(child, format, metadata, references);
     }
 }
 
@@ -472,19 +572,7 @@ fn inspect_block_for_epub(
                 );
             }
         }
-        Block::Image {
-            asset_id,
-            alt,
-            caption,
-        } => {
-            if alt.as_deref().unwrap_or_default().trim().is_empty() {
-                diagnostics.push(Diagnostic::error(
-                    "EPUB_IMAGE_ALT_REQUIRED",
-                    format!("Image {:?} requires alternative text.", asset_id.0),
-                    node_id,
-                    Some("Add meaningful alt text or mark the image decorative.".to_string()),
-                ));
-            }
+        Block::Image { caption, .. } => {
             if let Some(caption) = caption {
                 inspect_epub_inlines(caption, node_id, footnote_references, diagnostics);
             }
@@ -726,11 +814,13 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_images_are_named_blocking_diagnostics() {
+    fn informative_images_require_alt_text_for_every_format() {
         let doc = document(Block::Image {
             asset_id: AssetId("image-1".to_string()),
             alt: None,
             caption: None,
+            decorative: false,
+            presentation: ImagePresentation::Block,
         });
         let mut metadata = PublishMetadataOverrides::default();
         metadata.title = "Book".to_string();
@@ -739,7 +829,7 @@ mod tests {
 
         assert!(diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "DOCX_IMAGE_UNSUPPORTED"));
+            .any(|diagnostic| diagnostic.code == "PUBLISH_IMAGE_ALT_REQUIRED"));
     }
 
     fn epub_metadata() -> PublishMetadataOverrides {
@@ -773,6 +863,8 @@ mod tests {
             asset_id: AssetId("image-1".to_string()),
             alt: Some(" ".to_string()),
             caption: None,
+            decorative: false,
+            presentation: ImagePresentation::Block,
         });
         let mut metadata = epub_metadata();
         metadata.language = None;
@@ -780,7 +872,7 @@ mod tests {
         let diagnostics = run_preflight(&doc, PublishFormat::Epub, &metadata, true);
         for code in [
             "EPUB_LANGUAGE_REQUIRED",
-            "EPUB_IMAGE_ALT_REQUIRED",
+            "PUBLISH_IMAGE_ALT_REQUIRED",
             "EPUB_LINK_BROKEN",
             "EPUB_COVER_MISSING",
         ] {
@@ -820,6 +912,8 @@ mod tests {
             asset_id: AssetId("missing-image".to_string()),
             alt: Some("Description".to_string()),
             caption: None,
+            decorative: false,
+            presentation: ImagePresentation::Block,
         });
         let root = tempfile::tempdir().unwrap();
         let mut metadata = epub_metadata();
@@ -832,12 +926,18 @@ mod tests {
             alt_text: "Cover".to_string(),
         });
 
-        let diagnostics = run_epub_source_preflight(&doc, &metadata, root.path());
+        let mut diagnostics = run_epub_source_preflight(&doc, &metadata, root.path());
+        diagnostics.extend(run_asset_source_preflight(
+            &doc,
+            PublishFormat::Epub,
+            &metadata,
+            root.path(),
+        ));
         assert!(diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "EPUB_COVER_MISSING"));
         assert!(diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.code == "EPUB_ASSET_MISSING"));
+            .any(|diagnostic| diagnostic.code == "PUBLISH_ASSET_MISSING"));
     }
 }

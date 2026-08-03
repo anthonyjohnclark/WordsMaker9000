@@ -23,9 +23,25 @@ import {
   softBreakClipboardMatcher,
 } from "../../utils/quillSoftBreak";
 import { SoftBreakBlot } from "../../utils/quillSoftBreakBlot";
+import {
+  insertSceneBreak,
+  sceneBreakKeyboardBinding,
+  sceneBreakClipboardMatcher,
+} from "../../utils/quillSceneBreak";
+import { SceneBreakBlot } from "../../utils/quillSceneBreakBlot";
+import {
+  insertProjectImage,
+  projectImageClipboardMatcher,
+} from "../../utils/quillProjectImage";
+import { ProjectImageBlot } from "../../utils/quillProjectImageBlot";
+import { ProjectImageValue } from "../../types/ProjectAssetTypes";
+import { labelQuillToolbar } from "../../utils/quillToolbarAccessibility";
+import ProjectAssetModal from "./modals/ProjectAssetModal";
 import "../../styles/quill.snow.css";
 
 Quill.register(SoftBreakBlot, true);
+Quill.register(SceneBreakBlot, true);
+Quill.register(ProjectImageBlot, true);
 
 type TextEditorProps = {
   selectedFile: ExtendedNodeModel | null;
@@ -56,8 +72,38 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const quillRef = useRef<ReactQuill | null>(null);
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const findBarSlotRef = useRef<HTMLDivElement | null>(null);
+  const imageSelectionRef = useRef<{ index: number; length: number } | null>(null);
+  const openProjectImageRef = useRef<() => void>(() => undefined);
 
   const project = useProjectContext();
+
+  const insertSelectedProjectImage = useCallback((value: ProjectImageValue) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    if (imageSelectionRef.current) {
+      editor.setSelection(
+        imageSelectionRef.current.index,
+        imageSelectionRef.current.length,
+        "silent",
+      );
+    }
+    insertProjectImage(editor, value);
+  }, []);
+
+  openProjectImageRef.current = () => {
+    const editor = quillRef.current?.getEditor();
+    imageSelectionRef.current = editor?.getSelection() ?? null;
+    modal.renderModal({
+      modalSize: "wide",
+      modalBody: (
+        <ProjectAssetModal
+          projectName={project.projectName}
+          flushCurrentDocument={project.flushCurrentDocument}
+          onInsert={insertSelectedProjectImage}
+        />
+      ),
+    });
+  };
 
   useEffect(() => {
     const countWords = (text: string): number => {
@@ -152,16 +198,30 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   const modules = useMemo(() => {
     return {
-      toolbar: [
-        ["bold", "italic", "underline", "strike"],
-        [{ list: "ordered" }, { list: "bullet" }],
-      ],
+      toolbar: {
+        container: [
+          [{ header: [1, 2, 3, 4, 5, 6, false] }],
+          ["bold", "italic", "underline", "strike"],
+          ["blockquote", "link"],
+          [{ list: "ordered" }, { list: "bullet" }],
+          ["sceneBreak", "projectImage"],
+        ],
+        handlers: {
+          sceneBreak: insertSceneBreak,
+          projectImage: () => openProjectImageRef.current(),
+        },
+      },
       smartTypography: true,
       clipboard: {
-        matchers: [["BR", softBreakClipboardMatcher]],
+        matchers: [
+          ["BR", softBreakClipboardMatcher],
+          ["HR", sceneBreakClipboardMatcher],
+          ["FIGURE", projectImageClipboardMatcher],
+        ],
       },
       keyboard: {
         bindings: {
+          sceneBreak: sceneBreakKeyboardBinding,
           softBreak: {
             key: "Enter",
             shiftKey: true,
@@ -170,6 +230,10 @@ const TextEditor: React.FC<TextEditorProps> = ({
         },
       },
     };
+  }, []);
+
+  useEffect(() => {
+    labelQuillToolbar(editorRef.current?.querySelector(".ql-toolbar") ?? null);
   }, []);
 
   useEffect(() => {

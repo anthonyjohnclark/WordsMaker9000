@@ -242,7 +242,9 @@
                   },
                   "link": null
                 }
-              ]
+              ],
+              "decorative": false,
+              "presentation": "full_width"
             },
             {
               "type": "footnote_definition",

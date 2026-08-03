@@ -981,6 +981,31 @@
 .ql-toolbar.ql-snow + .ql-container.ql-snow {
   border-top: 0;
 }
+
+.ql-toolbar.ql-snow button.ql-sceneBreak::before {
+  content: "#";
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.ql-toolbar.ql-snow button.ql-sceneBreak:hover::before,
+.ql-toolbar.ql-snow button.ql-sceneBreak:focus::before {
+  color: #06c;
+}
+
+.ql-editor hr.wm-scene-break {
+  border: 0;
+  border-top: 1px solid currentColor;
+  color: inherit;
+  height: 0;
+  margin: 1.5em auto;
+  opacity: 0.55;
+  overflow: visible;
+  width: 28%;
+}
 .ql-snow .ql-tooltip {
   background-color: #fff;
   border: 1px solid #ccc;
@@ -1049,4 +1074,33 @@
 }
 .ql-container.ql-snow {
   border: 1px solid #ccc;
+}
+.ql-snow .ql-toolbar button.ql-projectImage::before,
+.ql-snow.ql-toolbar button.ql-projectImage::before {
+  content: "\1F5BC";
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ql-editor figure.wm-image {
+  border: 1px dashed var(--border-color);
+  border-radius: 0.375rem;
+  margin: 1rem auto;
+  padding: 1rem;
+  text-align: center;
+}
+
+.ql-editor figure.wm-image[data-wm-image-intent="block"] {
+  max-width: 75%;
+}
+
+.ql-editor figure.wm-image .wm-image-placeholder {
+  display: block;
+  font-weight: 600;
+}
+
+.ql-editor figure.wm-image figcaption {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin-top: 0.5rem;
 }

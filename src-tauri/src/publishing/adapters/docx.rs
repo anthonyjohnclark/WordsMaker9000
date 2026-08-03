@@ -1,18 +1,19 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use docx_rs::{
     AbstractNumbering, AlignmentType, BreakType, Docx, Header, Hyperlink, HyperlinkType,
     IndentLevel, Level, LevelJc, LevelText, LineSpacing, LineSpacingType, NumberFormat, Numbering,
-    NumberingId, PageMargin, PageNum, PageNumType, PageSize, Paragraph, Run, RunFonts, Section,
-    SpecialIndentType, Start, Style, StyleType,
+    NumberingId, PageMargin, PageNum, PageNumType, PageSize, Paragraph, Pic, Run, RunFonts,
+    Section, SpecialIndentType, Start, Style, StyleType,
 };
 
 use crate::publishing::model::{
-    Block, BookDocument, BookSection, HeadingLevel, Inline, InlineMarks, ListItem, OutputFormat,
-    ParagraphAlignment, ParagraphStyle, SceneBreakStyle, SectionInclusion, SectionRole,
-    TextDirection,
+    AssetSource, Block, BookDocument, BookSection, HeadingLevel, ImagePresentation, Inline,
+    InlineMarks, ListItem, OutputFormat, ParagraphAlignment, ParagraphStyle, SceneBreakStyle,
+    SectionInclusion, SectionRole, TextDirection,
 };
 use crate::publishing::request::{ContactInformation, DocxProfileId};
 
@@ -34,6 +35,7 @@ const STYLE_PART: &str = "WMPart";
 const STYLE_CHAPTER: &str = "WMChapter";
 const STYLE_SCENE: &str = "WMScene";
 const STYLE_SCENE_BREAK: &str = "WMSceneBreak";
+const STYLE_CAPTION: &str = "WMCaption";
 const STYLE_QUOTE: &str = "WMQuote";
 const STYLE_LIST: &str = "WMList";
 const STYLE_HEADING_1: &str = "WMHeading1";
@@ -48,6 +50,7 @@ pub(crate) struct DocxRenderOptions {
     pub profile: DocxProfileId,
     pub author: String,
     pub contact: ContactInformation,
+    pub project_root: PathBuf,
 }
 
 pub(crate) fn render_docx(
@@ -78,7 +81,12 @@ pub(crate) fn render_docx(
     docx.build()
         .pack(file)
         .map_err(|error| format!("Failed to package DOCX artifact: {error}"))?;
-    finalize_docx_package(output_path, &document.metadata.title, &options.author)?;
+    finalize_docx_package(
+        output_path,
+        &document.metadata.title,
+        &options.author,
+        &image_descriptions(document),
+    )?;
     validate_docx(output_path, options.profile)
 }
 
@@ -180,7 +188,7 @@ fn render_standard_body(
     docx = docx
         .page_num_type(PageNumType::new().start(1))
         .header(header);
-    let mut state = RenderState::new(DocxProfileId::StandardManuscript);
+    let mut state = RenderState::new(DocxProfileId::StandardManuscript, document, options);
     state.render_sections(&document.sections, 0)?;
     Ok(state
         .paragraphs
@@ -200,7 +208,7 @@ fn render_clean_body(
             .style(STYLE_TITLE)
             .add_run(Run::new().add_text(&document.metadata.title)),
     );
-    let mut state = RenderState::new(DocxProfileId::CleanHandoff);
+    let mut state = RenderState::new(DocxProfileId::CleanHandoff, document, options);
     if let Some(subtitle) = document
         .metadata
         .subtitle
@@ -232,14 +240,28 @@ struct RenderState {
     profile: DocxProfileId,
     paragraphs: Vec<Paragraph>,
     content_started: bool,
+    asset_paths: HashMap<String, String>,
+    project_root: PathBuf,
 }
 
 impl RenderState {
-    fn new(profile: DocxProfileId) -> Self {
+    fn new(profile: DocxProfileId, document: &BookDocument, options: &DocxRenderOptions) -> Self {
+        let asset_paths = document
+            .assets
+            .iter()
+            .map(|asset| {
+                let path = match &asset.source {
+                    AssetSource::ProjectRelativePath { path } => path.clone(),
+                };
+                (asset.id.0.clone(), path)
+            })
+            .collect();
         Self {
             profile,
             paragraphs: Vec::new(),
             content_started: false,
+            asset_paths,
+            project_root: options.project_root.clone(),
         }
     }
 
@@ -334,16 +356,81 @@ impl RenderState {
                         .style(STYLE_BODY)
                         .add_run(Run::new().add_break(BreakType::Page)),
                 ),
-                Block::Image { .. } => return Err(
-                    "DOCX rendering reached an image that should have been blocked by preflight."
-                        .to_string(),
-                ),
+                Block::Image {
+                    asset_id,
+                    caption,
+                    presentation,
+                    ..
+                } => self.render_image(&asset_id.0, caption.as_deref(), presentation)?,
                 Block::FootnoteDefinition { .. } => return Err(
                     "DOCX rendering reached a footnote that should have been blocked by preflight."
                         .to_string(),
                 ),
             }
         }
+        Ok(())
+    }
+
+    fn render_image(
+        &mut self,
+        asset_id: &str,
+        caption: Option<&[Inline]>,
+        presentation: &ImagePresentation,
+    ) -> Result<(), String> {
+        if *presentation == ImagePresentation::Bleed {
+            return Err(format!(
+                "DOCX cannot render bleed image asset {asset_id:?}."
+            ));
+        }
+        let relative = self
+            .asset_paths
+            .get(asset_id)
+            .ok_or_else(|| format!("DOCX image references missing asset {asset_id:?}."))?;
+        let relative_path = Path::new(relative);
+        if relative_path.is_absolute()
+            || relative_path.as_os_str().is_empty()
+            || relative_path
+                .components()
+                .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err(format!("DOCX image asset {asset_id:?} has an unsafe path."));
+        }
+        let path = self.project_root.join(relative_path);
+        let bytes = std::fs::read(&path)
+            .map_err(|error| format!("Failed to read DOCX image {}: {error}", path.display()))?;
+        let mut picture = std::panic::catch_unwind(|| Pic::new(&bytes))
+            .map_err(|_| format!("DOCX could not decode image asset {asset_id:?}."))?;
+        let (source_width, source_height) = picture.size;
+        let maximum_width = match presentation {
+            ImagePresentation::Block => 4_572_000,
+            ImagePresentation::FullWidth => 5_943_600,
+            ImagePresentation::Bleed => unreachable!(),
+        };
+        if source_width > 0 && source_height > 0 {
+            let width = match presentation {
+                ImagePresentation::FullWidth => maximum_width,
+                ImagePresentation::Block => source_width.min(maximum_width),
+                ImagePresentation::Bleed => unreachable!(),
+            };
+            let height =
+                ((u64::from(source_height) * u64::from(width)) / u64::from(source_width)) as u32;
+            picture = picture.size(width, height.max(1));
+        }
+        self.push(
+            Paragraph::new()
+                .style(STYLE_BODY)
+                .align(AlignmentType::Center)
+                .add_run(Run::new().add_image(picture)),
+        );
+        if let Some(caption) = caption {
+            self.push(add_inlines(
+                Paragraph::new()
+                    .style(STYLE_CAPTION)
+                    .align(AlignmentType::Center),
+                caption,
+            )?);
+        }
+        self.content_started = true;
         Ok(())
     }
 
@@ -557,6 +644,12 @@ fn named_styles(profile: DocxProfileId, fonts: RunFonts, body_spacing: LineSpaci
             .fonts(fonts.clone())
             .size(BODY_FONT_SIZE)
             .align(AlignmentType::Center),
+        Style::new(STYLE_CAPTION, StyleType::Paragraph)
+            .name("WM Caption")
+            .fonts(fonts.clone())
+            .size(20)
+            .italic()
+            .align(AlignmentType::Center),
         Style::new(STYLE_QUOTE, StyleType::Paragraph)
             .name("WM Quote")
             .fonts(fonts.clone())
@@ -762,7 +855,12 @@ fn profile_name(profile: DocxProfileId) -> &'static str {
     }
 }
 
-fn finalize_docx_package(path: &Path, title: &str, author: &str) -> Result<(), String> {
+fn finalize_docx_package(
+    path: &Path,
+    title: &str,
+    author: &str,
+    image_descriptions: &[Option<String>],
+) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "DOCX output path has no parent directory.".to_string())?;
@@ -821,6 +919,8 @@ fn finalize_docx_package(path: &Path, title: &str, author: &str) -> Result<(), S
                 entry
                     .read_to_string(&mut document_xml)
                     .map_err(|error| format!("Failed to read DOCX document XML: {error}"))?;
+                let document_xml = add_rtl_run_properties(&document_xml);
+                let document_xml = add_image_descriptions(&document_xml, image_descriptions)?;
                 writer
                     .start_file(
                         "word/document.xml",
@@ -829,7 +929,7 @@ fn finalize_docx_package(path: &Path, title: &str, author: &str) -> Result<(), S
                     )
                     .map_err(|error| format!("Failed to update DOCX RTL semantics: {error}"))?;
                 writer
-                    .write_all(add_rtl_run_properties(&document_xml).as_bytes())
+                    .write_all(document_xml.as_bytes())
                     .map_err(|error| format!("Failed to update DOCX RTL semantics: {error}"))?;
             } else {
                 writer
@@ -852,6 +952,85 @@ fn finalize_docx_package(path: &Path, title: &str, author: &str) -> Result<(), S
     std::fs::copy(replacement.path(), path)
         .map_err(|error| format!("Failed to install DOCX metadata update: {error}"))?;
     Ok(())
+}
+
+fn image_descriptions(document: &BookDocument) -> Vec<Option<String>> {
+    fn collect_blocks(blocks: &[Block], descriptions: &mut Vec<Option<String>>) {
+        for block in blocks {
+            match block {
+                Block::Image {
+                    alt, decorative, ..
+                } => descriptions.push(if *decorative {
+                    None
+                } else {
+                    Some(alt.clone().unwrap_or_default())
+                }),
+                Block::OrderedList { items } | Block::BulletList { items } => {
+                    for item in items {
+                        collect_blocks(&item.blocks, descriptions);
+                    }
+                }
+                Block::BlockQuote { blocks } | Block::FootnoteDefinition { blocks, .. } => {
+                    collect_blocks(blocks, descriptions);
+                }
+                _ => {}
+            }
+        }
+    }
+    fn collect_sections(sections: &[BookSection], descriptions: &mut Vec<Option<String>>) {
+        for section in sections {
+            if section_included(section) {
+                collect_blocks(&section.blocks, descriptions);
+            }
+            collect_sections(&section.children, descriptions);
+        }
+    }
+
+    let mut descriptions = Vec::new();
+    collect_sections(&document.sections, &mut descriptions);
+    descriptions
+}
+
+fn add_image_descriptions(
+    document_xml: &str,
+    descriptions: &[Option<String>],
+) -> Result<String, String> {
+    let mut updated = String::with_capacity(document_xml.len() + descriptions.len() * 32);
+    let mut remaining = document_xml;
+    for description in descriptions {
+        let Some(start) = remaining.find("<wp:docPr") else {
+            return Err("DOCX image metadata count does not match rendered images.".to_string());
+        };
+        updated.push_str(&remaining[..start]);
+        let element = &remaining[start..];
+        let end = element
+            .find('>')
+            .ok_or_else(|| "DOCX image metadata element is malformed.".to_string())?;
+        let (opening, rest) = element.split_at(end);
+        let (opening, self_closing) = opening
+            .strip_suffix('/')
+            .map(|value| (value, true))
+            .unwrap_or((opening, false));
+        updated.push_str(opening);
+        updated.push_str(" descr=\"");
+        updated.push_str(&xml_attr(description.as_deref().unwrap_or_default()));
+        updated.push_str("\"");
+        if description.is_none() {
+            if !self_closing {
+                return Err(
+                    "DOCX decorative image metadata element is not self-closing.".to_string(),
+                );
+            }
+            updated.push_str("><a:extLst><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\"><adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\" /></a:ext></a:extLst></wp:docPr>");
+            remaining = &rest[1..];
+            continue;
+        } else if self_closing {
+            updated.push('/');
+        }
+        remaining = rest;
+    }
+    updated.push_str(remaining);
+    Ok(updated)
 }
 
 fn add_rtl_run_properties(document_xml: &str) -> String {
@@ -887,6 +1066,12 @@ fn xml_text(value: &str) -> String {
         .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+}
+
+fn xml_attr(value: &str) -> String {
+    xml_text(value)
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
@@ -929,6 +1114,7 @@ fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::publishing::html::parse_quill_html;
     use crate::publishing::model::{
         BookContributor, BookMetadata, ContributorRole, ParagraphAlignment, TextDirection,
     };
@@ -1098,6 +1284,7 @@ mod tests {
                 header_surname: "Writer".to_string(),
                 short_title: "Unicode".to_string(),
             },
+            project_root: PathBuf::new(),
         }
     }
 
@@ -1120,6 +1307,61 @@ mod tests {
         let relative_end = styles[marker_start..].find("</w:style>").unwrap();
         let style_end = marker_start + relative_end + "</w:style>".len();
         &styles[style_start..style_end]
+    }
+
+    #[test]
+    fn embeds_project_images_with_dimensions_caption_and_ooxml_alt_text() {
+        let root = tempfile::tempdir().unwrap();
+        let assets = root.path().join("assets");
+        std::fs::create_dir_all(&assets).unwrap();
+        image::DynamicImage::new_rgb8(1200, 800)
+            .save(assets.join("figure.png"))
+            .unwrap();
+        let mut document = sample_document();
+        document.assets.push(crate::publishing::model::BookAsset {
+            id: crate::publishing::model::AssetId("asset-figure".to_string()),
+            kind: crate::publishing::model::AssetKind::Image,
+            media_type: "image/png".to_string(),
+            source: AssetSource::ProjectRelativePath {
+                path: "assets/figure.png".to_string(),
+            },
+        });
+        document.sections[0].blocks.push(Block::Image {
+            asset_id: crate::publishing::model::AssetId("asset-figure".to_string()),
+            alt: Some("Moonlit water & reeds".to_string()),
+            caption: Some(vec![Inline::Text {
+                text: "Night study".to_string(),
+                marks: InlineMarks::default(),
+                link: None,
+            }]),
+            decorative: false,
+            presentation: ImagePresentation::FullWidth,
+        });
+        document.sections[0].blocks.push(Block::Image {
+            asset_id: crate::publishing::model::AssetId("asset-figure".to_string()),
+            alt: None,
+            caption: None,
+            decorative: true,
+            presentation: ImagePresentation::Block,
+        });
+        let output = root.path().join("image.docx");
+        let mut render_options = options(DocxProfileId::CleanHandoff);
+        render_options.project_root = root.path().to_path_buf();
+
+        render_docx(&document, &render_options, &output).unwrap();
+
+        let document_xml = zip_part(&output, "word/document.xml");
+        let relationships = zip_part(&output, "word/_rels/document.xml.rels");
+        assert!(document_xml.contains("<w:drawing>"));
+        assert!(document_xml.contains("descr=\"Moonlit water &amp; reeds\""));
+        assert!(document_xml.contains("adec:decorative"));
+        assert!(document_xml.contains("Night study"));
+        assert!(relationships.contains("relationships/image"));
+        let file = File::open(&output).unwrap();
+        let archive = zip::ZipArchive::new(file).unwrap();
+        assert!(archive
+            .file_names()
+            .any(|name| name.starts_with("word/media/")));
     }
 
     #[test]
@@ -1221,6 +1463,32 @@ mod tests {
         assert!(styles.contains("WM Heading 6"));
         assert!(styles.contains("w:line=\"240\""));
         assert!(styles.contains("w:after=\"120\""));
+    }
+
+    #[test]
+    fn rich_editor_fixture_keeps_headings_quotes_links_and_scene_order() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("rich-editor.docx");
+        let mut document = sample_document();
+        document.sections[0].blocks =
+            parse_quill_html(include_str!("../fixtures/quill/rich_content.html")).unwrap();
+
+        render_docx(&document, &options(DocxProfileId::CleanHandoff), &path).unwrap();
+
+        let document_xml = zip_part(&path, "word/document.xml");
+        let relationships = zip_part(&path, "word/_rels/document.xml.rels");
+        for level in 1..=6 {
+            assert!(document_xml.contains(&format!("w:pStyle w:val=\"WMHeading{level}\"")));
+        }
+        assert!(document_xml.contains("<w:b"));
+        assert!(document_xml.contains("w:pStyle w:val=\"WMQuote\""));
+        assert!(relationships.contains("https://example.com/heading"));
+        assert!(relationships.contains("https://example.com/quote"));
+
+        let before = document_xml.find("First scene.").unwrap();
+        let marker = document_xml.find("* * *").unwrap();
+        let after = document_xml.find("Second scene.").unwrap();
+        assert!(before < marker && marker < after);
     }
 
     #[test]

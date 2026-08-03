@@ -8,9 +8,9 @@ use typst_as_lib::TypstEngine;
 
 use crate::export::types::ExportProgress;
 use crate::publishing::model::{
-    Block, BookDocument, BookSection, ContributorRole, HeadingLevel, Inline, InlineMarks, ListItem,
-    OutputFormat, ParagraphAlignment, ParagraphStyle, SceneBreakStyle, SectionInclusion,
-    SectionRole, TextDirection,
+    AssetSource, Block, BookDocument, BookSection, ContributorRole, HeadingLevel,
+    ImagePresentation, Inline, InlineMarks, ListItem, OutputFormat, ParagraphAlignment,
+    ParagraphStyle, SceneBreakStyle, SectionInclusion, SectionRole, TextDirection,
 };
 use crate::publishing::request::{ChapterStartSide, PdfProfileId, PrintInteriorPdfSettings};
 
@@ -53,6 +53,24 @@ pub(crate) fn generate_pdf_for_profile(
     profile: PdfProfileId,
     print_settings: &PrintInteriorPdfSettings,
 ) -> Result<PathBuf, String> {
+    generate_pdf_for_profile_with_root(
+        document,
+        output_dir,
+        output_dir,
+        app,
+        profile,
+        print_settings,
+    )
+}
+
+pub(crate) fn generate_pdf_for_profile_with_root(
+    document: &BookDocument,
+    project_root: &Path,
+    output_dir: &Path,
+    app: Option<&AppHandle>,
+    profile: PdfProfileId,
+    print_settings: &PrintInteriorPdfSettings,
+) -> Result<PathBuf, String> {
     let section_count = match profile {
         PdfProfileId::ProofPdf => publication_sections(document).len(),
         PdfProfileId::PrintInterior => print_units(document).len(),
@@ -86,6 +104,7 @@ pub(crate) fn generate_pdf_for_profile(
     let engine = TypstEngine::builder()
         .main_file(source)
         .fonts(PUBLISHING_FONTS)
+        .with_file_system_resolver(project_root)
         .build();
     let warned = engine.compile::<PagedDocument>();
     if !warned.warnings.is_empty() {
@@ -167,6 +186,21 @@ fn safe_title_filename(title: &str) -> String {
     }
 }
 
+fn render_asset_definitions(source: &mut String, document: &BookDocument) {
+    source.push_str("#let wm-assets = (\n");
+    for asset in &document.assets {
+        let path = match &asset.source {
+            AssetSource::ProjectRelativePath { path } => path.replace('\\', "/"),
+        };
+        source.push_str("  ");
+        source.push_str(&typst_string(&asset.id.0));
+        source.push_str(": ");
+        source.push_str(&typst_string(&path));
+        source.push_str(",\n");
+    }
+    source.push_str(")\n");
+}
+
 fn proof_typst_source(document: &BookDocument) -> Result<String, String> {
     let author = primary_author(document);
     let mut source = String::from(
@@ -179,6 +213,7 @@ fn proof_typst_source(document: &BookDocument) -> Result<String, String> {
     source.push_str(", author: (");
     source.push_str(&typst_string(author));
     source.push_str(",))\n");
+    render_asset_definitions(&mut source, document);
 
     render_title_page(&mut source, document, author);
 
@@ -246,6 +281,7 @@ fn print_typst_source(
     source.push_str(", author: (");
     source.push_str(&typst_string(author));
     source.push_str(",))\n");
+    render_asset_definitions(&mut source, document);
     source.push_str("#let wm-title = ");
     source.push_str(&typst_string(&document.metadata.title));
     source.push_str("\n#let wm-author = ");
@@ -595,11 +631,39 @@ fn render_blocks(source: &mut String, blocks: &[Block]) -> Result<(), String> {
                 source.push_str(")]\n#v(0.5em)\n");
             }
             Block::PageBreak => source.push_str("#pagebreak()\n"),
-            Block::Image { asset_id, .. } => {
-                return Err(format!(
-                    "Current PDF profile cannot render image asset {:?}",
-                    asset_id.0
-                ))
+            Block::Image {
+                asset_id,
+                alt,
+                caption,
+                decorative,
+                presentation,
+            } => {
+                if *presentation == ImagePresentation::Bleed {
+                    return Err(format!(
+                        "Current PDF profile cannot render bleed image asset {:?}",
+                        asset_id.0
+                    ));
+                }
+                let width = if *presentation == ImagePresentation::FullWidth {
+                    "100%"
+                } else {
+                    "75%"
+                };
+                source.push_str("#figure(image(wm-assets.at(");
+                source.push_str(&typst_string(&asset_id.0));
+                source.push_str("), width: ");
+                source.push_str(width);
+                if !decorative {
+                    source.push_str(", alt: ");
+                    source.push_str(&typst_string(alt.as_deref().unwrap_or_default()));
+                }
+                source.push(')');
+                if let Some(caption) = caption {
+                    source.push_str(", caption: [");
+                    render_inlines(source, caption)?;
+                    source.push(']');
+                }
+                source.push_str(")\n");
             }
             Block::FootnoteDefinition { id, .. } => {
                 return Err(format!(
@@ -767,6 +831,7 @@ fn typst_string(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::publishing::html::parse_quill_html;
     use crate::publishing::model::{BookContributor, BookMetadata, InlineMarks, ParagraphStyle};
     use typst::layout::{Frame, FrameItem};
 
@@ -792,6 +857,31 @@ mod tests {
     }
 
     #[test]
+    fn rich_editor_fixture_keeps_headings_quotes_links_and_scene_order() {
+        let blocks = parse_quill_html(include_str!(
+            "../publishing/fixtures/quill/rich_content.html"
+        ))
+        .unwrap();
+        let mut source = String::new();
+        render_blocks(&mut source, &blocks).unwrap();
+
+        assert!(source.contains(
+            "#heading(level: 1, outlined: false)[#text(\"Heading \")#strong[#text(\"One\")]]"
+        ));
+        assert!(source.contains(
+            "#heading(level: 2, outlined: false)[#text(\"Heading \")#link(\"https://example.com/heading\")[#text(\"Two\")]]"
+        ));
+        assert!(source.contains("#heading(level: 6"));
+        assert!(source.contains("#quote(block: true)["));
+        assert!(source.contains("#link(\"https://example.com/quote\")"));
+
+        let before = source.find("First scene.").unwrap();
+        let marker = source.find("#text(\"* * *\")").unwrap();
+        let after = source.find("Second scene.").unwrap();
+        assert!(before < marker && marker < after);
+    }
+
+    #[test]
     fn acceptance_document_typesets_without_warnings() {
         let source = proof_typst_source(&acceptance_document()).unwrap();
         let engine = TypstEngine::builder()
@@ -807,6 +897,49 @@ mod tests {
 
         assert!(warning_messages.is_empty(), "{warning_messages:#?}");
         assert!(warned.output.is_ok());
+    }
+
+    #[test]
+    fn project_image_typesets_from_the_project_root_with_alt_and_caption() {
+        let root = tempfile::tempdir().unwrap();
+        let asset_dir = root.path().join("assets");
+        fs::create_dir_all(&asset_dir).unwrap();
+        image::DynamicImage::new_rgb8(900, 600)
+            .save(asset_dir.join("figure.png"))
+            .unwrap();
+        let mut document = acceptance_document();
+        document.assets.push(crate::publishing::model::BookAsset {
+            id: crate::publishing::model::AssetId("asset-figure".to_string()),
+            kind: crate::publishing::model::AssetKind::Image,
+            media_type: "image/png".to_string(),
+            source: AssetSource::ProjectRelativePath {
+                path: "assets/figure.png".to_string(),
+            },
+        });
+        document.sections[0].blocks.push(Block::Image {
+            asset_id: crate::publishing::model::AssetId("asset-figure".to_string()),
+            alt: Some("Moonlit water".to_string()),
+            caption: Some(vec![Inline::Text {
+                text: "Night study".to_string(),
+                marks: InlineMarks::default(),
+                link: None,
+            }]),
+            decorative: false,
+            presentation: ImagePresentation::FullWidth,
+        });
+
+        let source = proof_typst_source(&document).unwrap();
+        assert!(source.contains("\"asset-figure\": \"assets/figure.png\""));
+        assert!(source.contains("width: 100%, alt: \"Moonlit water\""));
+        assert!(source.contains("caption: [#text(\"Night study\")]"));
+        let warned = TypstEngine::builder()
+            .main_file(source)
+            .fonts(PUBLISHING_FONTS)
+            .with_file_system_resolver(root.path())
+            .build()
+            .compile::<PagedDocument>();
+        assert!(warned.warnings.is_empty(), "{:#?}", warned.warnings);
+        assert!(warned.output.is_ok(), "{:#?}", warned.output.err());
     }
 
     #[test]

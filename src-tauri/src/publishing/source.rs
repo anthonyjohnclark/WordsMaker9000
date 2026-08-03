@@ -5,6 +5,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::export::types::{ExportFileNode, ExportOptions, ExportPayload};
 
+use super::assets::{load_or_default as load_assets, ProjectAssetRegistry};
 use super::request::ProjectType;
 
 #[derive(Debug)]
@@ -14,6 +15,7 @@ pub(crate) struct SourceSnapshot {
     pub project_title: String,
     pub project_type: ProjectType,
     pub payload: ExportPayload,
+    pub asset_registry: ProjectAssetRegistry,
     pub source_hash: String,
 }
 
@@ -140,7 +142,8 @@ pub(crate) fn load_snapshot(
         });
     }
 
-    let canonical = serde_json::to_vec(&(&metadata, &hashed_files))
+    let asset_registry = load_assets(&project_root)?;
+    let canonical = serde_json::to_vec(&(&metadata, &hashed_files, &asset_registry))
         .map_err(|error| format!("Failed to hash source snapshot: {error}"))?;
     let source_hash = format!("{:x}", Sha256::digest(canonical));
 
@@ -159,6 +162,7 @@ pub(crate) fn load_snapshot(
                 back_matter: None,
             },
         },
+        asset_registry,
         source_hash,
     })
 }
@@ -253,7 +257,8 @@ mod tests {
     fn generated_publish_qa_sources_match_expected_successes_and_failures() {
         use crate::publishing::config::{load_or_default, PublishingConfig};
         use crate::publishing::preflight::{
-            has_blocking_diagnostics, run_epub_source_preflight, run_preflight,
+            has_blocking_diagnostics, run_asset_source_preflight, run_epub_source_preflight,
+            run_preflight,
         };
         use crate::publishing::project_types::apply_project_strategy;
         use crate::publishing::request::{
@@ -283,6 +288,7 @@ mod tests {
             "Publish QA 04 - Serial Scopes",
             "Publish QA 05 - Format Inclusion",
             "Publish QA 06 - Formatting and Unicode",
+            "Publish QA 07 - Accessible Images",
             "Publish QA 92 - Expected Failure - Empty Scope",
             "Publish QA 93 - Expected EPUB Failure - Missing Cover",
         ];
@@ -301,8 +307,11 @@ mod tests {
             snapshot.payload.options.author = metadata.author.clone();
             snapshot.payload.options.front_matter = metadata.front_matter.clone();
             snapshot.payload.options.back_matter = metadata.back_matter.clone();
-            let mut document = crate::publishing::compiler::compile(&snapshot.payload)
-                .unwrap_or_else(|error| panic!("{project_name}: compile failed: {error}"));
+            let mut document = crate::publishing::compiler::compile_with_assets(
+                &snapshot.payload,
+                crate::publishing::assets::as_book_assets(&snapshot.asset_registry),
+            )
+            .unwrap_or_else(|error| panic!("{project_name}: compile failed: {error}"));
             apply_project_strategy(
                 &mut document,
                 snapshot.project_type,
@@ -335,7 +344,13 @@ mod tests {
             }
 
             for format in [PublishFormat::Pdf, PublishFormat::Docx, PublishFormat::Epub] {
-                let diagnostics = run_preflight(&document, format, &metadata, true);
+                let mut diagnostics = run_preflight(&document, format, &metadata, true);
+                diagnostics.extend(run_asset_source_preflight(
+                    &document,
+                    format,
+                    &metadata,
+                    &snapshot.project_root,
+                ));
                 assert!(
                     !has_blocking_diagnostics(&diagnostics),
                     "{project_name}: {format:?} preflight blocked: {diagnostics:?}"

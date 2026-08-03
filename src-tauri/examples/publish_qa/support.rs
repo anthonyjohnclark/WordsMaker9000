@@ -19,6 +19,7 @@ const QA_PROJECTS: &[&str] = &[
     "Publish QA 04 - Serial Scopes",
     "Publish QA 05 - Format Inclusion",
     "Publish QA 06 - Formatting and Unicode",
+    "Publish QA 07 - Accessible Images",
     "Publish QA 90 - Expected Failure - Unsupported HTML",
     "Publish QA 91 - Expected Failure - Missing Source",
     "Publish QA 92 - Expected Failure - Empty Scope",
@@ -343,7 +344,7 @@ fn publish_failure(failure: PublishFailure) -> HarnessFailure {
 
 fn qa_attempts() -> Vec<Attempt> {
     let mut attempts = Vec::new();
-    for project in &QA_PROJECTS[..6] {
+    for project in &QA_PROJECTS[..7] {
         add_format_matrix(
             &mut attempts,
             project,
@@ -629,7 +630,7 @@ mod tests {
                 .iter()
                 .filter(|attempt| attempt.expected_failure.is_none())
                 .count(),
-            49
+            54
         );
         assert_eq!(
             attempts

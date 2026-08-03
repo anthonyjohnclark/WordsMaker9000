@@ -272,6 +272,41 @@ describe("fileManager", () => {
         { baseDir: expect.any(String) },
       );
     });
+
+    it("round-trips semantic scene-break HTML without changing attributes", async () => {
+      const content =
+        '<p>Before.</p><hr class="wm-scene-break" data-wm-scene-break="asterisks" role="separator" aria-label="Scene break"><p>After.</p>';
+      let persisted = "";
+      (writeTextFile as jest.Mock).mockImplementation(
+        async (_path: string, value: string) => {
+          persisted = value;
+        },
+      );
+
+      await saveFile("Project1", "file1", content);
+      (readTextFile as jest.Mock).mockResolvedValue(persisted);
+
+      await expect(readFile("Project1", "file1")).resolves.toBe(content);
+      expect(JSON.parse(persisted)).toEqual({ content });
+    });
+
+    it("round-trips project image references without base64 or absolute paths", async () => {
+      const content =
+        '<p>Before.</p><figure class="wm-image" data-wm-asset-id="asset-123" data-wm-alt="Moonlit water" data-wm-caption="Night study" data-wm-decorative="false" data-wm-image-intent="full_width"><span class="wm-image-placeholder">Image: Moonlit water</span><figcaption>Night study</figcaption></figure><p>After.</p>';
+      let persisted = "";
+      (writeTextFile as jest.Mock).mockImplementation(
+        async (_path: string, value: string) => {
+          persisted = value;
+        },
+      );
+
+      await saveFile("Project1", "file1", content);
+      (readTextFile as jest.Mock).mockResolvedValue(persisted);
+
+      await expect(readFile("Project1", "file1")).resolves.toBe(content);
+      expect(persisted).not.toContain("data:image");
+      expect(persisted).not.toContain("C:\\");
+    });
   });
 
   describe("deleteFile", () => {

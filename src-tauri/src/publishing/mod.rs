@@ -1,5 +1,6 @@
 pub(crate) mod adapters;
 pub(crate) mod artifacts;
+pub(crate) mod assets;
 pub(crate) mod compiler;
 pub(crate) mod config;
 pub(crate) mod html;
