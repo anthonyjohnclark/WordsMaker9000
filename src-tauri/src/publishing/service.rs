@@ -1,16 +1,22 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use chrono::Utc;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_opener::OpenerExt;
 
 use super::adapters::docx::{render_docx, DocxRenderOptions};
 use super::adapters::epub::{render_epub, EpubCover as RenderedEpubCover, EpubRenderOptions};
 use super::artifacts::{
-    list_history, manifest_for, safe_filename, ArtifactHistoryEntry, ArtifactWorkspace,
+    copy_history_artifact, delete_history_entry, list_history, load_manifest,
+    manifest_for_with_recipe, resolve_history_artifact, safe_filename, ArtifactHistoryEntry,
+    ArtifactWorkspace, CANCELLED_ERROR,
 };
 use super::compiler::compile;
 use super::config::{load_or_default, save_atomic, PublishingConfig, PRINT_INTERIOR_PROFILE_ID};
@@ -21,7 +27,7 @@ use super::preflight::{has_blocking_diagnostics, run_epub_source_preflight, run_
 use super::project_types::apply_project_strategy;
 use super::request::{
     Diagnostic, DiagnosticSeverity, DocxProfileId, PdfProfileId, PublishFormat, PublishPhase,
-    PublishProgress, PublishRequest, PublishResult,
+    PublishProgress, PublishRecipe, PublishRequest, PublishResult, SavedPublishingProfile,
 };
 use super::source::{load_snapshot, project_root};
 use crate::export::pdf_typst_adapter::generate_pdf_for_profile;
@@ -91,6 +97,47 @@ impl PublishFailure {
             message,
         }
     }
+
+    fn cancelled() -> Self {
+        Self {
+            diagnostics: vec![Diagnostic::warning(
+                "PUBLISH_CANCELLED",
+                "Publishing was cancelled before the artifact was committed.",
+                None,
+                Some("No successful artifact or manifest was created.".to_string()),
+            )],
+            message: CANCELLED_ERROR.to_string(),
+        }
+    }
+}
+
+type CancellationFlag = Arc<AtomicBool>;
+static ACTIVE_PUBLISHES: OnceLock<Mutex<HashMap<String, CancellationFlag>>> = OnceLock::new();
+
+fn active_publishes() -> &'static Mutex<HashMap<String, CancellationFlag>> {
+    ACTIVE_PUBLISHES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn register_publish(export_id: &str) -> Result<CancellationFlag, PublishFailure> {
+    uuid::Uuid::parse_str(export_id)
+        .map_err(|_| PublishFailure::source(format!("Invalid publish job ID {export_id:?}")))?;
+    let mut active = active_publishes().lock().map_err(|_| {
+        PublishFailure::source("Publishing job registry is unavailable.".to_string())
+    })?;
+    if active.contains_key(export_id) {
+        return Err(PublishFailure::source(format!(
+            "Publish job {export_id:?} is already active."
+        )));
+    }
+    let flag = Arc::new(AtomicBool::new(false));
+    active.insert(export_id.to_string(), flag.clone());
+    Ok(flag)
+}
+
+fn unregister_publish(export_id: &str) {
+    if let Ok(mut active) = active_publishes().lock() {
+        active.remove(export_id);
+    }
 }
 
 #[tauri::command]
@@ -149,12 +196,20 @@ pub(crate) async fn publish_project(
         .path()
         .app_data_dir()
         .map_err(|error| PublishFailure::source(format!("Failed to resolve app data: {error}")))?;
+    let export_id = request.export_id.clone();
+    let cancellation = register_publish(&export_id)?;
     let worker_app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        publish_blocking(Some(&worker_app), &app_data_dir, request)
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        publish_blocking_with_cancellation(
+            Some(&worker_app),
+            &app_data_dir,
+            request,
+            Some(&cancellation),
+        )
     })
-    .await
-    .map_err(|error| PublishFailure::source(format!("Publishing task failed: {error}")))?
+    .await;
+    unregister_publish(&export_id);
+    result.map_err(|error| PublishFailure::source(format!("Publishing task failed: {error}")))?
 }
 
 #[tauri::command]
@@ -174,11 +229,262 @@ pub(crate) async fn list_publication_history(
     .map_err(|error| format!("History task failed: {error}"))?
 }
 
+#[tauri::command]
+pub(crate) fn cancel_publish(export_id: String) -> Result<bool, String> {
+    uuid::Uuid::parse_str(&export_id)
+        .map_err(|_| format!("Invalid publish job ID {export_id:?}"))?;
+    let active = active_publishes()
+        .lock()
+        .map_err(|_| "Publishing job registry is unavailable.".to_string())?;
+    if let Some(flag) = active.get(&export_id) {
+        flag.store(true, Ordering::SeqCst);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn save_publishing_profile(
+    app: AppHandle,
+    project_name: String,
+    mut profile: SavedPublishingProfile,
+) -> Result<PublishingConfig, PublishFailure> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| PublishFailure::source(format!("Failed to resolve app data: {error}")))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        uuid::Uuid::parse_str(&profile.id)
+            .map_err(|_| PublishFailure::source("Saved profile has an invalid ID.".to_string()))?;
+        profile.name = profile.name.trim().to_string();
+        if profile.name.is_empty() || profile.name.chars().count() > 80 {
+            return Err(PublishFailure::source(
+                "Saved profile names must contain 1 to 80 characters.".to_string(),
+            ));
+        }
+        let snapshot =
+            load_snapshot(&app_data_dir, &project_name).map_err(PublishFailure::source)?;
+        if profile.recipe.project_type != snapshot.project_type {
+            return Err(PublishFailure::source(
+                "Saved profile project type does not match this project.".to_string(),
+            ));
+        }
+        let mut validation_request = profile.recipe.clone().into_request(
+            uuid::Uuid::new_v4().to_string(),
+            project_name,
+            None,
+        );
+        let mut diagnostics = Vec::new();
+        validate_profile(&validation_request, &mut diagnostics);
+        if has_blocking_diagnostics(&diagnostics) {
+            return Err(PublishFailure {
+                message: "Saved profile contains invalid format settings.".to_string(),
+                diagnostics,
+            });
+        }
+        ensure_epub_identifier(&mut validation_request);
+        persist_epub_cover(&snapshot.project_root, &mut validation_request)
+            .map_err(PublishFailure::source)?;
+        profile.recipe = PublishRecipe::from_request(&validation_request);
+
+        let mut config = load_or_default(
+            &snapshot.publishing_path,
+            snapshot.project_type,
+            &snapshot.project_title,
+        )
+        .map_err(PublishFailure::source)?;
+        if config.saved_profiles.iter().any(|existing| {
+            existing.id != profile.id && existing.name.eq_ignore_ascii_case(&profile.name)
+        }) {
+            return Err(PublishFailure::source(format!(
+                "A saved profile named {:?} already exists.",
+                profile.name
+            )));
+        }
+        if let Some(existing) = config
+            .saved_profiles
+            .iter_mut()
+            .find(|existing| existing.id == profile.id)
+        {
+            *existing = profile;
+        } else {
+            config.saved_profiles.push(profile);
+        }
+        config
+            .saved_profiles
+            .sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+        save_atomic(&snapshot.publishing_path, &config).map_err(PublishFailure::source)?;
+        Ok(config)
+    })
+    .await
+    .map_err(|error| PublishFailure::source(format!("Save profile task failed: {error}")))?
+}
+
+#[tauri::command]
+pub(crate) async fn delete_publishing_profile(
+    app: AppHandle,
+    project_name: String,
+    profile_id: String,
+) -> Result<PublishingConfig, PublishFailure> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| PublishFailure::source(format!("Failed to resolve app data: {error}")))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        uuid::Uuid::parse_str(&profile_id)
+            .map_err(|_| PublishFailure::source("Saved profile has an invalid ID.".to_string()))?;
+        let snapshot =
+            load_snapshot(&app_data_dir, &project_name).map_err(PublishFailure::source)?;
+        let mut config = load_or_default(
+            &snapshot.publishing_path,
+            snapshot.project_type,
+            &snapshot.project_title,
+        )
+        .map_err(PublishFailure::source)?;
+        let original_len = config.saved_profiles.len();
+        config
+            .saved_profiles
+            .retain(|profile| profile.id != profile_id);
+        if config.saved_profiles.len() == original_len {
+            return Err(PublishFailure::source(
+                "The named publishing profile no longer exists.".to_string(),
+            ));
+        }
+        save_atomic(&snapshot.publishing_path, &config).map_err(PublishFailure::source)?;
+        Ok(config)
+    })
+    .await
+    .map_err(|error| PublishFailure::source(format!("Delete profile task failed: {error}")))?
+}
+
+#[tauri::command]
+pub(crate) async fn copy_publication_artifact(
+    app: AppHandle,
+    project_name: String,
+    export_id: Option<String>,
+    filename: String,
+    destination: String,
+) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Failed to resolve app data: {error}"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = project_root(&app_data_dir, &project_name)?;
+        copy_history_artifact(
+            &root,
+            export_id.as_deref(),
+            &filename,
+            Path::new(&destination),
+        )
+    })
+    .await
+    .map_err(|error| format!("Copy artifact task failed: {error}"))?
+}
+
+#[tauri::command]
+pub(crate) async fn reveal_publication_artifact(
+    app: AppHandle,
+    project_name: String,
+    export_id: Option<String>,
+    filename: String,
+) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Failed to resolve app data: {error}"))?;
+    let folder = tauri::async_runtime::spawn_blocking(move || {
+        let root = project_root(&app_data_dir, &project_name)?;
+        let artifact = resolve_history_artifact(&root, export_id.as_deref(), &filename)?;
+        artifact
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| "Artifact has no containing folder.".to_string())
+    })
+    .await
+    .map_err(|error| format!("Reveal artifact task failed: {error}"))??;
+    app.opener()
+        .open_path(folder.to_string_lossy().to_string(), None::<String>)
+        .map_err(|error| format!("Failed to reveal artifact folder: {error}"))
+}
+
+#[tauri::command]
+pub(crate) async fn delete_publication_history_entry(
+    app: AppHandle,
+    project_name: String,
+    export_id: Option<String>,
+    filename: String,
+) -> Result<(), String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Failed to resolve app data: {error}"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = project_root(&app_data_dir, &project_name)?;
+        delete_history_entry(&root, export_id.as_deref(), &filename)
+    })
+    .await
+    .map_err(|error| format!("Delete artifact task failed: {error}"))?
+}
+
+#[tauri::command]
+pub(crate) async fn regenerate_publication(
+    app: AppHandle,
+    project_name: String,
+    export_id: String,
+    new_export_id: String,
+    destination: Option<String>,
+) -> Result<PublishResult, PublishFailure> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| PublishFailure::source(format!("Failed to resolve app data: {error}")))?;
+    let cancellation = register_publish(&new_export_id)?;
+    let worker_app = app.clone();
+    let job_id = new_export_id.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let root = project_root(&app_data_dir, &project_name).map_err(PublishFailure::source)?;
+        let manifest = load_manifest(&root, &export_id).map_err(PublishFailure::source)?;
+        if manifest.project_name != project_name {
+            return Err(PublishFailure::source(
+                "Artifact history belongs to a different project.".to_string(),
+            ));
+        }
+        let recipe = manifest.recipe.ok_or_else(|| {
+            PublishFailure::source(
+                "This legacy artifact does not contain a replayable publishing recipe.".to_string(),
+            )
+        })?;
+        let request = recipe.into_request(new_export_id, project_name, destination);
+        publish_blocking_with_cancellation(
+            Some(&worker_app),
+            &app_data_dir,
+            request,
+            Some(&cancellation),
+        )
+    })
+    .await;
+    unregister_publish(&job_id);
+    result.map_err(|error| PublishFailure::source(format!("Regenerate task failed: {error}")))?
+}
+
+#[allow(dead_code)]
 pub(crate) fn publish_blocking(
     app: Option<&AppHandle>,
     app_data_dir: &Path,
-    mut request: PublishRequest,
+    request: PublishRequest,
 ) -> Result<PublishResult, PublishFailure> {
+    publish_blocking_with_cancellation(app, app_data_dir, request, None)
+}
+
+fn publish_blocking_with_cancellation(
+    app: Option<&AppHandle>,
+    app_data_dir: &Path,
+    mut request: PublishRequest,
+    cancellation: Option<&AtomicBool>,
+) -> Result<PublishResult, PublishFailure> {
+    check_cancelled(cancellation)?;
     emit_progress(
         app,
         &request.export_id,
@@ -189,6 +495,7 @@ pub(crate) fn publish_blocking(
     );
     let mut snapshot =
         load_snapshot(app_data_dir, &request.project_name).map_err(PublishFailure::source)?;
+    check_cancelled(cancellation)?;
     if snapshot.project_type != request.project_type {
         return Err(PublishFailure::source(format!(
             "Project type changed from {:?} to {:?}; reopen publishing settings and retry.",
@@ -210,6 +517,7 @@ pub(crate) fn publish_blocking(
         1,
         6,
     );
+    check_cancelled(cancellation)?;
     let mut document = compile(&snapshot.payload).map_err(PublishFailure::compilation)?;
     apply_metadata(&mut document, &request);
     apply_project_strategy(
@@ -220,6 +528,7 @@ pub(crate) fn publish_blocking(
         request.include_shared_matter,
     )
     .map_err(PublishFailure::compilation)?;
+    check_cancelled(cancellation)?;
 
     emit_progress(
         app,
@@ -250,6 +559,8 @@ pub(crate) fn publish_blocking(
             diagnostics,
         });
     }
+    check_cancelled(cancellation)?;
+    ensure_epub_identifier(&mut request);
     persist_epub_cover(&snapshot.project_root, &mut request).map_err(PublishFailure::source)?;
 
     let workspace = ArtifactWorkspace::create(&snapshot.project_root, &request.export_id)
@@ -276,6 +587,10 @@ pub(crate) fn publish_blocking(
             return Err(PublishFailure::rendering(message, diagnostics));
         }
     };
+    if let Err(error) = check_cancelled(cancellation) {
+        workspace.cleanup();
+        return Err(error);
+    }
 
     emit_progress(
         app,
@@ -285,6 +600,10 @@ pub(crate) fn publish_blocking(
         4,
         6,
     );
+    if let Err(error) = check_cancelled(cancellation) {
+        workspace.cleanup();
+        return Err(error);
+    }
     let mut config = load_or_default(
         &snapshot.publishing_path,
         snapshot.project_type,
@@ -321,7 +640,11 @@ pub(crate) fn publish_blocking(
         workspace.cleanup();
         PublishFailure::source(message)
     })?;
-    let manifest = manifest_for(
+    if let Err(error) = check_cancelled(cancellation) {
+        workspace.cleanup();
+        return Err(error);
+    }
+    let manifest = manifest_for_with_recipe(
         &request.export_id,
         &request.project_name,
         &source_hash,
@@ -329,6 +652,7 @@ pub(crate) fn publish_blocking(
         request.format,
         &request.profile_id,
         diagnostics.clone(),
+        Some(PublishRecipe::from_request(&request)),
     )
     .map_err(|message| {
         workspace.cleanup();
@@ -343,10 +667,20 @@ pub(crate) fn publish_blocking(
         5,
         6,
     );
+    if let Err(error) = check_cancelled(cancellation) {
+        workspace.cleanup();
+        return Err(error);
+    }
     let destination = request.destination.as_deref().map(Path::new);
     let (manifest_path, primary_artifact_path) = workspace
-        .commit(&manifest, destination)
-        .map_err(|message| PublishFailure::rendering(message, diagnostics.clone()))?;
+        .commit_with_cancellation(&manifest, destination, cancellation)
+        .map_err(|message| {
+            if message == CANCELLED_ERROR {
+                PublishFailure::cancelled()
+            } else {
+                PublishFailure::rendering(message, diagnostics.clone())
+            }
+        })?;
     emit_progress(
         app,
         &request.export_id,
@@ -362,6 +696,17 @@ pub(crate) fn publish_blocking(
         primary_artifact_path: primary_artifact_path.to_string_lossy().to_string(),
         diagnostics,
     })
+}
+
+fn check_cancelled(cancellation: Option<&AtomicBool>) -> Result<(), PublishFailure> {
+    if cancellation
+        .map(|flag| flag.load(Ordering::SeqCst))
+        .unwrap_or(false)
+    {
+        Err(PublishFailure::cancelled())
+    } else {
+        Ok(())
+    }
 }
 
 fn render_artifact(
@@ -666,6 +1011,21 @@ fn persist_epub_cover(project_root: &Path, request: &mut PublishRequest) -> Resu
     Ok(())
 }
 
+fn ensure_epub_identifier(request: &mut PublishRequest) {
+    if request.format == PublishFormat::Epub
+        && request
+            .metadata
+            .ebook
+            .identifier
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or_default()
+            .is_empty()
+    {
+        request.metadata.ebook.identifier = Some(format!("urn:uuid:{}", uuid::Uuid::new_v4()));
+    }
+}
+
 fn publication_source_hash(
     snapshot_hash: &str,
     request: &PublishRequest,
@@ -864,6 +1224,21 @@ mod tests {
     }
 
     #[test]
+    fn generated_epub_identifier_is_stable_once_added_to_a_recipe() {
+        let mut request = request(PublishFormat::Epub, "reflowable_epub");
+        ensure_epub_identifier(&mut request);
+        let identifier = request.metadata.ebook.identifier.clone().unwrap();
+
+        ensure_epub_identifier(&mut request);
+
+        assert_eq!(
+            request.metadata.ebook.identifier.as_deref(),
+            Some(identifier.as_str())
+        );
+        assert!(identifier.starts_with("urn:uuid:"));
+    }
+
+    #[test]
     fn print_settings_change_only_the_print_interior_source_hash() {
         let project = tempfile::tempdir().unwrap();
         let mut print = request(PublishFormat::Pdf, "print_interior");
@@ -909,5 +1284,29 @@ mod tests {
 
         let error = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap_err();
         assert!(error.starts_with("Failed to hash ebook cover:"));
+    }
+
+    #[test]
+    fn cancellation_registry_is_job_scoped_and_reports_cancelled() {
+        let export_id = uuid::Uuid::new_v4().to_string();
+        let flag = register_publish(&export_id).unwrap();
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(cancel_publish(export_id.clone()).unwrap());
+        assert!(flag.load(Ordering::SeqCst));
+        assert_eq!(
+            check_cancelled(Some(&flag)).unwrap_err().diagnostics[0].code,
+            "PUBLISH_CANCELLED"
+        );
+        unregister_publish(&export_id);
+        assert!(!cancel_publish(export_id).unwrap());
+    }
+
+    #[test]
+    fn duplicate_active_publish_ids_are_rejected() {
+        let export_id = uuid::Uuid::new_v4().to_string();
+        let _flag = register_publish(&export_id).unwrap();
+        let error = register_publish(&export_id).unwrap_err();
+        assert!(error.message.contains("already active"));
+        unregister_publish(&export_id);
     }
 }

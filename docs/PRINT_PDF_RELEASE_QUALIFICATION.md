@@ -4,6 +4,10 @@ The `print_interior` profile is a provider-neutral print-book interior. Do not
 label it KDP-ready or Ingram-ready until the manual checks below have passed for
 the release candidate.
 
+Roadmap note (2026-07-30): KDP and IngramSpark qualification is deferred to the
+later provider-qualification phase. It is not a Phase 5 acceptance gate. Keep
+the current profile labeled provider-neutral in the meantime.
+
 ## Automated baseline
 
 Run from the repository root:
@@ -38,7 +42,7 @@ For Print Interior PDFs, verify:
 
 ## KDP Previewer
 
-Status: **Pending manual qualification**
+Status: **Deferred to the later provider-qualification phase**
 
 Upload representative 5 × 8 and 6 × 9 interiors. Record:
 
@@ -50,8 +54,8 @@ Upload representative 5 × 8 and 6 × 9 interiors. Record:
 
 ## IngramSpark
 
-Status: **Pending manual qualification**
+Status: **Deferred to the later provider-qualification phase**
 
 Upload the same representative interiors and record the same evidence. Provider
-acceptance is a release gate; structural tests alone do not establish provider
-compatibility.
+acceptance is required before making provider-ready claims; structural tests
+alone do not establish provider compatibility.

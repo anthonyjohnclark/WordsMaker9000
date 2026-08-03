@@ -182,6 +182,39 @@ export function scopeForSelection(
   }
 }
 
+export function selectionForScope(scope: PublicationScope): {
+  mode: PublicationScope["type"];
+  selectedNodeId: number | null;
+} {
+  switch (scope.type) {
+    case "selected_nodes":
+      return {
+        mode: scope.type,
+        selectedNodeId: scope.node_ids[0] ?? null,
+      };
+    case "single_work":
+    case "single_installment":
+    case "volume":
+      return { mode: scope.type, selectedNodeId: scope.node_id };
+    default:
+      return { mode: "full_project", selectedNodeId: null };
+  }
+}
+
+export function diagnosticsBySeverity(diagnostics: Diagnostic[]): {
+  error: Diagnostic[];
+  warning: Diagnostic[];
+  info: Diagnostic[];
+} {
+  return {
+    error: diagnostics.filter((diagnostic) => diagnostic.severity === "error"),
+    warning: diagnostics.filter(
+      (diagnostic) => diagnostic.severity === "warning",
+    ),
+    info: diagnostics.filter((diagnostic) => diagnostic.severity === "info"),
+  };
+}
+
 export function outlineNodeRole(
   node: PublishingOutlineNode,
   overrides: Record<string, NodePublishingOverride>,

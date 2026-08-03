@@ -245,6 +245,69 @@ pub(crate) struct PublishRequest {
     pub destination: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct PublishRecipe {
+    pub project_type: ProjectType,
+    #[serde(default)]
+    pub scope: PublicationScope,
+    pub format: PublishFormat,
+    pub profile_id: String,
+    #[serde(default)]
+    pub pdf_settings: PrintInteriorPdfSettings,
+    pub metadata: PublishMetadataOverrides,
+    #[serde(default)]
+    pub node_overrides: HashMap<String, NodePublishingOverride>,
+    #[serde(default)]
+    pub outline_confirmed: bool,
+    #[serde(default = "default_include_shared_matter")]
+    pub include_shared_matter: bool,
+}
+
+impl PublishRecipe {
+    pub(crate) fn from_request(request: &PublishRequest) -> Self {
+        Self {
+            project_type: request.project_type,
+            scope: request.scope.clone(),
+            format: request.format,
+            profile_id: request.profile_id.clone(),
+            pdf_settings: request.pdf_settings.clone(),
+            metadata: request.metadata.clone(),
+            node_overrides: request.node_overrides.clone(),
+            outline_confirmed: request.outline_confirmed,
+            include_shared_matter: request.include_shared_matter,
+        }
+    }
+
+    pub(crate) fn into_request(
+        self,
+        export_id: String,
+        project_name: String,
+        destination: Option<String>,
+    ) -> PublishRequest {
+        PublishRequest {
+            export_id,
+            project_name,
+            project_type: self.project_type,
+            scope: self.scope,
+            format: self.format,
+            profile_id: self.profile_id,
+            pdf_settings: self.pdf_settings,
+            metadata: self.metadata,
+            node_overrides: self.node_overrides,
+            outline_confirmed: self.outline_confirmed,
+            include_shared_matter: self.include_shared_matter,
+            destination,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SavedPublishingProfile {
+    pub id: String,
+    pub name: String,
+    pub recipe: PublishRecipe,
+}
+
 fn default_include_shared_matter() -> bool {
     true
 }
@@ -277,6 +340,39 @@ mod tests {
             serde_json::from_str::<PrintInteriorPdfSettings>(&serialized).unwrap(),
             settings
         );
+    }
+
+    #[test]
+    fn publish_recipe_round_trips_without_job_or_destination_identity() {
+        let request = PublishRequest {
+            export_id: uuid::Uuid::new_v4().to_string(),
+            project_name: "Draft".to_string(),
+            project_type: ProjectType::Novel,
+            scope: PublicationScope::SelectedNodes { node_ids: vec![7] },
+            format: PublishFormat::Docx,
+            profile_id: "clean_handoff".to_string(),
+            pdf_settings: PrintInteriorPdfSettings::default(),
+            metadata: PublishMetadataOverrides {
+                title: "The Draft".to_string(),
+                author: "Author Name".to_string(),
+                ..PublishMetadataOverrides::default()
+            },
+            node_overrides: HashMap::new(),
+            outline_confirmed: true,
+            include_shared_matter: false,
+            destination: Some("old.docx".to_string()),
+        };
+
+        let recipe = PublishRecipe::from_request(&request);
+        let replayed = recipe.clone().into_request(
+            "new-export".to_string(),
+            "Draft".to_string(),
+            Some("new.docx".to_string()),
+        );
+
+        assert_eq!(PublishRecipe::from_request(&replayed), recipe);
+        assert_eq!(replayed.export_id, "new-export");
+        assert_eq!(replayed.destination.as_deref(), Some("new.docx"));
     }
 }
 

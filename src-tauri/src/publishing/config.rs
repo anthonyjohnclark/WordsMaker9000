@@ -6,10 +6,10 @@ use std::path::Path;
 
 use super::request::{
     ContactInformation, NodePublishingOverride, PrintInteriorPdfSettings, ProjectType,
-    PublishFormat, PublishMetadataOverrides,
+    PublishFormat, PublishMetadataOverrides, SavedPublishingProfile,
 };
 
-pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 3;
+pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 4;
 pub(crate) const STRATEGY_VERSION: u32 = 1;
 pub(crate) const PRINT_INTERIOR_PROFILE_ID: &str = "print_interior";
 
@@ -56,6 +56,8 @@ pub(crate) struct PublishingConfig {
     pub node_roles: HashMap<String, NodePublishingOverride>,
     pub profiles: HashMap<String, serde_json::Value>,
     pub default_profile_by_format: HashMap<String, String>,
+    #[serde(default)]
+    pub saved_profiles: Vec<SavedPublishingProfile>,
 }
 
 impl PublishingConfig {
@@ -80,6 +82,7 @@ impl PublishingConfig {
                 ("docx".to_string(), "standard_manuscript".to_string()),
                 ("epub".to_string(), "reflowable_epub".to_string()),
             ]),
+            saved_profiles: Vec::new(),
         }
     }
 
@@ -188,6 +191,7 @@ pub(crate) fn save_atomic(path: &Path, config: &PublishingConfig) -> Result<(), 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::publishing::request::{PublicationScope, PublishRecipe};
     use std::env;
 
     #[test]
@@ -302,5 +306,57 @@ mod tests {
             .unwrap(),
             settings
         );
+    }
+
+    #[test]
+    fn legacy_configuration_adds_an_empty_named_profile_collection() {
+        let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
+        let path = root.join("publishing.json");
+        let mut legacy =
+            serde_json::to_value(PublishingConfig::defaults(ProjectType::Novel, "Draft")).unwrap();
+        legacy["schema_version"] = serde_json::json!(3);
+        legacy.as_object_mut().unwrap().remove("saved_profiles");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+
+        let migrated = load_or_default(&path, ProjectType::Novel, "Draft").unwrap();
+        assert_eq!(migrated.schema_version, PUBLISHING_SCHEMA_VERSION);
+        assert!(migrated.saved_profiles.is_empty());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn named_profile_recipe_round_trips_through_atomic_project_config() {
+        let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
+        let path = root.join("publishing.json");
+        let mut config = PublishingConfig::defaults(ProjectType::Novel, "Draft");
+        config.saved_profiles.push(SavedPublishingProfile {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "Agent submission".to_string(),
+            recipe: PublishRecipe {
+                project_type: ProjectType::Novel,
+                scope: PublicationScope::SelectedNodes { node_ids: vec![4] },
+                format: PublishFormat::Docx,
+                profile_id: "standard_manuscript".to_string(),
+                pdf_settings: PrintInteriorPdfSettings::default(),
+                metadata: PublishMetadataOverrides {
+                    title: "Draft".to_string(),
+                    author: "Writer".to_string(),
+                    ..PublishMetadataOverrides::default()
+                },
+                node_overrides: HashMap::new(),
+                outline_confirmed: true,
+                include_shared_matter: true,
+            },
+        });
+
+        save_atomic(&path, &config).unwrap();
+
+        assert_eq!(
+            load_or_default(&path, ProjectType::Novel, "Ignored").unwrap(),
+            config
+        );
+        let _ = fs::remove_dir_all(root);
     }
 }

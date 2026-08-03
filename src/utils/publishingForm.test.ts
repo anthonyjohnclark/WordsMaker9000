@@ -1,5 +1,6 @@
 import {
   defaultPrintInteriorPdfSettings,
+  diagnosticsBySeverity,
   formatPublishFailure,
   outlineNodeRole,
   parsePublishFailure,
@@ -8,6 +9,7 @@ import {
   profileForFormat,
   progressForExport,
   scopeForSelection,
+  selectionForScope,
 } from "./publishingForm";
 import type {
   PublishingOutlineNode,
@@ -91,6 +93,18 @@ describe("publishing form decisions", () => {
       type: "selected_nodes",
       node_ids: [9],
     });
+    expect(
+      selectionForScope({ type: "single_installment", node_id: 14 }),
+    ).toEqual({
+      mode: "single_installment",
+      selectedNodeId: 14,
+    });
+    expect(selectionForScope({ type: "selected_nodes", node_ids: [] })).toEqual(
+      {
+        mode: "selected_nodes",
+        selectedNodeId: null,
+      },
+    );
   });
 
   test("uses the inferred role for synthetic outline nodes with null IDs", () => {
@@ -172,5 +186,18 @@ describe("publishing form decisions", () => {
     ).toBe(
       'PUBLISH_UNSUPPORTED_CONTENT: File "Unsupported Table" (node 1): Unsupported Quill block element <table>\nResolve the named source or outline problem and retry.',
     );
+  });
+
+  test("groups diagnostics without changing their order within a severity", () => {
+    const grouped = diagnosticsBySeverity([
+      { code: "W1", severity: "warning", message: "First warning" },
+      { code: "E1", severity: "error", message: "Blocking" },
+      { code: "W2", severity: "warning", message: "Second warning" },
+      { code: "I1", severity: "info", message: "Context" },
+    ]);
+
+    expect(grouped.error.map((item) => item.code)).toEqual(["E1"]);
+    expect(grouped.warning.map((item) => item.code)).toEqual(["W1", "W2"]);
+    expect(grouped.info.map((item) => item.code)).toEqual(["I1"]);
   });
 });

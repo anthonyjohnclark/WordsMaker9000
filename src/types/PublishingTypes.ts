@@ -105,6 +105,17 @@ export interface PublishRequest {
   destination?: string;
 }
 
+export type PublishRecipe = Omit<
+  PublishRequest,
+  "export_id" | "project_name" | "destination"
+>;
+
+export interface SavedPublishingProfile {
+  id: string;
+  name: string;
+  recipe: PublishRecipe;
+}
+
 export interface Diagnostic {
   code: string;
   severity: "error" | "warning" | "info";
@@ -154,6 +165,7 @@ export interface PublishingConfig {
   node_roles: Record<string, NodePublishingOverride>;
   profiles: Record<string, unknown>;
   default_profile_by_format: Record<string, string>;
+  saved_profiles: SavedPublishingProfile[];
 }
 
 export interface PublishingSetup {
@@ -165,4 +177,16 @@ export interface PublishingSetup {
 export interface PublishFailure {
   message: string;
   diagnostics: Diagnostic[];
+}
+
+export interface ArtifactHistoryEntry {
+  export_id: string | null;
+  filename: string;
+  path: string;
+  modified: string;
+  format: PublishFormat;
+  profile_id: string | null;
+  legacy: boolean;
+  diagnostics: Diagnostic[];
+  can_regenerate: boolean;
 }

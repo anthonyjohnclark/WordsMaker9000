@@ -604,8 +604,11 @@ Implementation status (2026-07-30): the renderer ADR, bundled fonts, Proof PDF
 compatibility, initial Print Interior profile, four trim presets, mirrored
 margins/gutter, structural recto starts, running heads, and front/body folio
 rules are implemented. Automated structural and headless Publish QA checks are
-in place. KDP/IngramSpark qualification remains a manual release gate, and
-image/bleed preflight remains deferred until project asset support is available.
+in place. KDP/IngramSpark qualification is intentionally deferred to a later
+provider-qualification phase and does not block Phase 5. Until that
+qualification is complete, the UI and documentation must not label the profile
+KDP-ready or Ingram-ready. Image/bleed preflight remains deferred until project
+asset support is available.
 
 ### Phase 5 — complete the Publish experience
 
@@ -630,6 +633,13 @@ Exit criteria:
 - Advanced controls remain available without becoming the default path.
 - Re-running a saved profile is deterministic for the same source snapshot.
 
+Implementation status (2026-07-30): the destination-first Publish modal,
+advanced settings disclosure, typed named profiles, severity-grouped
+diagnostics, manifest-backed Artifact History actions, generated-artifact
+preview, and job-scoped cancellation are implemented. New manifests retain the
+replayable publish recipe; schema-v1 manifests and flat exports remain readable
+as legacy history.
+
 ### Phase 6 — rich content and advanced profiles
 
 Add only after the core formats are stable:
@@ -644,6 +654,19 @@ Add only after the core formats are stable:
 - box sets/volumes;
 - advanced nonfiction tables and callouts;
 - direct-sales bundles and reusable “Also By” pages.
+
+### Later provider qualification — print submission workflows
+
+Run this only after the Phase 5 Publish workflow is stable:
+
+- Exercise representative Print Interior PDFs in KDP and IngramSpark preview
+  and preflight workflows.
+- Record provider-specific failures, accepted trim/margin combinations, and
+  any required image/bleed rules.
+- Add provider-specific preflight only where the requirements can be tested
+  deterministically.
+- Do not add a KDP-ready or Ingram-ready label until the relevant acceptance
+  manuscript passes the provider workflow.
 
 ## Suggested implementation slices
 

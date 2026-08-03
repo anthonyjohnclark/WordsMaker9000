@@ -8,7 +8,11 @@ mod publishing;
 use tauri_plugin_fs;
 
 use export::{export_project, list_project_exports, open_file_default};
-use publishing::service::{get_publishing_setup, list_publication_history, publish_project};
+use publishing::service::{
+    cancel_publish, copy_publication_artifact, delete_publication_history_entry,
+    delete_publishing_profile, get_publishing_setup, list_publication_history, publish_project,
+    regenerate_publication, reveal_publication_artifact, save_publishing_profile,
+};
 use tauri::Manager;
 
 fn main() {
@@ -31,7 +35,14 @@ fn main() {
             open_file_default,
             get_publishing_setup,
             publish_project,
-            list_publication_history
+            list_publication_history,
+            cancel_publish,
+            save_publishing_profile,
+            delete_publishing_profile,
+            copy_publication_artifact,
+            reveal_publication_artifact,
+            delete_publication_history_entry,
+            regenerate_publication
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import {
   FiCheckCircle,
   FiChevronDown,
-  FiDownload,
+  FiEye,
   FiExternalLink,
+  FiSave,
+  FiTrash2,
 } from "react-icons/fi";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { v4 as uuidv4 } from "uuid";
@@ -16,6 +18,7 @@ import { useErrorContext } from "../../../contexts/global/ErrorContext";
 import { prepareAndPublishProject } from "../../../utils/publishPreparation";
 import {
   defaultPrintInteriorPdfSettings,
+  diagnosticsBySeverity,
   formatPublishFailure,
   outlineNodeRole,
   parsePublishFailure,
@@ -23,6 +26,7 @@ import {
   printInteriorSettingsFromProfiles,
   profileForFormat,
   progressForExport,
+  selectionForScope,
   scopeForSelection,
 } from "../../../utils/publishingForm";
 import type {
@@ -35,10 +39,12 @@ import type {
   PublishingMetadata,
   PublishingOutlineNode,
   PublishingSetup,
+  PublishingConfig,
   PublishFormat,
   PublishProgress,
   PublishRequest,
   PublishResult,
+  SavedPublishingProfile,
   SectionRole,
 } from "../../../types/PublishingTypes";
 
@@ -96,12 +102,20 @@ export const ExportModal = () => {
   const [scopeMode, setScopeMode] = useState("full_project");
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [selectedSavedProfileId, setSelectedSavedProfileId] = useState("");
+  const [savedProfileName, setSavedProfileName] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSetupLoading, setIsSetupLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancellationNotice, setCancellationNotice] = useState("");
   const [result, setResult] = useState<PublishResult | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [progress, setProgress] = useState<PublishProgress | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const currentExportIdRef = useRef<string | null>(null);
+  const cancelRequestedRef = useRef(false);
   const setupStartedRef = useRef(false);
 
   useEffect(() => {
@@ -165,6 +179,128 @@ export const ExportModal = () => {
 
   const chooseFormat = (nextFormat: PublishFormat) => {
     setFormat(nextFormat);
+    setSelectedSavedProfileId("");
+    setSavedProfileName("");
+  };
+
+  const currentRecipe = (): SavedPublishingProfile["recipe"] | null => {
+    if (!setup) return null;
+    return {
+      project_type: setup.project_type,
+      scope: scopeForSelection(scopeMode, selectedNodeId),
+      format,
+      profile_id: profileForFormat(format, {
+        pdf: pdfProfileId,
+        docx: docxProfileId,
+      }),
+      pdf_settings: printInteriorSettings,
+      metadata: cleanMetadata(metadata),
+      node_overrides: nodeOverrides,
+      outline_confirmed: outlineConfirmed,
+      include_shared_matter: true,
+    };
+  };
+
+  const replaceSetupConfig = (config: PublishingConfig) => {
+    setSetup((current) => (current ? { ...current, config } : current));
+  };
+
+  const applyProfileState = (profile: SavedPublishingProfile) => {
+    const recipe = profile.recipe;
+    setSelectedSavedProfileId(profile.id);
+    setSavedProfileName(profile.name);
+    setFormat(recipe.format);
+    if (
+      recipe.format === "pdf" &&
+      (recipe.profile_id === "proof_pdf" ||
+        recipe.profile_id === "print_interior")
+    ) {
+      setPdfProfileId(recipe.profile_id);
+    }
+    if (
+      recipe.format === "docx" &&
+      (recipe.profile_id === "standard_manuscript" ||
+        recipe.profile_id === "clean_handoff")
+    ) {
+      setDocxProfileId(recipe.profile_id);
+    }
+    setPrintInteriorSettings(recipe.pdf_settings);
+    setMetadata(recipe.metadata);
+    setNodeOverrides(recipe.node_overrides);
+    setOutlineConfirmed(recipe.outline_confirmed);
+    const selection = selectionForScope(recipe.scope);
+    setScopeMode(selection.mode);
+    setSelectedNodeId(selection.selectedNodeId);
+  };
+
+  const applySavedProfile = (profileId: string) => {
+    const profile = setup?.config.saved_profiles.find(
+      (candidate) => candidate.id === profileId,
+    );
+    if (!profile) {
+      setSelectedSavedProfileId("");
+      setSavedProfileName("");
+      return;
+    }
+    applyProfileState(profile);
+  };
+
+  const handleSaveProfile = async () => {
+    const recipe = currentRecipe();
+    const name = savedProfileName.trim();
+    if (!recipe || !name) return;
+    setIsSavingProfile(true);
+    try {
+      const id = selectedSavedProfileId || uuidv4();
+      const config = await invoke<PublishingConfig>(
+        "save_publishing_profile",
+        {
+          projectName: decodeURIComponent(project.projectName),
+          profile: { id, name, recipe },
+        },
+      );
+      replaceSetupConfig(config);
+      const persisted = config.saved_profiles.find(
+        (profile) => profile.id === id,
+      );
+      if (persisted) {
+        applyProfileState(persisted);
+      }
+    } catch (error) {
+      const parsed = parsePublishFailure(error);
+      showError(formatPublishFailure(parsed), "saving publishing profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!selectedSavedProfileId) return;
+    const profile = setup?.config.saved_profiles.find(
+      (candidate) => candidate.id === selectedSavedProfileId,
+    );
+    if (
+      !window.confirm(
+        `Delete the saved publishing profile "${profile?.name ?? "this profile"}"?`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const config = await invoke<PublishingConfig>(
+        "delete_publishing_profile",
+        {
+          projectName: decodeURIComponent(project.projectName),
+          profileId: selectedSavedProfileId,
+        },
+      );
+      replaceSetupConfig(config);
+      setSelectedSavedProfileId("");
+      setSavedProfileName("");
+    } catch (error) {
+      const parsed = parsePublishFailure(error);
+      showError(formatPublishFailure(parsed), "deleting publishing profile");
+    }
   };
 
   const handleChooseCover = async () => {
@@ -200,6 +336,8 @@ export const ExportModal = () => {
   const handlePublish = async () => {
     if (!setup) return;
     setResult(null);
+    setPreviewOpen(false);
+    setCancellationNotice("");
 
     const extension = format;
     const filterName =
@@ -221,6 +359,7 @@ export const ExportModal = () => {
     if (!destination) return;
 
     const exportId = uuidv4();
+    cancelRequestedRef.current = false;
     currentExportIdRef.current = exportId;
     setIsLoading(true);
     setProgress({
@@ -268,22 +407,68 @@ export const ExportModal = () => {
           flushProjectSnapshot: project.flushProjectSnapshot,
         },
         {
-          publishProject: (publishRequest) =>
-            invoke<PublishResult>("publish_project", {
+          publishProject: (publishRequest) => {
+            if (cancelRequestedRef.current) {
+              return Promise.reject({
+                message: "Publishing cancelled.",
+                diagnostics: [
+                  {
+                    code: "PUBLISH_CANCELLED",
+                    severity: "warning",
+                    message:
+                      "Publishing was cancelled before the artifact was committed.",
+                    remediation:
+                      "No successful artifact or manifest was created.",
+                  },
+                ],
+              });
+            }
+            return invoke<PublishResult>("publish_project", {
               request: publishRequest,
-            }),
+            });
+          },
         },
       );
       setResult(publishResult);
     } catch (error) {
       const parsed = parsePublishFailure(error);
-      showError(formatPublishFailure(parsed), "publishing project");
+      if (
+        parsed.diagnostics.some(
+          (diagnostic) => diagnostic.code === "PUBLISH_CANCELLED",
+        )
+      ) {
+        setCancellationNotice(
+          "Publishing was cancelled. No artifact or successful manifest was created.",
+        );
+      } else {
+        showError(formatPublishFailure(parsed), "publishing project");
+      }
     } finally {
       unlistenRef.current?.();
       unlistenRef.current = null;
       currentExportIdRef.current = null;
+      cancelRequestedRef.current = false;
       setIsLoading(false);
+      setIsCancelling(false);
       setProgress(null);
+    }
+  };
+
+  const handleCancelPublish = async () => {
+    const exportId = currentExportIdRef.current;
+    if (!exportId || isCancelling) return;
+    cancelRequestedRef.current = true;
+    setIsCancelling(true);
+    setProgress((current) =>
+      current
+        ? { ...current, message: "Cancelling after the current render step…" }
+        : current,
+    );
+    try {
+      await invoke("cancel_publish", { exportId });
+    } catch (error) {
+      setIsCancelling(false);
+      showError(error, "cancelling publication");
     }
   };
 
@@ -312,7 +497,21 @@ export const ExportModal = () => {
           <FiCheckCircle style={{ color: "var(--btn-success)" }} />
           Publish Complete
         </h2>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          The generated artifact is recorded in Artifact History.
+        </p>
         <DiagnosticList diagnostics={result.diagnostics} />
+        {format === "pdf" && previewOpen && (
+          <iframe
+            title="Generated PDF preview"
+            src={convertFileSrc(result.primary_artifact_path)}
+            className="w-full h-[55vh] rounded border"
+            style={{
+              borderColor: "var(--border-color)",
+              background: "white",
+            }}
+          />
+        )}
         <div className="flex justify-end gap-4">
           <button
             onClick={modal.handleClose}
@@ -321,6 +520,16 @@ export const ExportModal = () => {
           >
             Done
           </button>
+          {format === "pdf" && (
+            <button
+              onClick={() => setPreviewOpen((open) => !open)}
+              className="px-4 py-2 rounded border input-button flex items-center gap-2"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              <FiEye />
+              {previewOpen ? "Hide Preview" : "Preview PDF"}
+            </button>
+          )}
           <button
             onClick={handleOpenArtifact}
             className="px-4 py-2 rounded flex items-center gap-2"
@@ -330,7 +539,9 @@ export const ExportModal = () => {
             }}
           >
             <FiExternalLink />
-            Open {format.toUpperCase()}
+            {format === "pdf"
+              ? "Open PDF"
+              : `Preview ${format.toUpperCase()} in Default App`}
           </button>
         </div>
       </div>
@@ -371,6 +582,17 @@ export const ExportModal = () => {
         <p className="text-xs text-right" style={{ color: "var(--text-secondary)" }}>
           {percent}%
         </p>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => void handleCancelPublish()}
+            disabled={isCancelling}
+            className="px-4 py-2 rounded border input-button disabled:opacity-50"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            {isCancelling ? "Cancelling…" : "Cancel Publish"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -400,6 +622,9 @@ export const ExportModal = () => {
   if (format === "epub" && !metadata.language?.trim()) {
     publishBlockers.push("ebook language");
   }
+  if (format === "epub" && !metadata.ebook.cover) {
+    publishBlockers.push("ebook cover");
+  }
   if (
     format === "epub" &&
     metadata.ebook.cover &&
@@ -411,7 +636,11 @@ export const ExportModal = () => {
   if (printSettingsErrors.length > 0) {
     publishBlockers.push("valid print settings");
   }
-  if (scopeMode !== "full_project" && selectedNodeId === null) {
+  if (
+    scopeMode !== "full_project" &&
+    (selectedNodeId === null ||
+      !selectableNodes.some((node) => node.id === selectedNodeId))
+  ) {
     publishBlockers.push("included item");
   }
 
@@ -426,10 +655,130 @@ export const ExportModal = () => {
         </span>
         Publish
       </h2>
-      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-        Fields marked <span style={{ color: "var(--btn-danger)" }}>*</span> are
-        required.
-      </p>
+      <fieldset>
+        <legend
+          className="text-sm font-medium mb-1"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Destination
+        </legend>
+        <div className="grid grid-cols-3 gap-2">
+          <ChoiceButton
+            selected={format === "docx"}
+            onClick={() => chooseFormat("docx")}
+            title="Manuscript"
+            description="Editable DOCX for submission or handoff"
+          />
+          <ChoiceButton
+            selected={format === "epub"}
+            onClick={() => chooseFormat("epub")}
+            title="Ebook"
+            description="Accessible reflowable EPUB 3"
+          />
+          <ChoiceButton
+            selected={format === "pdf"}
+            onClick={() => chooseFormat("pdf")}
+            title="Print"
+            description="Proof or print-interior PDF"
+          />
+        </div>
+      </fieldset>
+
+      <div
+        className="rounded border p-3 grid gap-2"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] gap-2 items-end">
+          <Field label="Saved workflow">
+            <select
+              value={selectedSavedProfileId}
+              onChange={(event) => applySavedProfile(event.target.value)}
+              className="border rounded w-full p-2"
+              style={inputStyle}
+            >
+              <option value="">Current project defaults</option>
+              {(setup.config.saved_profiles ?? []).map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Profile name">
+            <input
+              value={savedProfileName}
+              maxLength={80}
+              placeholder="e.g. Agent submission"
+              onChange={(event) => setSavedProfileName(event.target.value)}
+              className="border rounded w-full p-2"
+              style={inputStyle}
+            />
+          </Field>
+          <button
+            type="button"
+            onClick={() => void handleSaveProfile()}
+            disabled={
+              !savedProfileName.trim() ||
+              isSavingProfile ||
+              publishBlockers.length > 0
+            }
+            className="px-3 py-2 rounded border input-button flex items-center gap-2 disabled:opacity-50"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <FiSave />
+            {selectedSavedProfileId ? "Update" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDeleteProfile()}
+            disabled={!selectedSavedProfileId}
+            className="px-3 py-2 rounded border input-button disabled:opacity-50"
+            style={{ borderColor: "var(--border-color)" }}
+            title="Delete saved workflow"
+          >
+            <FiTrash2 />
+          </button>
+        </div>
+        <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          {profileSummary(format, pdfProfileId, docxProfileId)}. Named
+          workflows preserve metadata, scope, outline roles, and format
+          settings.
+        </p>
+      </div>
+
+      {cancellationNotice && (
+        <p
+          className="rounded border p-2 text-sm"
+          style={{
+            borderColor: "var(--border-color)",
+            color: "var(--text-secondary)",
+          }}
+          role="status"
+        >
+          {cancellationNotice}
+        </p>
+      )}
+
+      <details
+        open={advancedOpen}
+        onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+        className="rounded border p-3"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <summary className="cursor-pointer font-medium">
+          Advanced publishing settings
+          <span
+            className="block text-xs font-normal"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Metadata, profile details, scope, outline, and included matter
+          </span>
+        </summary>
+        <div className="grid gap-4 mt-4">
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            Fields marked{" "}
+            <span style={{ color: "var(--btn-danger)" }}>*</span> are required.
+          </p>
 
       <Field label="Title" required>
         <input
@@ -440,7 +789,6 @@ export const ExportModal = () => {
           className="border rounded w-full p-2 focus:outline-none"
           style={inputStyle}
           required
-          autoFocus
         />
       </Field>
       <Field label="Subtitle (optional)">
@@ -472,32 +820,6 @@ export const ExportModal = () => {
           required
         />
       </Field>
-
-      <fieldset>
-        <legend className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
-          Format
-        </legend>
-        <div className="grid grid-cols-3 gap-2">
-          <ChoiceButton
-            selected={format === "pdf"}
-            onClick={() => chooseFormat("pdf")}
-            title="PDF"
-            description="Proof or print interior"
-          />
-          <ChoiceButton
-            selected={format === "docx"}
-            onClick={() => chooseFormat("docx")}
-            title="DOCX"
-            description="Editable Word document"
-          />
-          <ChoiceButton
-            selected={format === "epub"}
-            onClick={() => chooseFormat("epub")}
-            title="EPUB 3"
-            description="Accessible reflowable ebook"
-          />
-        </div>
-      </fieldset>
 
       {format === "pdf" && (
         <>
@@ -674,23 +996,39 @@ export const ExportModal = () => {
           </Field>
         </div>
       </details>
+        </div>
+      </details>
 
       <div className="flex items-center justify-between gap-4 mt-2">
-        <p
-          id="publish-requirements"
-          className="text-xs"
-          style={{
-            color:
-              publishBlockers.length > 0
-                ? "var(--btn-danger)"
-                : "var(--btn-success)",
-          }}
-          aria-live="polite"
-        >
-          {publishBlockers.length > 0
-            ? `Complete before publishing: ${publishBlockers.join(", ")}.`
-            : "Ready to publish."}
-        </p>
+        <div className="text-xs" aria-live="polite">
+          <p
+            id="publish-requirements"
+            style={{
+              color:
+                publishBlockers.length > 0
+                  ? "var(--btn-danger)"
+                  : "var(--btn-success)",
+            }}
+          >
+            {publishBlockers.length > 0
+              ? `Complete before publishing: ${publishBlockers.join(", ")}.`
+              : `Ready to publish ${profileSummary(
+                  format,
+                  pdfProfileId,
+                  docxProfileId,
+                ).toLowerCase()}.`}
+          </p>
+          {publishBlockers.length > 0 && !advancedOpen && (
+            <button
+              type="button"
+              className="underline mt-1"
+              style={{ color: "var(--btn-primary)" }}
+              onClick={() => setAdvancedOpen(true)}
+            >
+              Open Advanced settings
+            </button>
+          )}
+        </div>
         <div className="flex justify-end gap-4">
           <button
             onClick={modal.handleClose}
@@ -714,7 +1052,7 @@ export const ExportModal = () => {
               color: "var(--btn-text)",
             }}
           >
-            <FiDownload />
+            <span aria-hidden="true">🚀</span>
             Publish {format.toUpperCase()}
           </button>
         </div>
@@ -728,6 +1066,24 @@ const inputStyle = {
   background: "var(--bg-input)",
   color: "var(--text-primary)",
 };
+
+function profileSummary(
+  format: PublishFormat,
+  pdfProfileId: PdfProfileId,
+  docxProfileId: DocxProfileId,
+): string {
+  if (format === "pdf") {
+    return pdfProfileId === "print_interior"
+      ? "Print Interior PDF"
+      : "Proof PDF";
+  }
+  if (format === "docx") {
+    return docxProfileId === "clean_handoff"
+      ? "Clean Handoff DOCX"
+      : "Standard Manuscript DOCX";
+  }
+  return "Reflowable EPUB 3";
+}
 
 function Field({
   label,
@@ -1081,8 +1437,18 @@ function EbookFields({
           style={inputStyle}
         />
       </Field>
-      <div className="grid grid-cols-[auto_1fr] items-center gap-3">
-        <div className="flex gap-2">
+      <div>
+        <p
+          className="text-sm font-medium mb-1"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Ebook cover{" "}
+          <span aria-hidden="true" style={{ color: "var(--btn-danger)" }}>
+            *
+          </span>
+        </p>
+        <div className="grid grid-cols-[auto_1fr] items-center gap-3">
+          <div className="flex gap-2">
           <button
             type="button"
             onClick={() => void onChooseCover()}
@@ -1106,10 +1472,11 @@ function EbookFields({
               Remove
             </button>
           )}
+          </div>
+          <span className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
+            {cover ? displayFilename(cover.source) : "No cover selected"}
+          </span>
         </div>
-        <span className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
-          {cover ? displayFilename(cover.source) : "No cover selected"}
-        </span>
       </div>
       {cover && (
         <Field label="Cover alt text" required>
@@ -1249,19 +1616,60 @@ function OutlineRow({
 
 function DiagnosticList({ diagnostics }: { diagnostics: Diagnostic[] }) {
   if (diagnostics.length === 0) return null;
+  const grouped = diagnosticsBySeverity(diagnostics);
+  const groups = [
+    {
+      severity: "error" as const,
+      label: "Blocking errors",
+      color: "var(--btn-danger)",
+    },
+    {
+      severity: "warning" as const,
+      label: "Warnings",
+      color: "var(--warning-color, #b7791f)",
+    },
+    {
+      severity: "info" as const,
+      label: "Information",
+      color: "var(--text-secondary)",
+    },
+  ];
   return (
-    <ul className="text-sm space-y-1">
-      {diagnostics.map((diagnostic, index) => (
-        <li key={`${diagnostic.code}-${index}`}>
-          <strong>{diagnostic.code}:</strong> {diagnostic.message}
-          {diagnostic.remediation && (
-            <span className="block text-xs" style={{ color: "var(--text-secondary)" }}>
-              {diagnostic.remediation}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
+    <div className="grid gap-3">
+      {groups.map(({ severity, label, color }) => {
+        const items = grouped[severity];
+        if (items.length === 0) return null;
+        return (
+          <section
+            key={severity}
+            className="rounded border p-3"
+            style={{ borderColor: color }}
+          >
+            <h3 className="text-sm font-semibold mb-1" style={{ color }}>
+              {label} ({items.length})
+            </h3>
+            <ul className="text-sm space-y-2">
+              {items.map((diagnostic, index) => (
+                <li key={`${diagnostic.code}-${index}`}>
+                  <strong>{diagnostic.code}:</strong> {diagnostic.message}
+                  {diagnostic.node_id !== undefined && (
+                    <span> (node {diagnostic.node_id})</span>
+                  )}
+                  {diagnostic.remediation && (
+                    <span
+                      className="block text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {diagnostic.remediation}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 

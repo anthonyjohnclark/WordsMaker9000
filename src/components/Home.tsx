@@ -18,7 +18,7 @@ import RestoreBackupsModal from "../components/projectComponents/modals/RestoreB
 import ExportVersionsModal from "../components/projectComponents/modals/ExportVersionsModal";
 import { FaCog } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
-import { FiEdit2, FiTrash2, FiRotateCcw, FiDownload } from "react-icons/fi";
+import { FiArchive, FiEdit2, FiTrash2, FiRotateCcw } from "react-icons/fi";
 import EditProjectTypeModal from "./EditProjectTypeModal";
 
 export default function HomePage() {
@@ -262,13 +262,14 @@ export default function HomePage() {
                                 projectName={project.projectName}
                               />
                             ),
+                            modalSize: "wide",
                           });
                         }}
                         className="p-1.5 rounded hover:opacity-80 transition"
                         style={{ color: "var(--btn-primary)" }}
-                        title="View Exports"
+                        title="Artifact History"
                       >
-                        <FiDownload size={16} />
+                        <FiArchive size={16} />
                       </button>
                       <button
                         onClick={() => {
