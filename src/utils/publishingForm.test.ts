@@ -1,7 +1,16 @@
 import {
+  defaultMasterPageSelection,
+  defaultHardcoverPdfSettings,
+  defaultLargePrintPdfSettings,
+  defaultMatterTemplateVariables,
   defaultPrintInteriorPdfSettings,
   diagnosticsBySeverity,
   formatPublishFailure,
+  hardcoverSettingsErrors,
+  hardcoverSettingsFromProfiles,
+  largePrintSettingsErrors,
+  largePrintSettingsFromProfiles,
+  matterTemplateSelectionErrors,
   outlineNodeRole,
   parsePublishFailure,
   printInteriorSettingsErrors,
@@ -17,6 +26,61 @@ import type {
 } from "../types/PublishingTypes";
 
 describe("publishing form decisions", () => {
+  test("resolves template metadata defaults and reports required variables", () => {
+    const definition = {
+      id: "copyright",
+      version: 1,
+      label: "Copyright",
+      output_title: "Copyright",
+      description: "Fixture",
+      placement: "front" as const,
+      variables: [
+        {
+          key: "holder",
+          label: "Holder",
+          required: true,
+          multiline: false,
+          default_from: "author" as const,
+        },
+        {
+          key: "year",
+          label: "Year",
+          required: true,
+          multiline: false,
+        },
+      ],
+    };
+    const metadata = {
+      title: "Book",
+      author: "Writer",
+      contact: {
+        author_name: "",
+        email: "",
+        phone: "",
+        mailing_address: "",
+        header_surname: "",
+        short_title: "",
+      },
+      ebook: { include_front_matter: true, include_back_matter: true },
+    };
+
+    const variables = defaultMatterTemplateVariables(definition, metadata);
+    expect(variables).toEqual({ holder: "Writer", year: "" });
+    expect(
+      matterTemplateSelectionErrors([definition], [
+        {
+          template_id: "copyright",
+          template_version: 1,
+          variables,
+        },
+      ]),
+    ).toEqual(["Copyright: Year is required."]);
+    expect(defaultMasterPageSelection()).toEqual({
+      template_id: "profile_default",
+      template_version: 1,
+    });
+  });
+
   test("keeps one valid profile for the selected format", () => {
     expect(profileForFormat("pdf", { docx: "clean_handoff" })).toBe(
       "proof_pdf",
@@ -24,6 +88,10 @@ describe("publishing form decisions", () => {
     expect(profileForFormat("pdf", { pdf: "print_interior" })).toBe(
       "print_interior",
     );
+    expect(profileForFormat("pdf", { pdf: "large_print" })).toBe(
+      "large_print",
+    );
+    expect(profileForFormat("pdf", { pdf: "hardcover" })).toBe("hardcover");
     expect(profileForFormat("docx", { docx: "clean_handoff" })).toBe(
       "clean_handoff",
     );
@@ -78,6 +146,50 @@ describe("publishing form decisions", () => {
     expect(
       printInteriorSettingsErrors(defaultPrintInteriorPdfSettings()),
     ).toEqual([]);
+  });
+
+  test("loads and validates provider-neutral advanced PDF settings", () => {
+    expect(
+      largePrintSettingsFromProfiles({
+        large_print: {
+          ...defaultLargePrintPdfSettings(),
+          base_font_size_points: 18,
+          trim_size: "eight_by_ten",
+        },
+      }),
+    ).toEqual({
+      ...defaultLargePrintPdfSettings(),
+      base_font_size_points: 18,
+      trim_size: "eight_by_ten",
+    });
+    expect(largePrintSettingsErrors(defaultLargePrintPdfSettings())).toEqual([]);
+    expect(
+      largePrintSettingsErrors({
+        ...defaultLargePrintPdfSettings(),
+        base_font_size_points: 12,
+      }),
+    ).toContain("Base type size must be between 14 and 24 points.");
+
+    expect(
+      hardcoverSettingsFromProfiles({
+        hardcover: {
+          ...defaultHardcoverPdfSettings(),
+          trim_size: "seven_by_ten",
+          gutter_inches: 0.375,
+        },
+      }),
+    ).toEqual({
+      ...defaultHardcoverPdfSettings(),
+      trim_size: "seven_by_ten",
+      gutter_inches: 0.375,
+    });
+    expect(hardcoverSettingsErrors(defaultHardcoverPdfSettings())).toEqual([]);
+    expect(
+      hardcoverSettingsErrors({
+        ...defaultHardcoverPdfSettings(),
+        intentional_blank_pages: false,
+      }),
+    ).toContain("Recto chapter starts require intentional blank verso pages.");
   });
 
   test("builds type-appropriate scopes without dropping the selected node", () => {

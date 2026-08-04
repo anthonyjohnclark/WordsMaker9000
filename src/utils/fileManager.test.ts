@@ -307,6 +307,23 @@ describe("fileManager", () => {
       expect(persisted).not.toContain("data:image");
       expect(persisted).not.toContain("C:\\");
     });
+
+    it("round-trips stable semantic footnote references and definitions", async () => {
+      const content =
+        '<p>Claim<sup class="wm-footnote-reference" data-wm-footnote-id="note-stable" role="doc-noteref">note</sup>.</p><aside class="wm-footnote-definition" data-wm-footnote-id="note-stable" data-wm-footnote-body="Source text" role="doc-footnote"><strong>Footnote: </strong><span>Source text</span></aside>';
+      let persisted = "";
+      (writeTextFile as jest.Mock).mockImplementation(
+        async (_path: string, value: string) => {
+          persisted = value;
+        },
+      );
+
+      await saveFile("Project1", "file1", content);
+      (readTextFile as jest.Mock).mockResolvedValue(persisted);
+
+      await expect(readFile("Project1", "file1")).resolves.toBe(content);
+      expect(JSON.parse(persisted)).toEqual({ content });
+    });
   });
 
   describe("deleteFile", () => {

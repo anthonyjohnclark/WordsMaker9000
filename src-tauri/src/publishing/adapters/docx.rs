@@ -4,18 +4,19 @@ use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 
 use docx_rs::{
-    AbstractNumbering, AlignmentType, BreakType, Docx, Header, Hyperlink, HyperlinkType,
+    AbstractNumbering, AlignmentType, BreakType, Docx, Footnote, Header, Hyperlink, HyperlinkType,
     IndentLevel, Level, LevelJc, LevelText, LineSpacing, LineSpacingType, NumberFormat, Numbering,
     NumberingId, PageMargin, PageNum, PageNumType, PageSize, Paragraph, Pic, Run, RunFonts,
     Section, SpecialIndentType, Start, Style, StyleType,
 };
 
 use crate::publishing::model::{
-    AssetSource, Block, BookDocument, BookSection, HeadingLevel, ImagePresentation, Inline,
-    InlineMarks, ListItem, OutputFormat, ParagraphAlignment, ParagraphStyle, SceneBreakStyle,
-    SectionInclusion, SectionRole, TextDirection,
+    AssetSource, Block, BookDocument, BookSection, FootnoteId, HeadingLevel, ImagePresentation,
+    Inline, InlineMarks, ListItem, OutputFormat, ParagraphAlignment, ParagraphStyle,
+    SceneBreakStyle, SectionInclusion, SectionRole, TextDirection,
 };
 use crate::publishing::request::{ContactInformation, DocxProfileId};
+use crate::publishing::templates::is_title_page_template_section;
 
 const LETTER_WIDTH: u32 = 12_240;
 const LETTER_HEIGHT: u32 = 15_840;
@@ -44,6 +45,8 @@ const STYLE_HEADING_3: &str = "WMHeading3";
 const STYLE_HEADING_4: &str = "WMHeading4";
 const STYLE_HEADING_5: &str = "WMHeading5";
 const STYLE_HEADING_6: &str = "WMHeading6";
+const STYLE_FOOTNOTE_TEXT: &str = "FootnoteText";
+const STYLE_FOOTNOTE_REFERENCE: &str = "FootnoteReference";
 
 #[derive(Debug, Clone)]
 pub(crate) struct DocxRenderOptions {
@@ -242,6 +245,7 @@ struct RenderState {
     content_started: bool,
     asset_paths: HashMap<String, String>,
     project_root: PathBuf,
+    footnotes: HashMap<FootnoteId, Vec<Block>>,
 }
 
 impl RenderState {
@@ -256,12 +260,15 @@ impl RenderState {
                 (asset.id.0.clone(), path)
             })
             .collect();
+        let mut footnotes = HashMap::new();
+        collect_footnote_definitions(&document.sections, &mut footnotes);
         Self {
             profile,
             paragraphs: Vec::new(),
             content_started: false,
             asset_paths,
             project_root: options.project_root.clone(),
+            footnotes,
         }
     }
 
@@ -272,7 +279,9 @@ impl RenderState {
     fn render_sections(&mut self, sections: &[BookSection], depth: usize) -> Result<(), String> {
         let visible: Vec<&BookSection> = sections
             .iter()
-            .filter(|section| section_or_descendant_included(section))
+            .filter(|section| {
+                section_or_descendant_included(section) && !is_title_page_template_section(section)
+            })
             .collect();
 
         let mut previous_was_scene = false;
@@ -325,13 +334,13 @@ impl RenderState {
         for block in blocks {
             match block {
                 Block::Paragraph { inlines, style } => {
-                    let paragraph = add_inlines(paragraph_for_style(style), inlines)?;
+                    let paragraph = self.add_inlines(paragraph_for_style(style), inlines)?;
                     self.push(paragraph);
                     self.content_started = true;
                 }
                 Block::Heading { level, inlines } => {
                     let paragraph =
-                        add_inlines(Paragraph::new().style(heading_style(level)), inlines)?;
+                        self.add_inlines(Paragraph::new().style(heading_style(level)), inlines)?;
                     self.push(paragraph);
                     self.content_started = true;
                 }
@@ -362,10 +371,7 @@ impl RenderState {
                     presentation,
                     ..
                 } => self.render_image(&asset_id.0, caption.as_deref(), presentation)?,
-                Block::FootnoteDefinition { .. } => return Err(
-                    "DOCX rendering reached a footnote that should have been blocked by preflight."
-                        .to_string(),
-                ),
+                Block::FootnoteDefinition { .. } => {}
             }
         }
         Ok(())
@@ -423,12 +429,14 @@ impl RenderState {
                 .add_run(Run::new().add_image(picture)),
         );
         if let Some(caption) = caption {
-            self.push(add_inlines(
-                Paragraph::new()
-                    .style(STYLE_CAPTION)
-                    .align(AlignmentType::Center),
-                caption,
-            )?);
+            self.push(
+                self.add_inlines(
+                    Paragraph::new()
+                        .style(STYLE_CAPTION)
+                        .align(AlignmentType::Center),
+                    caption,
+                )?,
+            );
         }
         self.content_started = true;
         Ok(())
@@ -446,7 +454,7 @@ impl RenderState {
             for block in &item.blocks {
                 match block {
                     Block::Paragraph { inlines, .. } => {
-                        let paragraph = add_inlines(
+                        let paragraph = self.add_inlines(
                             Paragraph::new()
                                 .style(STYLE_LIST)
                                 .numbering(NumberingId::new(numbering_id), IndentLevel::new(level)),
@@ -491,7 +499,7 @@ impl RenderState {
         for block in blocks {
             match block {
                 Block::Paragraph { inlines, .. } => {
-                    self.push(add_inlines(Paragraph::new().style(STYLE_QUOTE), inlines)?);
+                    self.push(self.add_inlines(Paragraph::new().style(STYLE_QUOTE), inlines)?);
                     self.content_started = true;
                 }
                 nested => self.render_blocks(std::slice::from_ref(nested), depth)?,
@@ -499,6 +507,134 @@ impl RenderState {
         }
         Ok(())
     }
+
+    fn add_inlines(
+        &self,
+        mut paragraph: Paragraph,
+        inlines: &[Inline],
+    ) -> Result<Paragraph, String> {
+        for inline in inlines {
+            match inline {
+                Inline::Text { text, marks, link } => {
+                    let run = marked_run(text, marks);
+                    paragraph = if let Some(target) = link {
+                        paragraph.add_hyperlink(
+                            Hyperlink::new(target.0.clone(), HyperlinkType::External).add_run(run),
+                        )
+                    } else {
+                        paragraph.add_run(run)
+                    };
+                }
+                Inline::FootnoteReference { id } => {
+                    let blocks = self.footnotes.get(id).ok_or_else(|| {
+                        format!("DOCX footnote reference {:?} has no definition.", id.0)
+                    })?;
+                    let mut footnote = Footnote::new();
+                    for content in footnote_paragraphs(blocks)? {
+                        footnote = footnote.add_content(content);
+                    }
+                    paragraph = paragraph.add_run(Run::new().add_footnote_reference(footnote));
+                }
+            }
+        }
+        Ok(paragraph)
+    }
+}
+
+fn collect_footnote_definitions(
+    sections: &[BookSection],
+    footnotes: &mut HashMap<FootnoteId, Vec<Block>>,
+) {
+    for section in sections {
+        collect_block_footnote_definitions(&section.blocks, footnotes);
+        collect_footnote_definitions(&section.children, footnotes);
+    }
+}
+
+fn collect_block_footnote_definitions(
+    blocks: &[Block],
+    footnotes: &mut HashMap<FootnoteId, Vec<Block>>,
+) {
+    for block in blocks {
+        match block {
+            Block::FootnoteDefinition { id, blocks } => {
+                footnotes
+                    .entry(id.clone())
+                    .or_insert_with(|| blocks.clone());
+                collect_block_footnote_definitions(blocks, footnotes);
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                for item in items {
+                    collect_block_footnote_definitions(&item.blocks, footnotes);
+                }
+            }
+            Block::BlockQuote { blocks } => collect_block_footnote_definitions(blocks, footnotes),
+            _ => {}
+        }
+    }
+}
+
+fn footnote_paragraphs(blocks: &[Block]) -> Result<Vec<Paragraph>, String> {
+    let mut paragraphs = Vec::new();
+    for block in blocks {
+        match block {
+            Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
+                paragraphs.push(add_inlines(
+                    Paragraph::new().style(STYLE_FOOTNOTE_TEXT),
+                    inlines,
+                )?);
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                let ordered = matches!(block, Block::OrderedList { .. });
+                for (index, item) in items.iter().enumerate() {
+                    let prefix = if ordered {
+                        format!("{}. ", index + 1)
+                    } else {
+                        "- ".to_string()
+                    };
+                    match item.blocks.split_first() {
+                        Some((Block::Paragraph { inlines, .. }, rest)) => {
+                            paragraphs.push(add_inlines(
+                                Paragraph::new()
+                                    .style(STYLE_FOOTNOTE_TEXT)
+                                    .add_run(Run::new().add_text(prefix)),
+                                inlines,
+                            )?);
+                            paragraphs.extend(footnote_paragraphs(rest)?);
+                        }
+                        _ => {
+                            paragraphs.push(
+                                Paragraph::new()
+                                    .style(STYLE_FOOTNOTE_TEXT)
+                                    .add_run(Run::new().add_text(prefix)),
+                            );
+                            paragraphs.extend(footnote_paragraphs(&item.blocks)?);
+                        }
+                    }
+                }
+            }
+            Block::BlockQuote { blocks } => paragraphs.extend(footnote_paragraphs(blocks)?),
+            Block::SceneBreak { style } => paragraphs.push(
+                Paragraph::new()
+                    .style(STYLE_FOOTNOTE_TEXT)
+                    .add_run(Run::new().add_text(scene_marker_text(style))),
+            ),
+            Block::PageBreak => {
+                return Err("DOCX footnotes cannot contain page breaks.".to_string())
+            }
+            Block::Image { asset_id, .. } => {
+                return Err(format!(
+                    "DOCX footnotes cannot contain image asset {:?}.",
+                    asset_id.0
+                ))
+            }
+            Block::FootnoteDefinition { .. } => {}
+        }
+    }
+    if paragraphs.is_empty() {
+        paragraphs.push(Paragraph::new().style(STYLE_FOOTNOTE_TEXT));
+    }
+    Ok(paragraphs)
 }
 
 fn paragraph_for_style(style: &ParagraphStyle) -> Paragraph {
@@ -598,6 +734,14 @@ fn named_styles(profile: DocxProfileId, fonts: RunFonts, body_spacing: LineSpaci
 
     vec![
         body,
+        Style::new(STYLE_FOOTNOTE_TEXT, StyleType::Paragraph)
+            .name("Footnote Text")
+            .fonts(fonts.clone())
+            .size(20),
+        Style::new(STYLE_FOOTNOTE_REFERENCE, StyleType::Character)
+            .name("Footnote Reference")
+            .fonts(fonts.clone())
+            .size(20),
         Style::new(STYLE_CONTACT, StyleType::Paragraph)
             .name("WM Contact")
             .fonts(fonts.clone())
@@ -931,6 +1075,23 @@ fn finalize_docx_package(
                 writer
                     .write_all(document_xml.as_bytes())
                     .map_err(|error| format!("Failed to update DOCX RTL semantics: {error}"))?;
+            } else if entry.name() == "word/footnotes.xml" {
+                let mut footnotes_xml = String::new();
+                let mut entry = entry;
+                entry
+                    .read_to_string(&mut footnotes_xml)
+                    .map_err(|error| format!("Failed to read DOCX footnotes XML: {error}"))?;
+                let footnotes_xml = add_footnote_markers(&footnotes_xml)?;
+                writer
+                    .start_file(
+                        "word/footnotes.xml",
+                        zip::write::SimpleFileOptions::default()
+                            .compression_method(zip::CompressionMethod::Deflated),
+                    )
+                    .map_err(|error| format!("Failed to update DOCX footnotes: {error}"))?;
+                writer
+                    .write_all(footnotes_xml.as_bytes())
+                    .map_err(|error| format!("Failed to update DOCX footnotes: {error}"))?;
             } else {
                 writer
                     .raw_copy_file(entry)
@@ -952,6 +1113,46 @@ fn finalize_docx_package(
     std::fs::copy(replacement.path(), path)
         .map_err(|error| format!("Failed to install DOCX metadata update: {error}"))?;
     Ok(())
+}
+
+fn add_footnote_markers(xml: &str) -> Result<String, String> {
+    const MARKER: &str = concat!(
+        "<w:r><w:rPr><w:rStyle w:val=\"FootnoteReference\" />",
+        "</w:rPr><w:footnoteRef /></w:r>"
+    );
+    let mut updated = String::with_capacity(xml.len() + 128);
+    let mut remaining = xml;
+    while let Some(start) = remaining.find("<w:footnote ") {
+        updated.push_str(&remaining[..start]);
+        let footnote = &remaining[start..];
+        let end = footnote
+            .find("</w:footnote>")
+            .map(|index| index + "</w:footnote>".len())
+            .ok_or_else(|| "DOCX footnotes XML contains an incomplete footnote.".to_string())?;
+        let (footnote, rest) = footnote.split_at(end);
+        if footnote.contains("<w:footnoteRef") {
+            updated.push_str(footnote);
+            remaining = rest;
+            continue;
+        }
+        let insertion = footnote
+            .find("</w:pPr>")
+            .map(|index| index + "</w:pPr>".len())
+            .or_else(|| {
+                footnote
+                    .find("<w:pPr />")
+                    .map(|index| index + "<w:pPr />".len())
+            })
+            .ok_or_else(|| {
+                "DOCX footnote has no paragraph properties for its reference marker.".to_string()
+            })?;
+        updated.push_str(&footnote[..insertion]);
+        updated.push_str(MARKER);
+        updated.push_str(&footnote[insertion..]);
+        remaining = rest;
+    }
+    updated.push_str(remaining);
+    Ok(updated)
 }
 
 fn image_descriptions(document: &BookDocument) -> Vec<Option<String>> {
@@ -1107,6 +1308,29 @@ fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
         .map_err(|error| format!("DOCX document XML is unreadable: {error}"))?;
     if !document_xml.contains("<w:document") || !document_xml.contains("<w:sectPr") {
         return Err("DOCX document XML is structurally incomplete.".to_string());
+    }
+    if document_xml.contains("<w:footnoteReference") {
+        let mut footnotes = String::new();
+        archive
+            .by_name("word/footnotes.xml")
+            .map_err(|_| "DOCX package is missing word/footnotes.xml.".to_string())?
+            .read_to_string(&mut footnotes)
+            .map_err(|error| format!("DOCX footnotes XML is unreadable: {error}"))?;
+        if !footnotes.contains("<w:footnotes") || !footnotes.contains("<w:footnote") {
+            return Err("DOCX footnotes XML is structurally incomplete.".to_string());
+        }
+        let relationships = {
+            let mut contents = String::new();
+            archive
+                .by_name("word/_rels/document.xml.rels")
+                .map_err(|_| "DOCX package is missing document relationships.".to_string())?
+                .read_to_string(&mut contents)
+                .map_err(|error| format!("DOCX relationships are unreadable: {error}"))?;
+            contents
+        };
+        if !relationships.contains("relationships/footnotes") {
+            return Err("DOCX package is missing its footnotes relationship.".to_string());
+        }
     }
     Ok(())
 }
@@ -1362,6 +1586,50 @@ mod tests {
         assert!(archive
             .file_names()
             .any(|name| name.starts_with("word/media/")));
+    }
+
+    #[test]
+    fn emits_native_word_footnotes_in_reference_order() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("footnotes.docx");
+        let mut document = sample_document();
+        let Block::Paragraph { inlines, .. } = &mut document.sections[0].blocks[0] else {
+            panic!("sample paragraph moved");
+        };
+        inlines.push(Inline::FootnoteReference {
+            id: FootnoteId("note-stable".to_string()),
+        });
+        document.sections[0].blocks.push(Block::FootnoteDefinition {
+            id: FootnoteId("note-stable".to_string()),
+            blocks: vec![Block::Paragraph {
+                inlines: vec![Inline::Text {
+                    text: "Native note body.".to_string(),
+                    marks: InlineMarks::default(),
+                    link: None,
+                }],
+                style: ParagraphStyle {
+                    alignment: ParagraphAlignment::Start,
+                    indent_level: 0,
+                    direction: TextDirection::Auto,
+                },
+            }],
+        });
+
+        render_docx(&document, &options(DocxProfileId::CleanHandoff), &path).unwrap();
+
+        let document_xml = zip_part(&path, "word/document.xml");
+        let footnotes_xml = zip_part(&path, "word/footnotes.xml");
+        let styles_xml = zip_part(&path, "word/styles.xml");
+        let relationships = zip_part(&path, "word/_rels/document.xml.rels");
+        let content_types = zip_part(&path, "[Content_Types].xml");
+        assert!(document_xml.contains("<w:footnoteReference w:id=\""));
+        assert!(footnotes_xml.contains("Native note body."));
+        assert!(footnotes_xml.contains("<w:footnoteRef"));
+        assert!(footnotes_xml.contains("w:pStyle w:val=\"FootnoteText\""));
+        assert!(styles_xml.contains("w:styleId=\"FootnoteReference\""));
+        assert!(styles_xml.contains("w:styleId=\"FootnoteText\""));
+        assert!(relationships.contains("relationships/footnotes"));
+        assert!(content_types.contains("footnotes+xml"));
     }
 
     #[test]

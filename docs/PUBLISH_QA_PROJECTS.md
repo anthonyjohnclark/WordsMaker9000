@@ -6,7 +6,7 @@ Run the generator from the repository root:
 powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\create_publish_test_projects.ps1
 ```
 
-It creates eleven projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuses to overwrite an existing fixture unless `-Force` is explicitly supplied.
+It creates fourteen projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuses to overwrite an existing fixture unless `-Force` is explicitly supplied.
 
 ## Successful fixtures
 
@@ -19,6 +19,9 @@ It creates eleven projects in `%APPDATA%\WordsMaker9000\Dev_Projects` and refuse
 | Publish QA 05 - Format Inclusion | All/PDF-only/DOCX-only/EPUB-only/excluded nodes, empty included chapter, EPUB-specific front/back inclusion |
 | Publish QA 06 - Formatting and Unicode | All supported headings and inline marks, alignment, indentation, RTL, block quote, nested mixed lists, link, soft break, scene break, multilingual text, EPUB reflow |
 | Publish QA 07 - Accessible Images | Versioned project asset registry, informative/decorative body images, alt text, captions, placement intent, PDF/DOCX/EPUB packaging |
+| Publish QA 08 - Footnotes | Stable semantic IDs, publication-order numbering, PDF page footnotes, native Word footnotes, EPUB noteref/footnote relationships and backlinks |
+| Publish QA 09 - Matter Templates | Versioned title/copyright/dedication/contents/acknowledgements/biography/Also By components, preserved legacy matter, recipes/hashes, and Classic Book master pages |
+| Publish QA 10 - Large Print and Hardcover | Independent provider-neutral Large Print typography/measure/furniture and Hardcover trim/binding/recto/blank-page settings, recipes, hashes, and page boxes |
 
 ## Expected-failure fixtures
 
@@ -35,6 +38,8 @@ For successful projects, compare:
 
 - Proof PDF;
 - Print Interior PDF;
+- Large Print PDF;
+- Hardcover PDF;
 - Standard Manuscript DOCX;
 - Clean Handoff DOCX;
 - EPUB 3 with EPUBCheck and a reflowable reader.
@@ -58,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\generate_
 ```
 
 The destination must be new or empty; the command never deletes an existing
-inspection directory. It copies the eleven projects to a temporary app-data root
+inspection directory. It copies the fourteen projects to a temporary app-data root
 and runs those copies through the same Rust snapshot loading, compilation,
 project strategy, preflight, adapters, manifest creation, and destination-copy
 path used by the Publish modal. The live `_Dev` projects and their export
@@ -66,11 +71,11 @@ histories are not changed.
 
 It generates:
 
-- full-project Proof PDF, Print Interior PDF, Standard Manuscript DOCX, Clean
-  Handoff DOCX, and EPUB for QA01 through QA07;
-- all five outputs for QA03's `The Clockmaker's Map` Single Work scope;
-- all five outputs for QA04's Installment 02 and Volume One scopes;
-- both PDF and both DOCX profiles for QA93;
+- full-project Proof PDF, Print Interior PDF, Large Print PDF, Hardcover PDF,
+  Standard Manuscript DOCX, Clean Handoff DOCX, and EPUB for QA01 through QA10;
+- all seven outputs for QA03's `The Clockmaker's Map` Single Work scope;
+- all seven outputs for QA04's Installment 02 and Volume One scopes;
+- all four PDF and both DOCX profiles for QA93;
 - `qa-results.json`, copied manifests, each project's `EXPECTATIONS.md`, and a
   short generated README;
 - passing expected-failure records for representative QA90/QA91 attempts,
@@ -79,3 +84,7 @@ It generates:
 Any unexpected success or failure makes the command exit nonzero. The
 unsaved-buffer check in QA02 remains an interactive frontend test because a
 disk-only command intentionally has no editor buffer to flush.
+
+The Slice 6.5 matrix contains 97 successful artifacts and 10 expected blocking
+failures. QA10 is intentionally long enough to exercise continuation-page
+headers and folios plus an inserted blank Hardcover verso in the same artifact.

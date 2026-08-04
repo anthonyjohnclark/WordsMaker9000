@@ -6,13 +6,13 @@ entry points, and local inspection output.
 From the repository root:
 
 ```powershell
-# Create the eleven QA projects under the app's Dev_Projects directory.
+# Create the fourteen QA projects under the app's Dev_Projects directory.
 powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\create_publish_test_projects.ps1
 
 # Replace existing QA projects when needed.
 powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\create_publish_test_projects.ps1 -Force
 
-# Generate Proof PDF, Print Interior PDF, DOCX, and EPUB artifacts without opening the app.
+# Generate all four PDF profiles, both DOCX profiles, and EPUB without opening the app.
 powershell -ExecutionPolicy Bypass -File .\tests\publishing-qa\scripts\generate_publish_qa_outputs.ps1
 ```
 

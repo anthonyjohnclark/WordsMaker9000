@@ -7,6 +7,7 @@ use super::model::{
     OutputFormat, SectionInclusion, SectionRole,
 };
 use super::request::{Diagnostic, DiagnosticSeverity, PublishFormat, PublishMetadataOverrides};
+use super::templates::is_title_page_template_section;
 
 pub(crate) fn run_preflight(
     document: &BookDocument,
@@ -40,11 +41,11 @@ pub(crate) fn run_preflight(
             Some("Review the outline and select Confirm outline.".to_string()),
         ));
     }
-    if !document
-        .sections
-        .iter()
-        .any(|section| included_for_format(section, format) && section_has_prose(section))
-    {
+    if !document.sections.iter().any(|section| {
+        included_for_format(section, format)
+            && !is_title_page_template_section(section)
+            && section_has_prose(section)
+    }) {
         diagnostics.push(Diagnostic::error(
             "PUBLISH_EMPTY_SCOPE",
             "The selected publication scope contains no prose.",
@@ -52,6 +53,8 @@ pub(crate) fn run_preflight(
             Some("Include at least one non-empty section.".to_string()),
         ));
     }
+
+    inspect_footnotes(document, format, metadata, &mut diagnostics);
 
     if format == PublishFormat::Docx {
         if metadata.contact.email.trim().is_empty() && metadata.contact.phone.trim().is_empty() {
@@ -61,9 +64,6 @@ pub(crate) fn run_preflight(
                 None,
                 Some("Add an email address or phone number.".to_string()),
             ));
-        }
-        for section in &document.sections {
-            inspect_section_for_docx(section, &mut diagnostics);
         }
     }
     for section in &document.sections {
@@ -238,47 +238,6 @@ pub(crate) fn has_blocking_diagnostics(diagnostics: &[Diagnostic]) -> bool {
         .any(|diagnostic| diagnostic.severity == DiagnosticSeverity::Error)
 }
 
-fn inspect_section_for_docx(section: &BookSection, diagnostics: &mut Vec<Diagnostic>) {
-    for block in &section.blocks {
-        inspect_block_for_docx(block, section.source_node_id, diagnostics);
-    }
-    for child in &section.children {
-        inspect_section_for_docx(child, diagnostics);
-    }
-}
-
-fn inspect_block_for_docx(block: &Block, node_id: Option<i64>, diagnostics: &mut Vec<Diagnostic>) {
-    match block {
-        Block::Image { caption, .. } => {
-            if let Some(caption) = caption {
-                inspect_inlines(caption, node_id, diagnostics);
-            }
-        }
-        Block::FootnoteDefinition { .. } => diagnostics.push(Diagnostic::error(
-            "DOCX_FOOTNOTE_UNSUPPORTED",
-            "Footnotes are not supported by the initial DOCX adapter.",
-            node_id,
-            Some("Remove the footnote or exclude this section.".to_string()),
-        )),
-        Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
-            inspect_inlines(inlines, node_id, diagnostics)
-        }
-        Block::OrderedList { items } | Block::BulletList { items } => {
-            for item in items {
-                for child in &item.blocks {
-                    inspect_block_for_docx(child, node_id, diagnostics);
-                }
-            }
-        }
-        Block::BlockQuote { blocks } => {
-            for child in blocks {
-                inspect_block_for_docx(child, node_id, diagnostics);
-            }
-        }
-        Block::SceneBreak { .. } | Block::PageBreak => {}
-    }
-}
-
 fn inspect_section_images(
     section: &BookSection,
     format: PublishFormat,
@@ -337,17 +296,320 @@ fn inspect_image_blocks(blocks: &[Block], node_id: Option<i64>, diagnostics: &mu
     }
 }
 
-fn inspect_inlines(inlines: &[Inline], node_id: Option<i64>, diagnostics: &mut Vec<Diagnostic>) {
-    if inlines
+#[derive(Clone)]
+struct NoteDefinitionLocation {
+    node_id: Option<i64>,
+    included: bool,
+}
+
+#[derive(Clone)]
+struct NoteReferenceLocation {
+    id: FootnoteId,
+    node_id: Option<i64>,
+    within_definition: Option<FootnoteId>,
+}
+
+#[derive(Default)]
+struct NoteInventory {
+    definitions: HashMap<FootnoteId, Vec<NoteDefinitionLocation>>,
+    definition_order: Vec<FootnoteId>,
+    references: Vec<NoteReferenceLocation>,
+}
+
+fn inspect_footnotes(
+    document: &BookDocument,
+    format: PublishFormat,
+    metadata: &PublishMetadataOverrides,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut inventory = NoteInventory::default();
+    for section in &document.sections {
+        collect_section_notes(section, format, metadata, &mut inventory);
+    }
+
+    for id in &inventory.definition_order {
+        let locations = &inventory.definitions[id];
+        if locations.len() > 1 {
+            diagnostics.push(Diagnostic::error(
+                "PUBLISH_FOOTNOTE_ID_DUPLICATE",
+                format!("Footnote ID {:?} appears more than once.", id.0),
+                locations.iter().find_map(|location| location.node_id),
+                Some("Assign each footnote definition a unique stable ID.".to_string()),
+            ));
+        }
+    }
+
+    let mut reference_counts: HashMap<FootnoteId, usize> = HashMap::new();
+    for reference in &inventory.references {
+        *reference_counts.entry(reference.id.clone()).or_default() += 1;
+    }
+    for id in inventory
+        .references
         .iter()
-        .any(|inline| matches!(inline, Inline::FootnoteReference { .. }))
+        .map(|reference| &reference.id)
+        .collect::<Vec<_>>()
+    {
+        if reference_counts.remove(id).is_some_and(|count| count > 1) {
+            diagnostics.push(Diagnostic::error(
+                "PUBLISH_FOOTNOTE_REFERENCE_DUPLICATE",
+                format!("Footnote ID {:?} is referenced more than once.", id.0),
+                inventory
+                    .references
+                    .iter()
+                    .find(|reference| reference.id == *id)
+                    .and_then(|reference| reference.node_id),
+                Some("Create a separate note ID for each publication-order reference.".to_string()),
+            ));
+        }
+    }
+    if let Some(reference) = inventory
+        .references
+        .iter()
+        .find(|reference| reference.within_definition.is_some())
     {
         diagnostics.push(Diagnostic::error(
-            "DOCX_FOOTNOTE_UNSUPPORTED",
-            "Footnote references are not supported by the initial DOCX adapter.",
-            node_id,
-            Some("Remove the footnote or exclude this section.".to_string()),
+            "PUBLISH_FOOTNOTE_NESTED_REFERENCE_UNSUPPORTED",
+            "A footnote definition contains another footnote reference.",
+            reference.node_id,
+            Some("Move the nested note text into the outer footnote.".to_string()),
         ));
+    }
+
+    let mut reported_missing = HashSet::new();
+    let mut reported_excluded = HashSet::new();
+    for reference in &inventory.references {
+        match inventory.definitions.get(&reference.id) {
+            None if reported_missing.insert(reference.id.clone()) => {
+                diagnostics.push(Diagnostic::error(
+                    "PUBLISH_FOOTNOTE_DEFINITION_MISSING",
+                    format!("Footnote reference {:?} has no definition.", reference.id.0),
+                    reference.node_id,
+                    Some("Restore the footnote definition or remove the reference.".to_string()),
+                ))
+            }
+            Some(locations)
+                if !locations.iter().any(|location| location.included)
+                    && reported_excluded.insert(reference.id.clone()) =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "PUBLISH_FOOTNOTE_DEFINITION_EXCLUDED",
+                    format!(
+                        "Footnote definition {:?} is outside the selected publication scope.",
+                        reference.id.0
+                    ),
+                    reference.node_id,
+                    Some(
+                        "Include the section containing the definition or move the note into scope."
+                            .to_string(),
+                    ),
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    let included_definitions = inventory
+        .definition_order
+        .iter()
+        .filter(|id| {
+            inventory
+                .definitions
+                .get(*id)
+                .is_some_and(|locations| locations.iter().any(|location| location.included))
+        })
+        .cloned()
+        .collect::<HashSet<_>>();
+    let mut graph: HashMap<FootnoteId, Vec<FootnoteId>> = HashMap::new();
+    let mut reachable = inventory
+        .references
+        .iter()
+        .filter(|reference| reference.within_definition.is_none())
+        .map(|reference| reference.id.clone())
+        .collect::<HashSet<_>>();
+    for reference in &inventory.references {
+        if let Some(parent) = &reference.within_definition {
+            graph
+                .entry(parent.clone())
+                .or_default()
+                .push(reference.id.clone());
+        }
+    }
+
+    let mut frontier = reachable.iter().cloned().collect::<Vec<_>>();
+    while let Some(id) = frontier.pop() {
+        for dependency in graph.get(&id).into_iter().flatten() {
+            if reachable.insert(dependency.clone()) {
+                frontier.push(dependency.clone());
+            }
+        }
+    }
+    for id in &inventory.definition_order {
+        if included_definitions.contains(id) && !reachable.contains(id) {
+            let node_id = inventory.definitions[id]
+                .iter()
+                .find(|location| location.included)
+                .and_then(|location| location.node_id);
+            diagnostics.push(Diagnostic::warning(
+                "PUBLISH_FOOTNOTE_UNREACHABLE",
+                format!("Footnote definition {:?} is never referenced.", id.0),
+                node_id,
+                Some("Add a reference or delete the unused definition.".to_string()),
+            ));
+        }
+    }
+
+    let mut visited = HashSet::new();
+    let mut stack = Vec::new();
+    let mut cycle_ids = HashSet::new();
+    for id in &inventory.definition_order {
+        collect_note_cycles(id, &graph, &mut visited, &mut stack, &mut cycle_ids);
+    }
+    if !cycle_ids.is_empty() {
+        let ids = inventory
+            .definition_order
+            .iter()
+            .filter(|id| cycle_ids.contains(*id))
+            .map(|id| id.0.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        diagnostics.push(Diagnostic::error(
+            "PUBLISH_FOOTNOTE_CIRCULAR_REFERENCE",
+            format!("Footnote definitions contain a circular reference: {ids}."),
+            inventory
+                .definition_order
+                .iter()
+                .filter(|id| cycle_ids.contains(*id))
+                .find_map(|id| {
+                    inventory.definitions[id]
+                        .iter()
+                        .find_map(|item| item.node_id)
+                }),
+            Some("Remove the reference cycle between note definitions.".to_string()),
+        ));
+    }
+}
+
+fn collect_note_cycles(
+    id: &FootnoteId,
+    graph: &HashMap<FootnoteId, Vec<FootnoteId>>,
+    visited: &mut HashSet<FootnoteId>,
+    stack: &mut Vec<FootnoteId>,
+    cycle_ids: &mut HashSet<FootnoteId>,
+) {
+    if visited.contains(id) {
+        return;
+    }
+    stack.push(id.clone());
+    for dependency in graph.get(id).into_iter().flatten() {
+        if let Some(start) = stack.iter().position(|candidate| candidate == dependency) {
+            cycle_ids.extend(stack[start..].iter().cloned());
+        } else {
+            collect_note_cycles(dependency, graph, visited, stack, cycle_ids);
+        }
+    }
+    stack.pop();
+    visited.insert(id.clone());
+}
+
+fn collect_section_notes(
+    section: &BookSection,
+    format: PublishFormat,
+    metadata: &PublishMetadataOverrides,
+    inventory: &mut NoteInventory,
+) {
+    let included = match format {
+        PublishFormat::Epub => included_for_epub(section, metadata),
+        _ => match &section.inclusion {
+            SectionInclusion::AllFormats => true,
+            SectionInclusion::SelectedFormats { formats } => formats.iter().any(|candidate| {
+                matches!(
+                    (format, candidate),
+                    (PublishFormat::Pdf, OutputFormat::Pdf)
+                        | (PublishFormat::Docx, OutputFormat::Docx)
+                )
+            }),
+            SectionInclusion::Excluded => false,
+        },
+    };
+    collect_note_blocks(
+        &section.blocks,
+        section.source_node_id,
+        included,
+        None,
+        inventory,
+    );
+    for child in &section.children {
+        collect_section_notes(child, format, metadata, inventory);
+    }
+}
+
+fn collect_note_blocks(
+    blocks: &[Block],
+    node_id: Option<i64>,
+    included: bool,
+    within_definition: Option<&FootnoteId>,
+    inventory: &mut NoteInventory,
+) {
+    for block in blocks {
+        match block {
+            Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
+                collect_note_inlines(inlines, node_id, included, within_definition, inventory)
+            }
+            Block::Image { caption, .. } => {
+                if let Some(caption) = caption {
+                    collect_note_inlines(caption, node_id, included, within_definition, inventory);
+                }
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                for item in items {
+                    collect_note_blocks(
+                        &item.blocks,
+                        node_id,
+                        included,
+                        within_definition,
+                        inventory,
+                    );
+                }
+            }
+            Block::BlockQuote { blocks } => {
+                collect_note_blocks(blocks, node_id, included, within_definition, inventory)
+            }
+            Block::FootnoteDefinition { id, blocks } => {
+                if !inventory.definitions.contains_key(id) {
+                    inventory.definition_order.push(id.clone());
+                }
+                inventory
+                    .definitions
+                    .entry(id.clone())
+                    .or_default()
+                    .push(NoteDefinitionLocation { node_id, included });
+                if included {
+                    collect_note_blocks(blocks, node_id, true, Some(id), inventory);
+                }
+            }
+            Block::SceneBreak { .. } | Block::PageBreak => {}
+        }
+    }
+}
+
+fn collect_note_inlines(
+    inlines: &[Inline],
+    node_id: Option<i64>,
+    included: bool,
+    within_definition: Option<&FootnoteId>,
+    inventory: &mut NoteInventory,
+) {
+    if !included {
+        return;
+    }
+    for inline in inlines {
+        if let Inline::FootnoteReference { id } = inline {
+            inventory.references.push(NoteReferenceLocation {
+                id: id.clone(),
+                node_id,
+                within_definition: within_definition.cloned(),
+            });
+        }
     }
 }
 
@@ -419,32 +681,15 @@ fn inspect_epub(
     }
 
     let mut source_ids = HashSet::new();
-    let mut footnote_definitions = HashMap::new();
-    let mut footnote_references = Vec::new();
     for section in &document.sections {
-        inspect_section_for_epub(
-            section,
-            metadata,
-            &mut source_ids,
-            &mut footnote_definitions,
-            &mut footnote_references,
-            diagnostics,
-        );
-    }
-    for (id, node_id) in footnote_references {
-        if !footnote_definitions.contains_key(&id) {
-            diagnostics.push(Diagnostic::error(
-                "EPUB_LINK_BROKEN",
-                format!("Footnote reference {:?} has no definition.", id.0),
-                node_id,
-                Some("Restore the footnote definition or remove the reference.".to_string()),
-            ));
-        }
+        inspect_section_for_epub(section, metadata, &mut source_ids, diagnostics);
     }
 }
 
 fn has_included_epub_section(section: &BookSection, metadata: &PublishMetadataOverrides) -> bool {
-    included_for_epub(section, metadata)
+    (included_for_epub(section, metadata)
+        && !is_title_page_template_section(section)
+        && section_has_prose(section))
         || section
             .children
             .iter()
@@ -496,8 +741,6 @@ fn inspect_section_for_epub(
     section: &BookSection,
     metadata: &PublishMetadataOverrides,
     source_ids: &mut HashSet<i64>,
-    footnote_definitions: &mut HashMap<FootnoteId, Option<i64>>,
-    footnote_references: &mut Vec<(FootnoteId, Option<i64>)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !included_for_epub(section, metadata) {
@@ -517,83 +760,38 @@ fn inspect_section_for_epub(
         }
     }
     for block in &section.blocks {
-        inspect_block_for_epub(
-            block,
-            section.source_node_id,
-            footnote_definitions,
-            footnote_references,
-            diagnostics,
-        );
+        inspect_block_for_epub(block, section.source_node_id, diagnostics);
     }
     for child in &section.children {
-        inspect_section_for_epub(
-            child,
-            metadata,
-            source_ids,
-            footnote_definitions,
-            footnote_references,
-            diagnostics,
-        );
+        inspect_section_for_epub(child, metadata, source_ids, diagnostics);
     }
 }
 
-fn inspect_block_for_epub(
-    block: &Block,
-    node_id: Option<i64>,
-    footnote_definitions: &mut HashMap<FootnoteId, Option<i64>>,
-    footnote_references: &mut Vec<(FootnoteId, Option<i64>)>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+fn inspect_block_for_epub(block: &Block, node_id: Option<i64>, diagnostics: &mut Vec<Diagnostic>) {
     match block {
         Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
-            inspect_epub_inlines(inlines, node_id, footnote_references, diagnostics);
+            inspect_epub_inlines(inlines, node_id, diagnostics);
         }
         Block::OrderedList { items } | Block::BulletList { items } => {
             for item in items {
                 for block in &item.blocks {
-                    inspect_block_for_epub(
-                        block,
-                        node_id,
-                        footnote_definitions,
-                        footnote_references,
-                        diagnostics,
-                    );
+                    inspect_block_for_epub(block, node_id, diagnostics);
                 }
             }
         }
         Block::BlockQuote { blocks } => {
             for block in blocks {
-                inspect_block_for_epub(
-                    block,
-                    node_id,
-                    footnote_definitions,
-                    footnote_references,
-                    diagnostics,
-                );
+                inspect_block_for_epub(block, node_id, diagnostics);
             }
         }
         Block::Image { caption, .. } => {
             if let Some(caption) = caption {
-                inspect_epub_inlines(caption, node_id, footnote_references, diagnostics);
+                inspect_epub_inlines(caption, node_id, diagnostics);
             }
         }
-        Block::FootnoteDefinition { id, blocks } => {
-            if footnote_definitions.insert(id.clone(), node_id).is_some() {
-                diagnostics.push(Diagnostic::error(
-                    "EPUB_DUPLICATE_ID",
-                    format!("Footnote ID {:?} appears more than once.", id.0),
-                    node_id,
-                    Some("Assign each footnote a unique ID.".to_string()),
-                ));
-            }
+        Block::FootnoteDefinition { blocks, .. } => {
             for block in blocks {
-                inspect_block_for_epub(
-                    block,
-                    node_id,
-                    footnote_definitions,
-                    footnote_references,
-                    diagnostics,
-                );
+                inspect_block_for_epub(block, node_id, diagnostics);
             }
         }
         Block::SceneBreak { .. } | Block::PageBreak => {}
@@ -603,7 +801,6 @@ fn inspect_block_for_epub(
 fn inspect_epub_inlines(
     inlines: &[Inline],
     node_id: Option<i64>,
-    footnote_references: &mut Vec<(FootnoteId, Option<i64>)>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for inline in inlines {
@@ -616,9 +813,7 @@ fn inspect_epub_inlines(
                 node_id,
                 Some("Use an http, https, mailto, or tel URL.".to_string()),
             )),
-            Inline::FootnoteReference { id } => {
-                footnote_references.push((id.clone(), node_id));
-            }
+            Inline::FootnoteReference { .. } => {}
             _ => {}
         }
     }
@@ -814,6 +1009,59 @@ mod tests {
     }
 
     #[test]
+    fn generated_title_page_does_not_make_an_empty_scope_publishable() {
+        let mut doc = document(Block::Paragraph {
+            inlines: vec![Inline::Text {
+                text: "Excluded body".to_string(),
+                marks: InlineMarks::default(),
+                link: None,
+            }],
+            style: ParagraphStyle {
+                alignment: ParagraphAlignment::Start,
+                indent_level: 0,
+                direction: TextDirection::Auto,
+            },
+        });
+        doc.sections[0].inclusion = SectionInclusion::Excluded;
+        doc.sections.insert(
+            0,
+            BookSection {
+                source_node_id: None,
+                role: SectionRole::FrontMatter,
+                title: Some("Title Page".to_string()),
+                inclusion: SectionInclusion::AllFormats,
+                blocks: vec![Block::Paragraph {
+                    inlines: vec![Inline::Text {
+                        text: "Book by Author".to_string(),
+                        marks: InlineMarks::default(),
+                        link: None,
+                    }],
+                    style: ParagraphStyle {
+                        alignment: ParagraphAlignment::Start,
+                        indent_level: 0,
+                        direction: TextDirection::Auto,
+                    },
+                }],
+                children: vec![],
+            },
+        );
+        let metadata = epub_metadata();
+
+        let pdf = run_preflight(&doc, PublishFormat::Pdf, &metadata, true);
+        assert!(pdf
+            .iter()
+            .any(|diagnostic| diagnostic.code == "PUBLISH_EMPTY_SCOPE"));
+
+        let epub = run_preflight(&doc, PublishFormat::Epub, &metadata, true);
+        assert!(epub
+            .iter()
+            .any(|diagnostic| diagnostic.code == "PUBLISH_EMPTY_SCOPE"));
+        assert!(epub
+            .iter()
+            .any(|diagnostic| diagnostic.code == "EPUB_EMPTY_SCOPE"));
+    }
+
+    #[test]
     fn informative_images_require_alt_text_for_every_format() {
         let doc = document(Block::Image {
             asset_id: AssetId("image-1".to_string()),
@@ -902,8 +1150,91 @@ mod tests {
                 .iter()
                 .filter(|diagnostic| diagnostic.code == "EPUB_DUPLICATE_ID")
                 .count(),
-            2
+            1
         );
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "PUBLISH_FOOTNOTE_ID_DUPLICATE"));
+    }
+
+    fn note_reference(id: &str) -> Inline {
+        Inline::FootnoteReference {
+            id: FootnoteId(id.to_string()),
+        }
+    }
+
+    fn note_definition(id: &str, blocks: Vec<Block>) -> Block {
+        Block::FootnoteDefinition {
+            id: FootnoteId(id.to_string()),
+            blocks,
+        }
+    }
+
+    fn reference_paragraph(id: &str) -> Block {
+        Block::Paragraph {
+            inlines: vec![
+                Inline::Text {
+                    text: "Claim".to_string(),
+                    marks: InlineMarks::default(),
+                    link: None,
+                },
+                note_reference(id),
+            ],
+            style: ParagraphStyle {
+                alignment: ParagraphAlignment::Start,
+                indent_level: 0,
+                direction: TextDirection::Auto,
+            },
+        }
+    }
+
+    #[test]
+    fn shared_note_preflight_reports_missing_and_scope_excluded_definitions() {
+        let mut doc = document(reference_paragraph("missing"));
+        doc.sections[0].blocks.push(reference_paragraph("excluded"));
+        doc.sections.push(BookSection {
+            source_node_id: Some(2),
+            role: SectionRole::Chapter,
+            title: Some("Excluded".to_string()),
+            inclusion: SectionInclusion::Excluded,
+            blocks: vec![note_definition("excluded", vec![])],
+            children: vec![],
+        });
+        let metadata = epub_metadata();
+
+        for format in [PublishFormat::Pdf, PublishFormat::Docx, PublishFormat::Epub] {
+            let diagnostics = run_preflight(&doc, format, &metadata, true);
+            assert!(diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code == "PUBLISH_FOOTNOTE_DEFINITION_MISSING" }));
+            assert!(diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code == "PUBLISH_FOOTNOTE_DEFINITION_EXCLUDED" }));
+        }
+    }
+
+    #[test]
+    fn shared_note_preflight_reports_duplicate_unreachable_and_circular_notes() {
+        let mut doc = document(reference_paragraph("cycle-a"));
+        doc.sections[0].blocks.extend([
+            note_definition("unused", vec![]),
+            note_definition("unused", vec![]),
+            note_definition("cycle-a", vec![reference_paragraph("cycle-b")]),
+            note_definition("cycle-b", vec![reference_paragraph("cycle-a")]),
+        ]);
+
+        let diagnostics = run_preflight(&doc, PublishFormat::Pdf, &epub_metadata(), true);
+        for code in [
+            "PUBLISH_FOOTNOTE_ID_DUPLICATE",
+            "PUBLISH_FOOTNOTE_UNREACHABLE",
+            "PUBLISH_FOOTNOTE_CIRCULAR_REFERENCE",
+            "PUBLISH_FOOTNOTE_NESTED_REFERENCE_UNSUPPORTED",
+        ] {
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic.code == code),
+                "missing diagnostic {code}"
+            );
+        }
     }
 
     #[test]

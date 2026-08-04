@@ -5,13 +5,16 @@ use std::io::Write;
 use std::path::Path;
 
 use super::request::{
-    ContactInformation, NodePublishingOverride, PrintInteriorPdfSettings, ProjectType,
+    ContactInformation, HardcoverPdfSettings, LargePrintPdfSettings, MasterPageSelection,
+    MatterTemplateSelection, NodePublishingOverride, PrintInteriorPdfSettings, ProjectType,
     PublishFormat, PublishMetadataOverrides, SavedPublishingProfile,
 };
 
-pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 4;
+pub(crate) const PUBLISHING_SCHEMA_VERSION: u32 = 6;
 pub(crate) const STRATEGY_VERSION: u32 = 1;
 pub(crate) const PRINT_INTERIOR_PROFILE_ID: &str = "print_interior";
+pub(crate) const LARGE_PRINT_PROFILE_ID: &str = "large_print";
+pub(crate) const HARDCOVER_PROFILE_ID: &str = "hardcover";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ProjectTypeStrategyConfig {
@@ -48,6 +51,21 @@ impl From<&PublishMetadataOverrides> for PublishingBookMetadata {
     }
 }
 
+impl From<&PublishingBookMetadata> for PublishMetadataOverrides {
+    fn from(value: &PublishingBookMetadata) -> Self {
+        Self {
+            title: value.title.clone(),
+            subtitle: value.subtitle.clone(),
+            author: value.author.clone(),
+            language: value.language.clone(),
+            front_matter: value.front_matter.clone(),
+            back_matter: value.back_matter.clone(),
+            contact: value.contact.clone(),
+            ebook: value.ebook.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct PublishingConfig {
     pub schema_version: u32,
@@ -58,12 +76,20 @@ pub(crate) struct PublishingConfig {
     pub default_profile_by_format: HashMap<String, String>,
     #[serde(default)]
     pub saved_profiles: Vec<SavedPublishingProfile>,
+    #[serde(default)]
+    pub matter_templates: Vec<MatterTemplateSelection>,
+    #[serde(default)]
+    pub master_page: MasterPageSelection,
 }
 
 impl PublishingConfig {
     pub(crate) fn defaults(project_type: ProjectType, project_title: &str) -> Self {
         let print_interior = serde_json::to_value(PrintInteriorPdfSettings::default())
             .expect("default print settings must serialize");
+        let large_print = serde_json::to_value(LargePrintPdfSettings::default())
+            .expect("default large-print settings must serialize");
+        let hardcover = serde_json::to_value(HardcoverPdfSettings::default())
+            .expect("default hardcover settings must serialize");
         Self {
             schema_version: PUBLISHING_SCHEMA_VERSION,
             project_type_strategy: ProjectTypeStrategyConfig {
@@ -76,13 +102,19 @@ impl PublishingConfig {
                 ..PublishingBookMetadata::default()
             },
             node_roles: HashMap::new(),
-            profiles: HashMap::from([(PRINT_INTERIOR_PROFILE_ID.to_string(), print_interior)]),
+            profiles: HashMap::from([
+                (PRINT_INTERIOR_PROFILE_ID.to_string(), print_interior),
+                (LARGE_PRINT_PROFILE_ID.to_string(), large_print),
+                (HARDCOVER_PROFILE_ID.to_string(), hardcover),
+            ]),
             default_profile_by_format: HashMap::from([
                 ("pdf".to_string(), "proof_pdf".to_string()),
                 ("docx".to_string(), "standard_manuscript".to_string()),
                 ("epub".to_string(), "reflowable_epub".to_string()),
             ]),
             saved_profiles: Vec::new(),
+            matter_templates: Vec::new(),
+            master_page: MasterPageSelection::default(),
         }
     }
 
@@ -94,16 +126,41 @@ impl PublishingConfig {
         format: PublishFormat,
         profile_id: &str,
         pdf_settings: &PrintInteriorPdfSettings,
+        large_print_settings: &LargePrintPdfSettings,
+        hardcover_settings: &HardcoverPdfSettings,
+        matter_templates: &[MatterTemplateSelection],
+        master_page: &MasterPageSelection,
     ) {
         self.book_metadata = PublishingBookMetadata::from(metadata);
         self.node_roles = node_roles.clone();
         self.project_type_strategy.confirmed = confirmed;
-        if format == PublishFormat::Pdf && profile_id == PRINT_INTERIOR_PROFILE_ID {
-            self.profiles.insert(
-                PRINT_INTERIOR_PROFILE_ID.to_string(),
-                serde_json::to_value(pdf_settings)
-                    .expect("validated print interior settings must serialize"),
-            );
+        self.matter_templates = matter_templates.to_vec();
+        if format == PublishFormat::Pdf {
+            match profile_id {
+                PRINT_INTERIOR_PROFILE_ID => {
+                    self.master_page = master_page.clone();
+                    self.profiles.insert(
+                        PRINT_INTERIOR_PROFILE_ID.to_string(),
+                        serde_json::to_value(pdf_settings)
+                            .expect("validated print interior settings must serialize"),
+                    );
+                }
+                LARGE_PRINT_PROFILE_ID => {
+                    self.profiles.insert(
+                        LARGE_PRINT_PROFILE_ID.to_string(),
+                        serde_json::to_value(large_print_settings)
+                            .expect("validated large-print settings must serialize"),
+                    );
+                }
+                HARDCOVER_PROFILE_ID => {
+                    self.profiles.insert(
+                        HARDCOVER_PROFILE_ID.to_string(),
+                        serde_json::to_value(hardcover_settings)
+                            .expect("validated hardcover settings must serialize"),
+                    );
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -148,6 +205,20 @@ pub(crate) fn load_or_default(
         .or_insert_with(|| {
             serde_json::to_value(PrintInteriorPdfSettings::default())
                 .expect("default print settings must serialize")
+        });
+    config
+        .profiles
+        .entry(LARGE_PRINT_PROFILE_ID.to_string())
+        .or_insert_with(|| {
+            serde_json::to_value(LargePrintPdfSettings::default())
+                .expect("default large-print settings must serialize")
+        });
+    config
+        .profiles
+        .entry(HARDCOVER_PROFILE_ID.to_string())
+        .or_insert_with(|| {
+            serde_json::to_value(HardcoverPdfSettings::default())
+                .expect("default hardcover settings must serialize")
         });
     if config.project_type_strategy.version > STRATEGY_VERSION {
         return Err(format!(
@@ -247,6 +318,8 @@ mod tests {
         config.default_profile_by_format.remove("pdf");
         config.default_profile_by_format.remove("docx");
         config.profiles.remove(PRINT_INTERIOR_PROFILE_ID);
+        config.profiles.remove(LARGE_PRINT_PROFILE_ID);
+        config.profiles.remove(HARDCOVER_PROFILE_ID);
         let mut legacy = serde_json::to_value(config).unwrap();
         legacy["book_metadata"]
             .as_object_mut()
@@ -276,6 +349,20 @@ mod tests {
             .unwrap(),
             PrintInteriorPdfSettings::default()
         );
+        assert_eq!(
+            serde_json::from_value::<LargePrintPdfSettings>(
+                migrated.profiles[LARGE_PRINT_PROFILE_ID].clone()
+            )
+            .unwrap(),
+            LargePrintPdfSettings::default()
+        );
+        assert_eq!(
+            serde_json::from_value::<HardcoverPdfSettings>(
+                migrated.profiles[HARDCOVER_PROFILE_ID].clone()
+            )
+            .unwrap(),
+            HardcoverPdfSettings::default()
+        );
         assert!(migrated.book_metadata.ebook.include_front_matter);
         assert!(migrated.book_metadata.ebook.include_back_matter);
 
@@ -297,6 +384,10 @@ mod tests {
             PublishFormat::Pdf,
             PRINT_INTERIOR_PROFILE_ID,
             &settings,
+            &LargePrintPdfSettings::default(),
+            &HardcoverPdfSettings::default(),
+            &[],
+            &MasterPageSelection::default(),
         );
 
         assert_eq!(
@@ -305,6 +396,58 @@ mod tests {
             )
             .unwrap(),
             settings
+        );
+    }
+
+    #[test]
+    fn successful_advanced_pdf_requests_persist_only_the_active_profile() {
+        let mut config = PublishingConfig::defaults(ProjectType::Novel, "Draft");
+        let original_hardcover = config.profiles[HARDCOVER_PROFILE_ID].clone();
+        let mut large_print = LargePrintPdfSettings::default();
+        large_print.base_font_size_points = 18.0;
+
+        config.merge_request(
+            &PublishMetadataOverrides::default(),
+            &HashMap::new(),
+            true,
+            PublishFormat::Pdf,
+            LARGE_PRINT_PROFILE_ID,
+            &PrintInteriorPdfSettings::default(),
+            &large_print,
+            &HardcoverPdfSettings::default(),
+            &[],
+            &MasterPageSelection::default(),
+        );
+
+        assert_eq!(
+            serde_json::from_value::<LargePrintPdfSettings>(
+                config.profiles[LARGE_PRINT_PROFILE_ID].clone()
+            )
+            .unwrap(),
+            large_print
+        );
+        assert_eq!(config.profiles[HARDCOVER_PROFILE_ID], original_hardcover);
+
+        let mut hardcover = HardcoverPdfSettings::default();
+        hardcover.gutter_inches = 0.375;
+        config.merge_request(
+            &PublishMetadataOverrides::default(),
+            &HashMap::new(),
+            true,
+            PublishFormat::Pdf,
+            HARDCOVER_PROFILE_ID,
+            &PrintInteriorPdfSettings::default(),
+            &LargePrintPdfSettings::default(),
+            &hardcover,
+            &[],
+            &MasterPageSelection::default(),
+        );
+        assert_eq!(
+            serde_json::from_value::<HardcoverPdfSettings>(
+                config.profiles[HARDCOVER_PROFILE_ID].clone()
+            )
+            .unwrap(),
+            hardcover
         );
     }
 
@@ -327,6 +470,62 @@ mod tests {
     }
 
     #[test]
+    fn schema_four_configuration_migrates_template_defaults_without_writing() {
+        let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
+        let path = root.join("publishing.json");
+        let mut legacy =
+            serde_json::to_value(PublishingConfig::defaults(ProjectType::Novel, "Draft")).unwrap();
+        legacy["schema_version"] = serde_json::json!(4);
+        legacy.as_object_mut().unwrap().remove("matter_templates");
+        legacy.as_object_mut().unwrap().remove("master_page");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+
+        let migrated = load_or_default(&path, ProjectType::Novel, "Draft").unwrap();
+        assert_eq!(migrated.schema_version, PUBLISHING_SCHEMA_VERSION);
+        assert!(migrated.matter_templates.is_empty());
+        assert_eq!(migrated.master_page, MasterPageSelection::default());
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&path).unwrap()).unwrap()
+                ["schema_version"],
+            serde_json::json!(4)
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn schema_five_configuration_adds_advanced_pdf_profiles_without_writing() {
+        let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
+        let path = root.join("publishing.json");
+        let mut legacy =
+            serde_json::to_value(PublishingConfig::defaults(ProjectType::Novel, "Draft")).unwrap();
+        legacy["schema_version"] = serde_json::json!(5);
+        legacy["profiles"]
+            .as_object_mut()
+            .unwrap()
+            .remove(LARGE_PRINT_PROFILE_ID);
+        legacy["profiles"]
+            .as_object_mut()
+            .unwrap()
+            .remove(HARDCOVER_PROFILE_ID);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+
+        let migrated = load_or_default(&path, ProjectType::Novel, "Draft").unwrap();
+        assert_eq!(migrated.schema_version, PUBLISHING_SCHEMA_VERSION);
+        assert!(migrated.profiles.contains_key(LARGE_PRINT_PROFILE_ID));
+        assert!(migrated.profiles.contains_key(HARDCOVER_PROFILE_ID));
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&fs::read(&path).unwrap()).unwrap()
+                ["schema_version"],
+            serde_json::json!(5)
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn named_profile_recipe_round_trips_through_atomic_project_config() {
         let root = env::temp_dir().join(format!("wm9000-config-{}", uuid::Uuid::new_v4().simple()));
         let path = root.join("publishing.json");
@@ -340,6 +539,8 @@ mod tests {
                 format: PublishFormat::Docx,
                 profile_id: "standard_manuscript".to_string(),
                 pdf_settings: PrintInteriorPdfSettings::default(),
+                large_print_settings: LargePrintPdfSettings::default(),
+                hardcover_settings: HardcoverPdfSettings::default(),
                 metadata: PublishMetadataOverrides {
                     title: "Draft".to_string(),
                     author: "Writer".to_string(),
@@ -348,6 +549,8 @@ mod tests {
                 node_overrides: HashMap::new(),
                 outline_confirmed: true,
                 include_shared_matter: true,
+                matter_templates: vec![],
+                master_page: MasterPageSelection::default(),
             },
         });
 

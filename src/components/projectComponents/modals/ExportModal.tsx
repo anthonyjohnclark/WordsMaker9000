@@ -17,9 +17,18 @@ import { useModal } from "../../../contexts/global/ModalContext";
 import { useErrorContext } from "../../../contexts/global/ErrorContext";
 import { prepareAndPublishProject } from "../../../utils/publishPreparation";
 import {
+  defaultMasterPageSelection,
+  defaultMatterTemplateVariables,
+  defaultHardcoverPdfSettings,
+  defaultLargePrintPdfSettings,
   defaultPrintInteriorPdfSettings,
   diagnosticsBySeverity,
   formatPublishFailure,
+  hardcoverSettingsErrors,
+  hardcoverSettingsFromProfiles,
+  largePrintSettingsErrors,
+  largePrintSettingsFromProfiles,
+  matterTemplateSelectionErrors,
   outlineNodeRole,
   parsePublishFailure,
   printInteriorSettingsErrors,
@@ -32,6 +41,13 @@ import {
 import type {
   Diagnostic,
   DocxProfileId,
+  HardcoverPdfSettings,
+  HardcoverTrimSize,
+  LargePrintPdfSettings,
+  LargePrintTrimSize,
+  MasterPageSelection,
+  MatterTemplateDefinition,
+  MatterTemplateSelection,
   NodePublishingOverride,
   PdfProfileId,
   PrintInteriorPdfSettings,
@@ -93,8 +109,18 @@ export const ExportModal = () => {
     useState<PrintInteriorPdfSettings>(() =>
       defaultPrintInteriorPdfSettings(),
     );
+  const [largePrintSettings, setLargePrintSettings] =
+    useState<LargePrintPdfSettings>(() => defaultLargePrintPdfSettings());
+  const [hardcoverSettings, setHardcoverSettings] =
+    useState<HardcoverPdfSettings>(() => defaultHardcoverPdfSettings());
   const [docxProfileId, setDocxProfileId] =
     useState<DocxProfileId>("standard_manuscript");
+  const [matterTemplates, setMatterTemplates] = useState<
+    MatterTemplateSelection[]
+  >([]);
+  const [masterPage, setMasterPage] = useState<MasterPageSelection>(() =>
+    defaultMasterPageSelection(),
+  );
   const [nodeOverrides, setNodeOverrides] = useState<
     Record<string, NodePublishingOverride>
   >({});
@@ -142,13 +168,29 @@ export const ExportModal = () => {
           },
         });
         setNodeOverrides(loaded.config.node_roles);
+        setMatterTemplates(loaded.config.matter_templates ?? []);
+        setMasterPage(
+          loaded.config.default_profile_by_format.pdf === "print_interior"
+            ? loaded.config.master_page ?? defaultMasterPageSelection()
+            : defaultMasterPageSelection(),
+        );
         setOutlineConfirmed(loaded.config.project_type_strategy.confirmed);
         const defaultFormat = loaded.config.default_profile_by_format;
-        if (defaultFormat.pdf === "print_interior") {
-          setPdfProfileId("print_interior");
+        if (
+          defaultFormat.pdf === "print_interior" ||
+          defaultFormat.pdf === "large_print" ||
+          defaultFormat.pdf === "hardcover"
+        ) {
+          setPdfProfileId(defaultFormat.pdf);
         }
         setPrintInteriorSettings(
           printInteriorSettingsFromProfiles(loaded.config.profiles),
+        );
+        setLargePrintSettings(
+          largePrintSettingsFromProfiles(loaded.config.profiles),
+        );
+        setHardcoverSettings(
+          hardcoverSettingsFromProfiles(loaded.config.profiles),
         );
         if (defaultFormat.docx === "clean_handoff") {
           setDocxProfileId("clean_handoff");
@@ -179,6 +221,9 @@ export const ExportModal = () => {
 
   const chooseFormat = (nextFormat: PublishFormat) => {
     setFormat(nextFormat);
+    if (nextFormat !== "pdf") {
+      setMasterPage(defaultMasterPageSelection());
+    }
     setSelectedSavedProfileId("");
     setSavedProfileName("");
   };
@@ -194,10 +239,14 @@ export const ExportModal = () => {
         docx: docxProfileId,
       }),
       pdf_settings: printInteriorSettings,
+      large_print_settings: largePrintSettings,
+      hardcover_settings: hardcoverSettings,
       metadata: cleanMetadata(metadata),
       node_overrides: nodeOverrides,
       outline_confirmed: outlineConfirmed,
       include_shared_matter: true,
+      matter_templates: matterTemplates,
+      master_page: masterPage,
     };
   };
 
@@ -213,7 +262,9 @@ export const ExportModal = () => {
     if (
       recipe.format === "pdf" &&
       (recipe.profile_id === "proof_pdf" ||
-        recipe.profile_id === "print_interior")
+        recipe.profile_id === "print_interior" ||
+        recipe.profile_id === "large_print" ||
+        recipe.profile_id === "hardcover")
     ) {
       setPdfProfileId(recipe.profile_id);
     }
@@ -225,9 +276,17 @@ export const ExportModal = () => {
       setDocxProfileId(recipe.profile_id);
     }
     setPrintInteriorSettings(recipe.pdf_settings);
+    setLargePrintSettings(
+      recipe.large_print_settings ?? defaultLargePrintPdfSettings(),
+    );
+    setHardcoverSettings(
+      recipe.hardcover_settings ?? defaultHardcoverPdfSettings(),
+    );
     setMetadata(recipe.metadata);
     setNodeOverrides(recipe.node_overrides);
     setOutlineConfirmed(recipe.outline_confirmed);
+    setMatterTemplates(recipe.matter_templates ?? []);
+    setMasterPage(recipe.master_page ?? defaultMasterPageSelection());
     const selection = selectionForScope(recipe.scope);
     setScopeMode(selection.mode);
     setSelectedNodeId(selection.selectedNodeId);
@@ -395,10 +454,14 @@ export const ExportModal = () => {
           docx: docxProfileId,
         }),
         pdf_settings: printInteriorSettings,
+        large_print_settings: largePrintSettings,
+        hardcover_settings: hardcoverSettings,
         metadata: cleanMetadata(metadata),
         node_overrides: nodeOverrides,
         outline_confirmed: outlineConfirmed,
         include_shared_matter: true,
+        matter_templates: matterTemplates,
+        master_page: masterPage,
         destination,
       };
       const publishResult = await prepareAndPublishProject(
@@ -601,7 +664,12 @@ export const ExportModal = () => {
     return null;
   }
 
-  const selectableNodes = flattenOutline(setup.outline).filter(
+  const displayedOutline = outlineWithMatterTemplates(
+    setup.outline,
+    setup.matter_template_catalog,
+    matterTemplates,
+  );
+  const selectableNodes = flattenOutline(displayedOutline).filter(
     (node): node is PublishingOutlineNode & { id: number } =>
       node.id !== null &&
       (scopeMode === "selected_nodes" ||
@@ -614,9 +682,19 @@ export const ExportModal = () => {
   );
   const publishBlockers: string[] = [];
   const printSettingsErrors =
-    format === "pdf" && pdfProfileId === "print_interior"
-      ? printInteriorSettingsErrors(printInteriorSettings)
-      : [];
+    format !== "pdf"
+      ? []
+      : pdfProfileId === "print_interior"
+        ? printInteriorSettingsErrors(printInteriorSettings)
+        : pdfProfileId === "large_print"
+          ? largePrintSettingsErrors(largePrintSettings)
+          : pdfProfileId === "hardcover"
+            ? hardcoverSettingsErrors(hardcoverSettings)
+            : [];
+  const templateErrors = matterTemplateSelectionErrors(
+    setup.matter_template_catalog,
+    matterTemplates,
+  );
   if (!metadata.title.trim()) publishBlockers.push("title");
   if (!metadata.author.trim()) publishBlockers.push("author");
   if (format === "epub" && !metadata.language?.trim()) {
@@ -635,6 +713,15 @@ export const ExportModal = () => {
   if (!outlineConfirmed) publishBlockers.push("outline confirmation");
   if (printSettingsErrors.length > 0) {
     publishBlockers.push("valid print settings");
+  }
+  if (templateErrors.length > 0) {
+    publishBlockers.push("complete matter templates");
+  }
+  if (
+    masterPage.template_id !== "profile_default" &&
+    (format !== "pdf" || pdfProfileId !== "print_interior")
+  ) {
+    publishBlockers.push("compatible master page");
   }
   if (
     scopeMode !== "full_project" &&
@@ -826,20 +913,92 @@ export const ExportModal = () => {
           <Field label="PDF profile">
             <select
               value={pdfProfileId}
-              onChange={(event) =>
-                setPdfProfileId(event.target.value as PdfProfileId)
-              }
+              onChange={(event) => {
+                const profile = event.target.value as PdfProfileId;
+                setPdfProfileId(profile);
+                if (profile === "print_interior") {
+                  setMasterPage(
+                    setup.config.master_page ?? defaultMasterPageSelection(),
+                  );
+                } else {
+                  setMasterPage(defaultMasterPageSelection());
+                }
+              }}
               className="border rounded w-full p-2"
               style={inputStyle}
             >
               <option value="proof_pdf">Proof PDF</option>
               <option value="print_interior">Print Interior PDF</option>
+              <option value="large_print">Large Print PDF</option>
+              <option value="hardcover">Hardcover PDF</option>
             </select>
           </Field>
           {pdfProfileId === "print_interior" && (
-            <PrintInteriorFields
-              settings={printInteriorSettings}
-              onChange={setPrintInteriorSettings}
+            <>
+              <Field label="Master page">
+                <select
+                  value={`${masterPage.template_id}@${masterPage.template_version}`}
+                  onChange={(event) => {
+                    const definition = setup.master_page_catalog.find(
+                      (candidate) =>
+                        `${candidate.id}@${candidate.version}` ===
+                        event.target.value,
+                    );
+                    if (!definition) return;
+                    setMasterPage({
+                      template_id: definition.id,
+                      template_version: definition.version,
+                    });
+                    if (definition.settings) {
+                      setPrintInteriorSettings({
+                        ...printInteriorSettings,
+                        ...definition.settings,
+                      });
+                    }
+                  }}
+                  className="border rounded w-full p-2"
+                  style={inputStyle}
+                >
+                  {setup.master_page_catalog.map((definition) => (
+                    <option
+                      key={`${definition.id}@${definition.version}`}
+                      value={`${definition.id}@${definition.version}`}
+                    >
+                      {definition.label} (v{definition.version})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                {
+                  setup.master_page_catalog.find(
+                    (definition) =>
+                      definition.id === masterPage.template_id &&
+                      definition.version === masterPage.template_version,
+                  )?.description
+                }
+              </p>
+              <PrintInteriorFields
+                settings={printInteriorSettings}
+                onChange={(settings) => {
+                  setPrintInteriorSettings(settings);
+                  setMasterPage(defaultMasterPageSelection());
+                }}
+                errors={printSettingsErrors}
+              />
+            </>
+          )}
+          {pdfProfileId === "large_print" && (
+            <LargePrintFields
+              settings={largePrintSettings}
+              onChange={setLargePrintSettings}
+              errors={printSettingsErrors}
+            />
+          )}
+          {pdfProfileId === "hardcover" && (
+            <HardcoverFields
+              settings={hardcoverSettings}
+              onChange={setHardcoverSettings}
               errors={printSettingsErrors}
             />
           )}
@@ -938,7 +1097,7 @@ export const ExportModal = () => {
       </button>
       {outlineOpen && (
         <div className="rounded border p-2" style={{ borderColor: "var(--border-color)" }}>
-          {setup.outline.map((node) => (
+          {displayedOutline.map((node) => (
             <OutlineRow
               key={`${node.id ?? "matter"}-${node.title ?? node.role}`}
               node={node}
@@ -972,6 +1131,13 @@ export const ExportModal = () => {
           Front and back matter
         </summary>
         <div className="grid gap-3 mt-2">
+          <MatterTemplateFields
+            catalog={setup.matter_template_catalog}
+            selections={matterTemplates}
+            metadata={metadata}
+            errors={templateErrors}
+            onChange={setMatterTemplates}
+          />
           <Field label="Front matter (optional)">
             <textarea
               value={metadata.front_matter ?? ""}
@@ -1073,9 +1239,16 @@ function profileSummary(
   docxProfileId: DocxProfileId,
 ): string {
   if (format === "pdf") {
-    return pdfProfileId === "print_interior"
-      ? "Print Interior PDF"
-      : "Proof PDF";
+    switch (pdfProfileId) {
+      case "print_interior":
+        return "Print Interior PDF";
+      case "large_print":
+        return "Large Print PDF";
+      case "hardcover":
+        return "Hardcover PDF";
+      default:
+        return "Proof PDF";
+    }
   }
   if (format === "docx") {
     return docxProfileId === "clean_handoff"
@@ -1138,6 +1311,192 @@ function ChoiceButton({
         {description}
       </span>
     </button>
+  );
+}
+
+function MatterTemplateFields({
+  catalog,
+  selections,
+  metadata,
+  errors,
+  onChange,
+}: {
+  catalog: MatterTemplateDefinition[];
+  selections: MatterTemplateSelection[];
+  metadata: PublishingMetadata;
+  errors: string[];
+  onChange: (selections: MatterTemplateSelection[]) => void;
+}) {
+  const selectionFor = (definition: MatterTemplateDefinition) =>
+    selections.find(
+      (selection) =>
+        selection.template_id === definition.id &&
+        selection.template_version === definition.version,
+    );
+  const setEnabled = (
+    definition: MatterTemplateDefinition,
+    enabled: boolean,
+  ) => {
+    if (!enabled) {
+      onChange(
+        selections.filter(
+          (selection) =>
+            selection.template_id !== definition.id ||
+            selection.template_version !== definition.version,
+        ),
+      );
+      return;
+    }
+    const next = [
+      ...selections,
+      {
+        template_id: definition.id,
+        template_version: definition.version,
+        variables: defaultMatterTemplateVariables(definition, metadata),
+      },
+    ];
+    onChange(
+      [...next].sort(
+        (left, right) =>
+          catalog.findIndex(
+            (definition) =>
+              definition.id === left.template_id &&
+              definition.version === left.template_version,
+          ) -
+          catalog.findIndex(
+            (definition) =>
+              definition.id === right.template_id &&
+              definition.version === right.template_version,
+          ),
+      ),
+    );
+  };
+  const updateVariable = (
+    selection: MatterTemplateSelection,
+    key: string,
+    value: string,
+  ) => {
+    onChange(
+      selections.map((candidate) =>
+        candidate.template_id === selection.template_id &&
+        candidate.template_version === selection.template_version
+          ? {
+              ...candidate,
+              variables: { ...candidate.variables, [key]: value },
+            }
+          : candidate,
+      ),
+    );
+  };
+
+  return (
+    <fieldset
+      className="rounded border p-3 grid gap-3"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <legend
+        className="px-1 text-sm font-medium"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Reusable matter templates
+      </legend>
+      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+        Built-in templates are versioned and saved with publishing workflows.
+        Existing free-text matter below remains unchanged.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {(["front", "back"] as const).map((placement) => (
+          <div key={placement} className="grid gap-2 content-start">
+            <h4 className="text-sm font-semibold">
+              {placement === "front" ? "Front matter" : "Back matter"}
+            </h4>
+            {catalog
+              .filter((definition) => definition.placement === placement)
+              .map((definition) => {
+                const selection = selectionFor(definition);
+                return (
+                  <div
+                    key={`${definition.id}@${definition.version}`}
+                    className="rounded border p-2"
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    <label className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={definition.id === "title_page" || Boolean(selection)}
+                        disabled={definition.id === "title_page"}
+                        onChange={(event) =>
+                          setEnabled(definition, event.target.checked)
+                        }
+                      />
+                      <span>
+                        <span className="font-medium">
+                          {definition.label} v{definition.version}
+                          {definition.id === "title_page" ? " (required)" : ""}
+                        </span>
+                        <span
+                          className="block text-xs"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {definition.description}
+                        </span>
+                      </span>
+                    </label>
+                    {selection && definition.variables.length > 0 && (
+                      <div className="grid gap-2 mt-2 pl-6">
+                        {definition.variables.map((variable) => (
+                          <Field
+                            key={variable.key}
+                            label={variable.label}
+                            required={variable.required}
+                          >
+                            {variable.multiline ? (
+                              <textarea
+                                rows={3}
+                                value={selection.variables[variable.key] ?? ""}
+                                onChange={(event) =>
+                                  updateVariable(
+                                    selection,
+                                    variable.key,
+                                    event.target.value,
+                                  )
+                                }
+                                className="border rounded w-full p-2 resize-y"
+                                style={inputStyle}
+                              />
+                            ) : (
+                              <input
+                                value={selection.variables[variable.key] ?? ""}
+                                onChange={(event) =>
+                                  updateVariable(
+                                    selection,
+                                    variable.key,
+                                    event.target.value,
+                                  )
+                                }
+                                className="border rounded w-full p-2"
+                                style={inputStyle}
+                              />
+                            )}
+                          </Field>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        ))}
+      </div>
+      {errors.length > 0 && (
+        <ul className="text-xs list-disc pl-5" style={{ color: "var(--btn-danger)" }}>
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      )}
+    </fieldset>
   );
 }
 
@@ -1295,6 +1654,333 @@ function PrintInteriorFields({
         </label>
       </div>
     </fieldset>
+  );
+}
+
+function LargePrintFields({
+  settings,
+  onChange,
+  errors,
+}: {
+  settings: LargePrintPdfSettings;
+  onChange: (settings: LargePrintPdfSettings) => void;
+  errors: string[];
+}) {
+  type NumberKey = Exclude<
+    keyof LargePrintPdfSettings,
+    | "trim_size"
+    | "running_headers"
+    | "front_matter_page_numbers"
+    | "body_page_numbers"
+  >;
+  const updateNumber = (key: NumberKey, value: string) =>
+    onChange({ ...settings, [key]: Number(value) });
+  const margins: Array<{ key: NumberKey; label: string; min: number }> = [
+    { key: "top_margin_inches", label: "Top", min: 0.5 },
+    { key: "bottom_margin_inches", label: "Bottom", min: 0.5 },
+    { key: "inside_margin_inches", label: "Inside", min: 0.5 },
+    { key: "outside_margin_inches", label: "Outside", min: 0.5 },
+    { key: "gutter_inches", label: "Gutter", min: 0 },
+  ];
+
+  return (
+    <fieldset
+      className="rounded border p-3 grid gap-3"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <legend
+        className="px-1 text-sm font-medium"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Large Print settings
+      </legend>
+      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+        Provider-neutral controls use a deterministic proportional-type estimate
+        to cap line length. They do not claim compliance with a specific printer.
+      </p>
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="Trim size">
+          <select
+            value={settings.trim_size}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                trim_size: event.target.value as LargePrintTrimSize,
+              })
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          >
+            <option value="six_by_nine">6 × 9 in</option>
+            <option value="seven_by_ten">7 × 10 in</option>
+            <option value="eight_by_ten">8 × 10 in</option>
+          </select>
+        </Field>
+        <Field label="Body type (pt)">
+          <input
+            type="number"
+            value={settings.base_font_size_points}
+            min={14}
+            max={24}
+            step={0.5}
+            onChange={(event) =>
+              updateNumber("base_font_size_points", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Line spacing">
+          <input
+            type="number"
+            value={settings.line_spacing}
+            min={1.2}
+            max={2}
+            step={0.05}
+            onChange={(event) =>
+              updateNumber("line_spacing", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Maximum line length">
+          <input
+            type="number"
+            value={settings.max_line_length_characters}
+            min={35}
+            max={65}
+            step={1}
+            onChange={(event) =>
+              updateNumber("max_line_length_characters", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Heading scale">
+          <input
+            type="number"
+            value={settings.heading_scale}
+            min={1.2}
+            max={2}
+            step={0.05}
+            onChange={(event) =>
+              updateNumber("heading_scale", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Paragraph after (pt)">
+          <input
+            type="number"
+            value={settings.paragraph_spacing_points}
+            min={0}
+            max={18}
+            step={1}
+            onChange={(event) =>
+              updateNumber("paragraph_spacing_points", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+        <Field label="Header/folio type (pt)">
+          <input
+            type="number"
+            value={settings.page_furniture_size_points}
+            min={10}
+            max={18}
+            step={0.5}
+            onChange={(event) =>
+              updateNumber("page_furniture_size_points", event.target.value)
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {margins.map(({ key, label, min }) => (
+          <Field key={key} label={`${label} (in)`}>
+            <input
+              type="number"
+              value={settings[key] as number}
+              min={min}
+              max={key === "gutter_inches" ? 1 : 2}
+              step={0.125}
+              onChange={(event) => updateNumber(key, event.target.value)}
+              className="border rounded w-full p-2"
+              style={inputStyle}
+            />
+          </Field>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        {[
+          ["running_headers", "Running headers"],
+          ["front_matter_page_numbers", "Roman front-matter folios"],
+          ["body_page_numbers", "Arabic body folios"],
+        ].map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={settings[key as keyof LargePrintPdfSettings] as boolean}
+              onChange={(event) =>
+                onChange({ ...settings, [key]: event.target.checked })
+              }
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      <PdfSettingsErrors errors={errors} />
+    </fieldset>
+  );
+}
+
+function HardcoverFields({
+  settings,
+  onChange,
+  errors,
+}: {
+  settings: HardcoverPdfSettings;
+  onChange: (settings: HardcoverPdfSettings) => void;
+  errors: string[];
+}) {
+  type MarginKey =
+    | "top_margin_inches"
+    | "bottom_margin_inches"
+    | "inside_margin_inches"
+    | "outside_margin_inches"
+    | "gutter_inches";
+  const margins: Array<{ key: MarginKey; label: string; min: number }> = [
+    { key: "top_margin_inches", label: "Top", min: 0.625 },
+    { key: "bottom_margin_inches", label: "Bottom", min: 0.625 },
+    { key: "inside_margin_inches", label: "Inside", min: 0.625 },
+    { key: "outside_margin_inches", label: "Outside", min: 0.5 },
+    { key: "gutter_inches", label: "Gutter", min: 0.125 },
+  ];
+
+  return (
+    <fieldset
+      className="rounded border p-3 grid gap-3"
+      style={{ borderColor: "var(--border-color)" }}
+    >
+      <legend
+        className="px-1 text-sm font-medium"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        Hardcover settings
+      </legend>
+      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+        The binding gutter is added to the inside margin. Hardcover minimums
+        are provider-neutral and intentionally stricter than general interiors.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Trim size">
+          <select
+            value={settings.trim_size}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                trim_size: event.target.value as HardcoverTrimSize,
+              })
+            }
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          >
+            <option value="five_point_five_by_eight_point_five">
+              5.5 × 8.5 in
+            </option>
+            <option value="six_by_nine">6 × 9 in</option>
+            <option value="seven_by_ten">7 × 10 in</option>
+          </select>
+        </Field>
+        <Field label="Chapter starts">
+          <select
+            value={settings.chapter_start}
+            onChange={(event) => {
+              const chapterStart = event.target
+                .value as HardcoverPdfSettings["chapter_start"];
+              onChange({
+                ...settings,
+                chapter_start: chapterStart,
+                intentional_blank_pages: chapterStart === "recto",
+              });
+            }}
+            className="border rounded w-full p-2"
+            style={inputStyle}
+          >
+            <option value="recto">Right-hand page (recto)</option>
+            <option value="next_page">Next page</option>
+          </select>
+        </Field>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {margins.map(({ key, label, min }) => (
+          <Field key={key} label={`${label} (in)`}>
+            <input
+              type="number"
+              value={settings[key]}
+              min={min}
+              max={key === "gutter_inches" ? 1 : 2}
+              step={0.125}
+              onChange={(event) =>
+                onChange({ ...settings, [key]: Number(event.target.value) })
+              }
+              className="border rounded w-full p-2"
+              style={inputStyle}
+            />
+          </Field>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.intentional_blank_pages}
+            disabled={settings.chapter_start !== "recto"}
+            onChange={(event) =>
+              onChange({
+                ...settings,
+                intentional_blank_pages: event.target.checked,
+              })
+            }
+          />
+          Intentional blank versos for recto starts
+        </label>
+        {[
+          ["running_headers", "Running headers"],
+          ["front_matter_page_numbers", "Roman front-matter folios"],
+          ["body_page_numbers", "Arabic body folios"],
+        ].map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={settings[key as keyof HardcoverPdfSettings] as boolean}
+              onChange={(event) =>
+                onChange({ ...settings, [key]: event.target.checked })
+              }
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      <PdfSettingsErrors errors={errors} />
+    </fieldset>
+  );
+}
+
+function PdfSettingsErrors({ errors }: { errors: string[] }) {
+  if (errors.length === 0) return null;
+  return (
+    <ul className="text-xs list-disc pl-5" style={{ color: "var(--btn-danger)" }}>
+      {errors.map((error) => (
+        <li key={error}>{error}</li>
+      ))}
+    </ul>
   );
 }
 
@@ -1688,6 +2374,46 @@ function flattenOutline(
   nodes: PublishingOutlineNode[],
 ): PublishingOutlineNode[] {
   return nodes.flatMap((node) => [node, ...flattenOutline(node.children)]);
+}
+
+function outlineWithMatterTemplates(
+  outline: PublishingOutlineNode[],
+  catalog: MatterTemplateDefinition[],
+  selections: MatterTemplateSelection[],
+): PublishingOutlineNode[] {
+  const generatedTitles = new Set(catalog.map((definition) => definition.output_title));
+  const base = outline.filter(
+    (node) => !(node.id === null && node.title && generatedTitles.has(node.title)),
+  );
+  const generated = selections.flatMap((selection) => {
+    const definition = catalog.find(
+      (candidate) =>
+        candidate.id === selection.template_id &&
+        candidate.version === selection.template_version,
+    );
+    return definition
+      ? [
+          {
+            id: null,
+            title: definition.output_title,
+            role:
+              definition.placement === "front"
+                ? ("front_matter" as const)
+                : ("back_matter" as const),
+            inclusion: { type: "all_formats" as const },
+            children: [],
+          },
+        ]
+      : [];
+  });
+  const front = generated.filter((node) => node.role === "front_matter");
+  const back = generated.filter((node) => node.role === "back_matter");
+  const existingFront = base.filter((node) => node.role === "front_matter");
+  const existingBack = base.filter((node) => node.role === "back_matter");
+  const body = base.filter(
+    (node) => node.role !== "front_matter" && node.role !== "back_matter",
+  );
+  return [...front, ...existingFront, ...body, ...existingBack, ...back];
 }
 
 function cleanMetadata(metadata: PublishingMetadata): PublishingMetadata {

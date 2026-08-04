@@ -1,8 +1,9 @@
 # Phase 6 implementation slices
 
-Status: Slices 6.1 and 6.2 are implemented in code as of 2026-08-03 and are
-ready for manual editor and generated-artifact smoke testing. Slices 6.3 and
-later remain planned.
+Status: Slices 6.1 through 6.5 are implemented in code as of 2026-08-04.
+Automated checks, generated PDF inspection, and EPUBCheck pass through Slice
+6.5. Editor save/reopen and Word/LibreOffice repair checks remain manual
+qualification gates. Slices 6.6 and later remain planned.
 
 Phase 5 is checkpointed, the automated baseline is green, and the manual PDF
 preview, Artifact History, regeneration, and cancellation smoke tests have been
@@ -33,25 +34,25 @@ The remaining gaps define the sequence:
 
 - The editor toolbar exposes only inline marks and lists.
 - There is no explicit editor-native scene-break element.
-- The compiler currently produces an empty asset list and the parser does not
-  create image or footnote IR from editor content.
-- PDF and DOCX intentionally reject images and footnotes.
+- The compiler loads project assets, and the parser creates image and footnote
+  IR from documented editor markup.
+- PDF, DOCX, and EPUB render accessible images and footnotes.
 - Template/master-page, vertical-writing, table, callout, and bundle models do
   not yet exist.
 
 ## Sequencing summary
 
-| Slice | Outcome | Depends on |
-| --- | --- | --- |
-| 6.1 | Editor-native headings, links, block quotes, and scene breaks | Phase 5 baseline |
-| 6.2 | Project assets and accessible images in every format | 6.1 editor conventions |
-| 6.3 | Footnotes and endnotes in every format | 6.1; reuse 6.2 ID/persistence patterns |
-| 6.4 | Reusable front/back matter and constrained master pages | Stable rich-content compiler |
-| 6.5 | Large-print and hardcover PDF profiles | 6.4 profile/template model |
-| 6.6 | Qualified RTL controls, followed by a vertical-writing spike | 6.1 and stable adapters |
-| 6.7 | Box sets, volumes, and multi-work metadata | Stable scope and template models |
-| 6.8 | Accessible tables and semantic callouts | 6.1, 6.2, and an IR schema extension |
-| 6.9 | Direct-sales bundles and reusable Also By pages | 6.4 and 6.7 |
+| Slice | Outcome                                                       | Depends on                             |
+| ----- | ------------------------------------------------------------- | -------------------------------------- |
+| 6.1   | Editor-native headings, links, block quotes, and scene breaks | Phase 5 baseline                       |
+| 6.2   | Project assets and accessible images in every format          | 6.1 editor conventions                 |
+| 6.3   | Footnotes and endnotes in every format                        | 6.1; reuse 6.2 ID/persistence patterns |
+| 6.4   | Reusable front/back matter and constrained master pages       | Stable rich-content compiler           |
+| 6.5   | Large-print and hardcover PDF profiles                        | 6.4 profile/template model             |
+| 6.6   | Qualified RTL controls, followed by a vertical-writing spike  | 6.1 and stable adapters                |
+| 6.7   | Box sets, volumes, and multi-work metadata                    | Stable scope and template models       |
+| 6.8   | Accessible tables and semantic callouts                       | 6.1, 6.2, and an IR schema extension   |
+| 6.9   | Direct-sales bundles and reusable Also By pages               | 6.4 and 6.7                            |
 
 ## Slice 6.1 — editor-native semantic content
 
@@ -168,6 +169,8 @@ paths in document content.
 
 ## Slice 6.3 — footnotes and endnotes
 
+Implementation status: code complete; automated acceptance checks pass.
+
 ### Goal
 
 Provide stable editor references and definitions that render as native or
@@ -190,6 +193,32 @@ standards-appropriate notes in PDF, DOCX, and EPUB.
 - Add diagnostics for missing definitions, duplicate IDs, unreachable notes,
   circular references, and notes excluded from the selected scope.
 
+The persisted editor contract is:
+
+```html
+<sup
+  class="wm-footnote-reference"
+  data-wm-footnote-id="note-stable-id"
+  role="doc-noteref"
+  >note</sup
+>
+<aside
+  class="wm-footnote-definition"
+  data-wm-footnote-id="note-stable-id"
+  data-wm-footnote-body="The note body."
+  role="doc-footnote"
+>
+  ...
+</aside>
+```
+
+IDs contain 1-100 ASCII letters, numbers, hyphens, or underscores. The visible
+editor label is not a publication number. The compiler reads the typed ID and
+body attributes, and each adapter derives display numbering from included
+reference order. The native DOCX decision is recorded in
+`docs/adr/0002-native-docx-footnotes.md`.
+1
+
 ### Exit criteria
 
 - References survive editing, reordering, scope selection, and regeneration.
@@ -198,6 +227,8 @@ standards-appropriate notes in PDF, DOCX, and EPUB.
 - PDF notes do not collide with body text or page furniture.
 
 ## Slice 6.4 — reusable matter templates and master pages
+
+Implementation status: code complete; automated acceptance checks pass.
 
 ### Goal
 
@@ -220,6 +251,28 @@ components and versioned layout choices.
 - Include template ID/version and resolved variables in publish recipes and
   source hashing.
 
+The built-in matter catalog currently pins version 1 of Title Page, Copyright,
+Dedication, Contents, Acknowledgements, Author Biography, and Also By. Selected
+components compile into ordinary `BookSection` and `Block` values before shared
+preflight. The existing free-text front/back-matter fields introduced before
+schema v5 remain readable in schema v6 and are emitted alongside selected
+templates.
+
+Master pages are intentionally constrained to versioned built-ins rather than
+raw formatter code. `profile_default@1` preserves the existing Print Interior
+controls, `classic_book@1` resolves to recto starts with intentional blank
+versos, running heads, Roman front-matter folios, and Arabic body folios, and
+`minimal_book@1` resolves to next-page starts without running heads or
+front-matter folios. Non-default master pages are limited to Print Interior PDF
+until equivalent Word section-page semantics are qualified.
+
+Publishing schema v6 (building on the v5 template fields), saved profiles,
+artifact recipes, and source hashing all
+record the exact template IDs, versions, resolved variables, and master-page
+selection. Unknown IDs or versions fail with `PUBLISH_TEMPLATE_INVALID` rather
+than silently substituting a newer template. The compatibility decision is
+recorded in `docs/adr/0003-versioned-publishing-templates.md`.
+
 ### Exit criteria
 
 - Template output is deterministic for a saved profile and source snapshot.
@@ -227,7 +280,13 @@ components and versioned layout choices.
   numbering, and accessibility semantics.
 - Updating the application does not silently change an existing saved recipe.
 
+Automated qualification includes QA09 across Proof PDF, Print Interior PDF,
+both DOCX profiles, and EPUB. Current Word and LibreOffice must still be checked
+for repair prompts and editable matter-page behavior as a manual release gate.
+
 ## Slice 6.5 — large-print and hardcover profiles
+
+Implementation status: code complete; automated acceptance checks pass.
 
 ### Goal
 
@@ -246,6 +305,35 @@ existing Proof PDF and Print Interior contracts.
   hashes, manifests, regeneration, and the Publish UI.
 - Add deterministic geometry and minimum-legibility preflight.
 - Keep KDP/Ingram-specific labels and provider claims out of this slice.
+
+Publishing schema v6 stores independent `large_print` and `hardcover` settings
+alongside the unchanged `print_interior` object. Large Print supports 6 x 9,
+7 x 10, and 8 x 10 page boxes with 14–24 pt body type, 1.2–2.0 line spacing,
+35–65-character proportional-type measure targets, heading scale, paragraph
+spacing, and 10–18 pt running furniture. Its default is 7 x 10, 16 pt body
+type, 1.5 spacing, a 50-character target, and 11 pt furniture.
+
+Hardcover supports 5.5 x 8.5, 6 x 9, and 7 x 10 page boxes. Its independently
+validated settings require hardcover minimum margins, at least a 0.125-inch
+gutter, and at least 1 inch of combined inside margin and gutter. Recto starts
+require explicitly enabled blank versos; those versos suppress headers and
+folios. The profile remains provider-neutral and makes no retailer readiness
+claim.
+
+Both settings objects are included in schema migration, named workflows,
+manifest recipes, regeneration, active-profile source hashing, the Publish UI,
+and QA10. The Proof PDF and Print Interior Typst source functions remain on
+their existing code paths; Slice 6.5 adds separate advanced-profile source
+generation rather than changing their defaults. The profile boundary and
+provider-neutral claims decision is recorded in
+`docs/adr/0004-provider-neutral-advanced-pdf-profiles.md`.
+
+The expanded QA matrix also exposed a pre-existing Slice 6.4 regression: the
+implicit generated Title Page could satisfy `PUBLISH_EMPTY_SCOPE` after every
+source-backed section was excluded. Preflight now ignores that synthetic title
+section when deciding whether a publication contains prose, and EPUB empty
+scope diagnostics follow the same rule. This changes failure behavior only;
+the existing Proof PDF and Print Interior QA01 artifacts remain byte-identical.
 
 ### Exit criteria
 

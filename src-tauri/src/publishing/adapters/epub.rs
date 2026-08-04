@@ -12,6 +12,7 @@ use crate::publishing::model::{
     SectionRole, TextDirection,
 };
 use crate::publishing::request::PageProgressionDirection;
+use crate::publishing::templates::is_title_page_template_section;
 
 const MIMETYPE: &str = "application/epub+zip";
 const CONTAINER_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -126,6 +127,13 @@ struct PackagedAsset {
     source_path: PathBuf,
 }
 
+#[derive(Default)]
+struct FootnoteCatalog {
+    hrefs: HashMap<FootnoteId, String>,
+    numbers: HashMap<FootnoteId, usize>,
+    reference_hrefs: HashMap<FootnoteId, String>,
+}
+
 pub(crate) fn render_epub(
     document: &BookDocument,
     options: &EpubRenderOptions,
@@ -150,7 +158,7 @@ pub(crate) fn render_epub(
         .iter()
         .map(|asset| (asset.asset_id.clone(), format!("../{}", asset.href)))
         .collect();
-    let footnote_hrefs = footnote_hrefs(&plans);
+    let footnotes = footnote_catalog(&plans);
 
     let cover = options.cover.as_ref().map(package_cover).transpose()?;
     let title_page = title_page_xhtml(document, language);
@@ -160,7 +168,7 @@ pub(crate) fn render_epub(
         .map(|plan| {
             (
                 plan.href.clone(),
-                section_xhtml(document, language, plan, &asset_hrefs, &footnote_hrefs),
+                section_xhtml(document, language, plan, &asset_hrefs, &footnotes),
             )
         })
         .collect();
@@ -346,7 +354,7 @@ fn plan_sections<'a>(
 ) -> Vec<NavNode> {
     let mut nodes = Vec::new();
     for section in sections {
-        if !included_for_epub(section, options) {
+        if !included_for_epub(section, options) || is_title_page_template_section(section) {
             continue;
         }
         *counter += 1;
@@ -689,7 +697,7 @@ fn section_xhtml(
     language: &str,
     plan: &SectionPlan<'_>,
     asset_hrefs: &HashMap<AssetId, String>,
-    footnote_hrefs: &HashMap<FootnoteId, String>,
+    footnotes: &FootnoteCatalog,
 ) -> String {
     let role = role_epub_type(&plan.section.role)
         .map(|value| format!(" epub:type=\"{}\"", escape_attr(value)))
@@ -703,7 +711,7 @@ fn section_xhtml(
             )
         })
         .unwrap_or_default();
-    let blocks = render_blocks(&plan.section.blocks, asset_hrefs, footnote_hrefs);
+    let blocks = render_blocks(&plan.section.blocks, asset_hrefs, footnotes);
     format!(
         "{}<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\" xml:lang=\"{}\" lang=\"{}\"><head><title>{}</title><link rel=\"stylesheet\" type=\"text/css\" href=\"../styles/book.css\" /></head><body><section id=\"{}\" class=\"role-{}\"{}>{}{}</section></body></html>\n",
         xml_declaration(),
@@ -721,7 +729,7 @@ fn section_xhtml(
 fn render_blocks(
     blocks: &[Block],
     asset_hrefs: &HashMap<AssetId, String>,
-    footnote_hrefs: &HashMap<FootnoteId, String>,
+    footnotes: &FootnoteCatalog,
 ) -> String {
     blocks
         .iter()
@@ -748,25 +756,25 @@ fn render_blocks(
                 };
                 format!(
                     "<p{class}{direction}{indent}>{}</p>",
-                    render_inlines(inlines, footnote_hrefs)
+                    render_inlines(inlines, footnotes)
                 )
             }
             Block::Heading { level, inlines } => {
                 let level = heading_number(level);
                 format!(
                     "<h{level}>{}</h{level}>",
-                    render_inlines(inlines, footnote_hrefs)
+                    render_inlines(inlines, footnotes)
                 )
             }
             Block::OrderedList { items } => {
-                format!("<ol>{}</ol>", render_list_items(items, asset_hrefs, footnote_hrefs))
+                format!("<ol>{}</ol>", render_list_items(items, asset_hrefs, footnotes))
             }
             Block::BulletList { items } => {
-                format!("<ul>{}</ul>", render_list_items(items, asset_hrefs, footnote_hrefs))
+                format!("<ul>{}</ul>", render_list_items(items, asset_hrefs, footnotes))
             }
             Block::BlockQuote { blocks } => format!(
                 "<blockquote>{}</blockquote>",
-                render_blocks(blocks, asset_hrefs, footnote_hrefs)
+                render_blocks(blocks, asset_hrefs, footnotes)
             ),
             Block::SceneBreak { style } => {
                 let marker = match style {
@@ -799,7 +807,7 @@ fn render_blocks(
                     .map(|caption| {
                         format!(
                             "<figcaption>{}</figcaption>",
-                            render_inlines(caption, footnote_hrefs)
+                            render_inlines(caption, footnotes)
                         )
                     })
                     .unwrap_or_default();
@@ -821,11 +829,24 @@ fn render_blocks(
                     escape_attr(href), accessibility, caption
                 )
             }
-            Block::FootnoteDefinition { id, blocks } => format!(
-                "<aside epub:type=\"footnote\" id=\"fn-{}\">{}</aside>",
-                xml_id_token(&id.0),
-                render_blocks(blocks, asset_hrefs, footnote_hrefs)
-            ),
+            Block::FootnoteDefinition { id, blocks } => {
+                let backlink = footnotes
+                    .reference_hrefs
+                    .get(id)
+                    .map(|href| {
+                        format!(
+                            "<p class=\"footnote-backlink\"><a epub:type=\"backlink\" href=\"{}\" aria-label=\"Return to note reference\">â†©</a></p>",
+                            escape_attr(href)
+                        )
+                    })
+                    .unwrap_or_default();
+                format!(
+                    "<aside epub:type=\"footnote\" role=\"doc-footnote\" id=\"fn-{}\">{}{}</aside>",
+                    xml_id_token(&id.0),
+                    render_blocks(blocks, asset_hrefs, footnotes),
+                    backlink
+                )
+            }
         })
         .collect()
 }
@@ -833,20 +854,20 @@ fn render_blocks(
 fn render_list_items(
     items: &[ListItem],
     asset_hrefs: &HashMap<AssetId, String>,
-    footnote_hrefs: &HashMap<FootnoteId, String>,
+    footnotes: &FootnoteCatalog,
 ) -> String {
     items
         .iter()
         .map(|item| {
             format!(
                 "<li>{}</li>",
-                render_blocks(&item.blocks, asset_hrefs, footnote_hrefs)
+                render_blocks(&item.blocks, asset_hrefs, footnotes)
             )
         })
         .collect()
 }
 
-fn render_inlines(inlines: &[Inline], footnote_hrefs: &HashMap<FootnoteId, String>) -> String {
+fn render_inlines(inlines: &[Inline], footnotes: &FootnoteCatalog) -> String {
     inlines
         .iter()
         .map(|inline| match inline {
@@ -874,26 +895,91 @@ fn render_inlines(inlines: &[Inline], footnote_hrefs: &HashMap<FootnoteId, Strin
                 rendered
             }
             Inline::FootnoteReference { id } => {
-                let href = footnote_hrefs
+                let href = footnotes
+                    .hrefs
                     .get(id)
                     .map(String::as_str)
                     .unwrap_or("#missing-footnote");
                 format!(
-                    "<a epub:type=\"noteref\" href=\"{}\"><sup>{}</sup></a>",
+                    "<a epub:type=\"noteref\" role=\"doc-noteref\" id=\"fnref-{}\" href=\"{}\"><sup>{}</sup></a>",
+                    xml_id_token(&id.0),
                     escape_attr(href),
-                    escape_text(&id.0)
+                    footnotes.numbers.get(id).copied().unwrap_or_default()
                 )
             }
         })
         .collect()
 }
 
-fn footnote_hrefs(plans: &[SectionPlan<'_>]) -> HashMap<FootnoteId, String> {
-    let mut result = HashMap::new();
+fn footnote_catalog(plans: &[SectionPlan<'_>]) -> FootnoteCatalog {
+    let mut result = FootnoteCatalog::default();
     for plan in plans {
-        collect_footnotes(&plan.section.blocks, &plan.href, &mut result);
+        collect_footnotes(&plan.section.blocks, &plan.href, &mut result.hrefs);
+    }
+    for plan in plans {
+        collect_footnote_references(&plan.section.blocks, &plan.href, &mut result);
     }
     result
+}
+
+fn collect_footnote_references(
+    blocks: &[Block],
+    document_href: &str,
+    result: &mut FootnoteCatalog,
+) {
+    for block in blocks {
+        match block {
+            Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
+                for inline in inlines {
+                    if let Inline::FootnoteReference { id } = inline {
+                        if !result.numbers.contains_key(id) {
+                            let number = result.numbers.len() + 1;
+                            result.numbers.insert(id.clone(), number);
+                            result.reference_hrefs.insert(
+                                id.clone(),
+                                format!(
+                                    "{}#fnref-{}",
+                                    document_href.strip_prefix("text/").unwrap_or(document_href),
+                                    xml_id_token(&id.0)
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+            Block::Image { caption, .. } => {
+                if let Some(caption) = caption {
+                    for inline in caption {
+                        if let Inline::FootnoteReference { id } = inline {
+                            if !result.numbers.contains_key(id) {
+                                let number = result.numbers.len() + 1;
+                                result.numbers.insert(id.clone(), number);
+                                result.reference_hrefs.insert(
+                                    id.clone(),
+                                    format!(
+                                        "{}#fnref-{}",
+                                        document_href
+                                            .strip_prefix("text/")
+                                            .unwrap_or(document_href),
+                                        xml_id_token(&id.0)
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                for item in items {
+                    collect_footnote_references(&item.blocks, document_href, result);
+                }
+            }
+            Block::BlockQuote { blocks } | Block::FootnoteDefinition { blocks, .. } => {
+                collect_footnote_references(blocks, document_href, result)
+            }
+            Block::SceneBreak { .. } | Block::PageBreak => {}
+        }
+    }
 }
 
 fn collect_footnotes(
@@ -1286,6 +1372,18 @@ mod tests {
         assert!(xhtml.contains("Hello<br />世界"));
         assert!(xhtml.contains("<ol><li><p>One</p></li></ol>"));
         assert!(xhtml.contains(r#"role="separator" aria-label="Scene break""#));
+        let note_token = xml_id_token("note-1");
+        assert!(xhtml.contains(&format!(
+            "epub:type=\"noteref\" role=\"doc-noteref\" id=\"fnref-{note_token}\""
+        )));
+        assert!(xhtml.contains(&format!(
+            "href=\"section-0002.xhtml#fn-{note_token}\"><sup>1</sup>"
+        )));
+        assert!(xhtml.contains(&format!(
+            "epub:type=\"footnote\" role=\"doc-footnote\" id=\"fn-{note_token}\""
+        )));
+        assert!(xhtml.contains("epub:type=\"backlink\""));
+        assert!(!xhtml.contains("<sup>note-1</sup>"));
         let css = read_entry(&path, "OEBPS/styles/book.css");
         assert!(!css.contains("font-family"));
         assert!(!css.contains("px"));

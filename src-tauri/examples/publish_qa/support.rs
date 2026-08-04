@@ -4,10 +4,13 @@ use std::path::Path;
 use chrono::Utc;
 use serde::Serialize;
 
-use crate::publishing::config::{load_or_default, PublishingConfig, PRINT_INTERIOR_PROFILE_ID};
+use crate::publishing::config::{
+    load_or_default, PublishingConfig, HARDCOVER_PROFILE_ID, LARGE_PRINT_PROFILE_ID,
+    PRINT_INTERIOR_PROFILE_ID,
+};
 use crate::publishing::request::{
-    Diagnostic, PrintInteriorPdfSettings, PublicationScope, PublishFormat,
-    PublishMetadataOverrides, PublishRequest,
+    Diagnostic, HardcoverPdfSettings, LargePrintPdfSettings, PrintInteriorPdfSettings,
+    PublicationScope, PublishFormat, PublishMetadataOverrides, PublishRequest,
 };
 use crate::publishing::service::{publish_blocking, PublishFailure};
 use crate::publishing::source::load_snapshot;
@@ -20,6 +23,9 @@ const QA_PROJECTS: &[&str] = &[
     "Publish QA 05 - Format Inclusion",
     "Publish QA 06 - Formatting and Unicode",
     "Publish QA 07 - Accessible Images",
+    "Publish QA 08 - Footnotes",
+    "Publish QA 09 - Matter Templates",
+    "Publish QA 10 - Large Print and Hardcover",
     "Publish QA 90 - Expected Failure - Unsupported HTML",
     "Publish QA 91 - Expected Failure - Missing Source",
     "Publish QA 92 - Expected Failure - Empty Scope",
@@ -309,10 +315,30 @@ fn request_for_attempt(
             .cloned()
             .and_then(|value| serde_json::from_value(value).ok())
             .unwrap_or_else(PrintInteriorPdfSettings::default),
+        large_print_settings: config
+            .profiles
+            .get(LARGE_PRINT_PROFILE_ID)
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_else(LargePrintPdfSettings::default),
+        hardcover_settings: config
+            .profiles
+            .get(HARDCOVER_PROFILE_ID)
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_else(HardcoverPdfSettings::default),
         metadata: metadata_from_config(&config),
         node_overrides: config.node_roles.clone(),
         outline_confirmed: config.project_type_strategy.confirmed,
         include_shared_matter: true,
+        matter_templates: config.matter_templates.clone(),
+        master_page: if attempt.format == PublishFormat::Pdf
+            && attempt.profile_id == PRINT_INTERIOR_PROFILE_ID
+        {
+            config.master_page.clone()
+        } else {
+            Default::default()
+        },
         destination: Some(destination.to_string_lossy().to_string()),
     })
 }
@@ -344,7 +370,7 @@ fn publish_failure(failure: PublishFailure) -> HarnessFailure {
 
 fn qa_attempts() -> Vec<Attempt> {
     let mut attempts = Vec::new();
-    for project in &QA_PROJECTS[..7] {
+    for project in &QA_PROJECTS[..10] {
         add_format_matrix(
             &mut attempts,
             project,
@@ -463,7 +489,7 @@ struct FormatSpec {
     extension: &'static str,
 }
 
-fn format_matrix() -> [FormatSpec; 5] {
+fn format_matrix() -> [FormatSpec; 7] {
     [
         FormatSpec {
             format: PublishFormat::Pdf,
@@ -475,6 +501,18 @@ fn format_matrix() -> [FormatSpec; 5] {
             format: PublishFormat::Pdf,
             profile_id: "print_interior",
             file_label: "print-interior",
+            extension: "pdf",
+        },
+        FormatSpec {
+            format: PublishFormat::Pdf,
+            profile_id: "large_print",
+            file_label: "large-print",
+            extension: "pdf",
+        },
+        FormatSpec {
+            format: PublishFormat::Pdf,
+            profile_id: "hardcover",
+            file_label: "hardcover",
             extension: "pdf",
         },
         FormatSpec {
@@ -630,14 +668,14 @@ mod tests {
                 .iter()
                 .filter(|attempt| attempt.expected_failure.is_none())
                 .count(),
-            54
+            97
         );
         assert_eq!(
             attempts
                 .iter()
                 .filter(|attempt| attempt.expected_failure.is_some())
                 .count(),
-            8
+            10
         );
         assert!(attempts
             .iter()

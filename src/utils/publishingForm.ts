@@ -1,5 +1,10 @@
 import type {
   Diagnostic,
+  HardcoverPdfSettings,
+  LargePrintPdfSettings,
+  MasterPageSelection,
+  MatterTemplateDefinition,
+  MatterTemplateSelection,
   NodePublishingOverride,
   PublicationScope,
   PrintInteriorPdfSettings,
@@ -9,7 +14,67 @@ import type {
   PublishProgress,
   PublishingOutlineNode,
   SectionRole,
+  PublishingMetadata,
 } from "../types/PublishingTypes";
+
+export function defaultMasterPageSelection(): MasterPageSelection {
+  return { template_id: "profile_default", template_version: 1 };
+}
+
+export function defaultMatterTemplateVariables(
+  definition: MatterTemplateDefinition,
+  metadata: PublishingMetadata,
+): Record<string, string> {
+  return Object.fromEntries(
+    definition.variables.map((variable) => {
+      const fromMetadata =
+        variable.default_from === "title"
+          ? metadata.title
+          : variable.default_from === "subtitle"
+            ? metadata.subtitle ?? ""
+            : variable.default_from === "author"
+              ? metadata.author
+              : "";
+      return [variable.key, fromMetadata || variable.default_value || ""];
+    }),
+  );
+}
+
+export function matterTemplateSelectionErrors(
+  catalog: MatterTemplateDefinition[],
+  selections: MatterTemplateSelection[],
+): string[] {
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  for (const selection of selections) {
+    const identity = `${selection.template_id}@${selection.template_version}`;
+    if (seen.has(identity)) {
+      errors.push(`Template ${selection.template_id} is selected more than once.`);
+      continue;
+    }
+    seen.add(identity);
+    const definition = catalog.find(
+      (candidate) =>
+        candidate.id === selection.template_id &&
+        candidate.version === selection.template_version,
+    );
+    if (!definition) {
+      errors.push(
+        `Template ${selection.template_id} version ${selection.template_version} is unavailable.`,
+      );
+      continue;
+    }
+    for (const variable of definition.variables) {
+      if (
+        variable.required &&
+        !selection.variables[variable.key]?.trim()
+      ) {
+        errors.push(`${definition.label}: ${variable.label} is required.`);
+      }
+    }
+  }
+  return errors;
+}
 
 export function profileForFormat(
   format: PublishFormat,
@@ -19,8 +84,10 @@ export function profileForFormat(
   } = {},
 ): PublishProfileId {
   if (format === "pdf") {
-    return configuredProfiles.pdf === "print_interior"
-      ? "print_interior"
+    return ["print_interior", "large_print", "hardcover"].includes(
+      configuredProfiles.pdf ?? "",
+    )
+      ? (configuredProfiles.pdf as PublishProfileId)
       : "proof_pdf";
   }
   if (format === "epub") return "reflowable_epub";
@@ -159,6 +226,308 @@ export function printInteriorSettingsErrors(
     2
   ) {
     errors.push("Vertical settings leave too little page height.");
+  }
+  return errors;
+}
+
+export function defaultLargePrintPdfSettings(): LargePrintPdfSettings {
+  return {
+    trim_size: "seven_by_ten",
+    top_margin_inches: 0.75,
+    bottom_margin_inches: 0.75,
+    inside_margin_inches: 0.8,
+    outside_margin_inches: 0.7,
+    gutter_inches: 0.15,
+    base_font_size_points: 16,
+    line_spacing: 1.5,
+    max_line_length_characters: 50,
+    heading_scale: 1.5,
+    paragraph_spacing_points: 6,
+    running_headers: true,
+    front_matter_page_numbers: true,
+    body_page_numbers: true,
+    page_furniture_size_points: 11,
+  };
+}
+
+export function largePrintSettingsFromProfiles(
+  profiles: Record<string, unknown>,
+): LargePrintPdfSettings {
+  const fallback = defaultLargePrintPdfSettings();
+  const value = profiles.large_print;
+  if (typeof value !== "object" || value === null) return fallback;
+  const profile = value as Record<string, unknown>;
+  const trims = new Set<LargePrintPdfSettings["trim_size"]>([
+    "six_by_nine",
+    "seven_by_ten",
+    "eight_by_ten",
+  ]);
+  const number = (key: keyof LargePrintPdfSettings, defaultValue: number) =>
+    typeof profile[key] === "number" && Number.isFinite(profile[key])
+      ? (profile[key] as number)
+      : defaultValue;
+  const boolean = (key: keyof LargePrintPdfSettings, defaultValue: boolean) =>
+    typeof profile[key] === "boolean" ? (profile[key] as boolean) : defaultValue;
+  return {
+    trim_size: trims.has(profile.trim_size as LargePrintPdfSettings["trim_size"])
+      ? (profile.trim_size as LargePrintPdfSettings["trim_size"])
+      : fallback.trim_size,
+    top_margin_inches: number("top_margin_inches", fallback.top_margin_inches),
+    bottom_margin_inches: number(
+      "bottom_margin_inches",
+      fallback.bottom_margin_inches,
+    ),
+    inside_margin_inches: number(
+      "inside_margin_inches",
+      fallback.inside_margin_inches,
+    ),
+    outside_margin_inches: number(
+      "outside_margin_inches",
+      fallback.outside_margin_inches,
+    ),
+    gutter_inches: number("gutter_inches", fallback.gutter_inches),
+    base_font_size_points: number(
+      "base_font_size_points",
+      fallback.base_font_size_points,
+    ),
+    line_spacing: number("line_spacing", fallback.line_spacing),
+    max_line_length_characters: number(
+      "max_line_length_characters",
+      fallback.max_line_length_characters,
+    ),
+    heading_scale: number("heading_scale", fallback.heading_scale),
+    paragraph_spacing_points: number(
+      "paragraph_spacing_points",
+      fallback.paragraph_spacing_points,
+    ),
+    running_headers: boolean("running_headers", fallback.running_headers),
+    front_matter_page_numbers: boolean(
+      "front_matter_page_numbers",
+      fallback.front_matter_page_numbers,
+    ),
+    body_page_numbers: boolean(
+      "body_page_numbers",
+      fallback.body_page_numbers,
+    ),
+    page_furniture_size_points: number(
+      "page_furniture_size_points",
+      fallback.page_furniture_size_points,
+    ),
+  };
+}
+
+export function largePrintSettingsErrors(
+  settings: LargePrintPdfSettings,
+): string[] {
+  const errors: string[] = [];
+  for (const [label, value] of [
+    ["Top margin", settings.top_margin_inches],
+    ["Bottom margin", settings.bottom_margin_inches],
+    ["Inside margin", settings.inside_margin_inches],
+    ["Outside margin", settings.outside_margin_inches],
+  ] as Array<[string, number]>) {
+    if (!Number.isFinite(value) || value < 0.5 || value > 2) {
+      errors.push(`${label} must be between 0.5 and 2 inches.`);
+    }
+  }
+  if (
+    !Number.isFinite(settings.gutter_inches) ||
+    settings.gutter_inches < 0 ||
+    settings.gutter_inches > 1
+  ) {
+    errors.push("Gutter must be between 0 and 1 inch.");
+  }
+  if (
+    !Number.isFinite(settings.base_font_size_points) ||
+    settings.base_font_size_points < 14 ||
+    settings.base_font_size_points > 24
+  ) {
+    errors.push("Base type size must be between 14 and 24 points.");
+  }
+  if (
+    !Number.isFinite(settings.line_spacing) ||
+    settings.line_spacing < 1.2 ||
+    settings.line_spacing > 2
+  ) {
+    errors.push("Line spacing must be between 1.2 and 2.0.");
+  }
+  if (
+    !Number.isInteger(settings.max_line_length_characters) ||
+    settings.max_line_length_characters < 35 ||
+    settings.max_line_length_characters > 65
+  ) {
+    errors.push("Maximum line length must be between 35 and 65 characters.");
+  }
+  if (
+    !Number.isFinite(settings.heading_scale) ||
+    settings.heading_scale < 1.2 ||
+    settings.heading_scale > 2
+  ) {
+    errors.push("Heading scale must be between 1.2 and 2.0.");
+  }
+  if (
+    !Number.isFinite(settings.paragraph_spacing_points) ||
+    settings.paragraph_spacing_points < 0 ||
+    settings.paragraph_spacing_points > 18
+  ) {
+    errors.push("Paragraph spacing must be between 0 and 18 points.");
+  }
+  if (
+    !Number.isFinite(settings.page_furniture_size_points) ||
+    settings.page_furniture_size_points < 10 ||
+    settings.page_furniture_size_points > 18
+  ) {
+    errors.push("Page furniture must be between 10 and 18 points.");
+  } else if (
+    settings.page_furniture_size_points > settings.base_font_size_points
+  ) {
+    errors.push("Page furniture cannot be larger than the body type.");
+  }
+  const [width, height] = {
+    six_by_nine: [6, 9],
+    seven_by_ten: [7, 10],
+    eight_by_ten: [8, 10],
+  }[settings.trim_size];
+  const inside = settings.inside_margin_inches + settings.gutter_inches;
+  const available = width - inside - settings.outside_margin_inches;
+  const requested =
+    (settings.max_line_length_characters *
+      settings.base_font_size_points *
+      0.45) /
+    72;
+  const padding = Math.max((available - requested) / 2, 0);
+  if (width - (inside + padding) - (settings.outside_margin_inches + padding) < 3) {
+    errors.push("Large-print geometry leaves too little page width.");
+  }
+  if (height - settings.top_margin_inches - settings.bottom_margin_inches < 4) {
+    errors.push("Large-print geometry leaves too little page height.");
+  }
+  return errors;
+}
+
+export function defaultHardcoverPdfSettings(): HardcoverPdfSettings {
+  return {
+    trim_size: "six_by_nine",
+    top_margin_inches: 0.875,
+    bottom_margin_inches: 0.875,
+    inside_margin_inches: 0.875,
+    outside_margin_inches: 0.75,
+    gutter_inches: 0.25,
+    chapter_start: "recto",
+    intentional_blank_pages: true,
+    running_headers: true,
+    front_matter_page_numbers: true,
+    body_page_numbers: true,
+  };
+}
+
+export function hardcoverSettingsFromProfiles(
+  profiles: Record<string, unknown>,
+): HardcoverPdfSettings {
+  const fallback = defaultHardcoverPdfSettings();
+  const value = profiles.hardcover;
+  if (typeof value !== "object" || value === null) return fallback;
+  const profile = value as Record<string, unknown>;
+  const trims = new Set<HardcoverPdfSettings["trim_size"]>([
+    "five_point_five_by_eight_point_five",
+    "six_by_nine",
+    "seven_by_ten",
+  ]);
+  const starts = new Set<HardcoverPdfSettings["chapter_start"]>([
+    "next_page",
+    "recto",
+  ]);
+  const number = (key: keyof HardcoverPdfSettings, defaultValue: number) =>
+    typeof profile[key] === "number" && Number.isFinite(profile[key])
+      ? (profile[key] as number)
+      : defaultValue;
+  const boolean = (key: keyof HardcoverPdfSettings, defaultValue: boolean) =>
+    typeof profile[key] === "boolean" ? (profile[key] as boolean) : defaultValue;
+  return {
+    trim_size: trims.has(profile.trim_size as HardcoverPdfSettings["trim_size"])
+      ? (profile.trim_size as HardcoverPdfSettings["trim_size"])
+      : fallback.trim_size,
+    top_margin_inches: number("top_margin_inches", fallback.top_margin_inches),
+    bottom_margin_inches: number(
+      "bottom_margin_inches",
+      fallback.bottom_margin_inches,
+    ),
+    inside_margin_inches: number(
+      "inside_margin_inches",
+      fallback.inside_margin_inches,
+    ),
+    outside_margin_inches: number(
+      "outside_margin_inches",
+      fallback.outside_margin_inches,
+    ),
+    gutter_inches: number("gutter_inches", fallback.gutter_inches),
+    chapter_start: starts.has(
+      profile.chapter_start as HardcoverPdfSettings["chapter_start"],
+    )
+      ? (profile.chapter_start as HardcoverPdfSettings["chapter_start"])
+      : fallback.chapter_start,
+    intentional_blank_pages: boolean(
+      "intentional_blank_pages",
+      fallback.intentional_blank_pages,
+    ),
+    running_headers: boolean("running_headers", fallback.running_headers),
+    front_matter_page_numbers: boolean(
+      "front_matter_page_numbers",
+      fallback.front_matter_page_numbers,
+    ),
+    body_page_numbers: boolean(
+      "body_page_numbers",
+      fallback.body_page_numbers,
+    ),
+  };
+}
+
+export function hardcoverSettingsErrors(
+  settings: HardcoverPdfSettings,
+): string[] {
+  const errors: string[] = [];
+  for (const [label, value, minimum] of [
+    ["Top margin", settings.top_margin_inches, 0.625],
+    ["Bottom margin", settings.bottom_margin_inches, 0.625],
+    ["Inside margin", settings.inside_margin_inches, 0.625],
+    ["Outside margin", settings.outside_margin_inches, 0.5],
+  ] as Array<[string, number, number]>) {
+    if (!Number.isFinite(value) || value < minimum || value > 2) {
+      errors.push(`${label} must be between ${minimum} and 2 inches.`);
+    }
+  }
+  if (
+    !Number.isFinite(settings.gutter_inches) ||
+    settings.gutter_inches < 0.125 ||
+    settings.gutter_inches > 1
+  ) {
+    errors.push("Hardcover gutter must be between 0.125 and 1 inch.");
+  }
+  if (settings.inside_margin_inches + settings.gutter_inches < 1) {
+    errors.push("Hardcover inside margin plus gutter must be at least 1 inch.");
+  }
+  if (
+    settings.chapter_start === "recto" &&
+    !settings.intentional_blank_pages
+  ) {
+    errors.push("Recto chapter starts require intentional blank verso pages.");
+  }
+  const [width, height] = {
+    five_point_five_by_eight_point_five: [5.5, 8.5],
+    six_by_nine: [6, 9],
+    seven_by_ten: [7, 10],
+  }[settings.trim_size];
+  if (
+    width -
+      settings.inside_margin_inches -
+      settings.outside_margin_inches -
+      settings.gutter_inches <
+    2.75
+  ) {
+    errors.push("Hardcover geometry leaves too little page width.");
+  }
+  if (height - settings.top_margin_inches - settings.bottom_margin_inches < 4) {
+    errors.push("Hardcover geometry leaves too little page height.");
   }
   return errors;
 }

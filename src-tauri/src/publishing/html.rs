@@ -3,8 +3,8 @@ use scraper::node::Node;
 use scraper::Html;
 
 use super::model::{
-    AssetId, Block, HeadingLevel, ImagePresentation, Inline, InlineMarks, LinkTarget, ListItem,
-    ParagraphAlignment, ParagraphStyle, SceneBreakStyle, TextDirection,
+    AssetId, Block, FootnoteId, HeadingLevel, ImagePresentation, Inline, InlineMarks, LinkTarget,
+    ListItem, ParagraphAlignment, ParagraphStyle, SceneBreakStyle, TextDirection,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +71,7 @@ fn parse_top_level_node(node: NodeRef<'_, Node>, blocks: &mut Vec<Block>) -> Res
             "ol" | "ul" => blocks.extend(parse_list(node)?),
             "blockquote" => blocks.push(parse_block_quote(node)?),
             "figure" => blocks.push(parse_image(node)?),
+            "aside" => blocks.push(parse_footnote_definition(node)?),
             "hr" => blocks.push(Block::SceneBreak {
                 style: explicit_scene_break_style(element.attr("data-wm-scene-break"))?,
             }),
@@ -88,6 +89,35 @@ fn parse_top_level_node(node: NodeRef<'_, Node>, blocks: &mut Vec<Block>) -> Res
     }
 
     Ok(())
+}
+
+fn parse_footnote_definition(node: NodeRef<'_, Node>) -> Result<Block, String> {
+    let element = match node.value() {
+        Node::Element(element) => element,
+        _ => return Err("Expected a WordsMaker footnote definition".to_string()),
+    };
+    if !element
+        .attr("class")
+        .unwrap_or_default()
+        .split_whitespace()
+        .any(|class| class == "wm-footnote-definition")
+    {
+        return Err("Unsupported Quill <aside>; export would omit content".to_string());
+    }
+    let id = element
+        .attr("data-wm-footnote-id")
+        .filter(|value| valid_semantic_id(value))
+        .ok_or_else(|| "WordsMaker footnote definition has a missing or invalid ID".to_string())?;
+    let body = element
+        .attr("data-wm-footnote-body")
+        .ok_or_else(|| "WordsMaker footnote definition has no body".to_string())?;
+    Ok(Block::FootnoteDefinition {
+        id: FootnoteId(id.to_string()),
+        blocks: vec![Block::Paragraph {
+            inlines: vec![plain_text(body)],
+            style: default_paragraph_style(),
+        }],
+    })
 }
 
 fn parse_image(node: NodeRef<'_, Node>) -> Result<Block, String> {
@@ -153,6 +183,10 @@ fn parse_image(node: NodeRef<'_, Node>) -> Result<Block, String> {
 }
 
 fn valid_asset_id(value: &str) -> bool {
+    valid_semantic_id(value)
+}
+
+fn valid_semantic_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 100
         && value
@@ -404,6 +438,24 @@ fn extract_inline_children(
                 {
                     continue;
                 }
+                if tag == "sup"
+                    && element
+                        .attr("class")
+                        .unwrap_or_default()
+                        .split_whitespace()
+                        .any(|class| class == "wm-footnote-reference")
+                {
+                    let id = element
+                        .attr("data-wm-footnote-id")
+                        .filter(|value| valid_semantic_id(value))
+                        .ok_or_else(|| {
+                            "WordsMaker footnote reference has a missing or invalid ID".to_string()
+                        })?;
+                    inlines.push(Inline::FootnoteReference {
+                        id: FootnoteId(id.to_string()),
+                    });
+                    continue;
+                }
 
                 let mut next = state.clone();
                 match tag {
@@ -571,6 +623,48 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["Before", "\n", "After"]
         );
+    }
+
+    #[test]
+    fn parses_semantic_footnote_reference_and_definition_without_visual_numbers() {
+        let blocks = parse_quill_html(
+            r#"<p>Claim<sup class="wm-footnote-reference" data-wm-footnote-id="note-alpha" role="doc-noteref">note</sup>.</p><aside class="wm-footnote-definition" data-wm-footnote-id="note-alpha" data-wm-footnote-body="Source &amp; context" role="doc-footnote"><strong>Footnote: </strong><span>Source &amp; context</span></aside>"#,
+        )
+        .unwrap();
+
+        let (inlines, _) = paragraph(&blocks[0]);
+        assert_eq!(inlines.len(), 3);
+        assert_eq!(
+            inlines[1],
+            Inline::FootnoteReference {
+                id: FootnoteId("note-alpha".to_string())
+            }
+        );
+        assert_eq!(
+            blocks[1],
+            Block::FootnoteDefinition {
+                id: FootnoteId("note-alpha".to_string()),
+                blocks: vec![Block::Paragraph {
+                    inlines: vec![plain_text("Source & context")],
+                    style: default_paragraph_style(),
+                }],
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_semantic_footnote_markup() {
+        let reference = parse_quill_html(
+            r#"<p>Claim<sup class="wm-footnote-reference" data-wm-footnote-id="../bad">note</sup></p>"#,
+        )
+        .unwrap_err();
+        assert!(reference.contains("missing or invalid ID"));
+
+        let definition = parse_quill_html(
+            r#"<aside class="wm-footnote-definition" data-wm-footnote-id="note-1">Body</aside>"#,
+        )
+        .unwrap_err();
+        assert!(definition.contains("has no body"));
     }
 
     #[test]

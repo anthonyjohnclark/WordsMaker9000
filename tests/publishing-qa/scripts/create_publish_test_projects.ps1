@@ -104,6 +104,10 @@ function New-PublishingConfig {
         [bool]$IncludeFrontMatter = $true,
         [bool]$IncludeBackMatter = $true,
         [bool]$UseDerivedIdentifier = $false,
+        [object[]]$MatterTemplates = @(),
+        [AllowNull()]$MasterPage = $null,
+        [AllowNull()]$LargePrintProfile = $null,
+        [AllowNull()]$HardcoverProfile = $null,
         [ValidateSet("left_to_right", "right_to_left")]
         [string]$PageProgressionDirection = "left_to_right"
     )
@@ -125,8 +129,48 @@ function New-PublishingConfig {
         $identifierSlug = ($Title.ToLowerInvariant() -replace "[^a-z0-9]+", "-").Trim("-")
         "urn:wordsmaker9000:publish-qa:$identifierSlug"
     }
+    if ($null -eq $MasterPage) {
+        $MasterPage = [ordered]@{
+            template_id = "profile_default"
+            template_version = 1
+        }
+    }
+    if ($null -eq $LargePrintProfile) {
+        $LargePrintProfile = [ordered]@{
+            trim_size = "seven_by_ten"
+            top_margin_inches = 0.75
+            bottom_margin_inches = 0.75
+            inside_margin_inches = 0.8
+            outside_margin_inches = 0.7
+            gutter_inches = 0.15
+            base_font_size_points = 16.0
+            line_spacing = 1.5
+            max_line_length_characters = 50
+            heading_scale = 1.5
+            paragraph_spacing_points = 6.0
+            running_headers = $true
+            front_matter_page_numbers = $true
+            body_page_numbers = $true
+            page_furniture_size_points = 11.0
+        }
+    }
+    if ($null -eq $HardcoverProfile) {
+        $HardcoverProfile = [ordered]@{
+            trim_size = "six_by_nine"
+            top_margin_inches = 0.875
+            bottom_margin_inches = 0.875
+            inside_margin_inches = 0.875
+            outside_margin_inches = 0.75
+            gutter_inches = 0.25
+            chapter_start = "recto"
+            intentional_blank_pages = $true
+            running_headers = $true
+            front_matter_page_numbers = $true
+            body_page_numbers = $true
+        }
+    }
     return [ordered]@{
-        schema_version = 3
+        schema_version = 6
         project_type_strategy = [ordered]@{
             project_type = $ProjectType
             version = 1
@@ -172,12 +216,17 @@ function New-PublishingConfig {
                 front_matter_page_numbers = $true
                 body_page_numbers = $true
             }
+            large_print = $LargePrintProfile
+            hardcover = $HardcoverProfile
         }
         default_profile_by_format = [ordered]@{
             pdf = "proof_pdf"
             docx = "standard_manuscript"
             epub = "reflowable_epub"
         }
+        saved_profiles = @()
+        matter_templates = @($MatterTemplates)
+        master_page = $MasterPage
     }
 }
 
@@ -467,6 +516,88 @@ $imageAssets = @([pscustomobject]@{
     Base64 = "iVBORw0KGgoAAAANSUhEUgAAAUAAAAC0CAYAAADl5PURAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAOLSURBVHhe7dTLbRtREAVRheE0HIvzj8WGDGhANv8/iTN1LnA2XHBeb+rj1+8/fwGKPuYPABUCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYAAlkCCGQJIJAlgECWAAJZAghkCSCQJYBAlgACWQIIZAkgkCWAQJYA8nKPbP4XPJMA8hKv2PwGPEoAearv2Pwm3EsAeYqf2HwD3EoAecg7bL4JriWA3O2dNt8G1xBAbvbOm2+FcwSQm6xh881wigBytTVtvh2OEUCussbNG2ASQC5a8+YtsEsAuWjNm7fALgHkrC1s3gRfBJCTtrR5G3wSQE7a0uZt8EkAOWqLmzeCAHLUFjdvBAHkwJY3b6VNADmw5c1baRNA9hQ2b6ZLANlT2LyZLgFkT2HzZroEkEVp83aaBJBFafN2mgSQRWnzdpoEkEVp83aaBJBFafN2mgSQRWnzdpoEkEVp83aaBJD/apv30ySALEqbt9MkgCxKm7fTJIAsSpu30ySALEqbt9MkgCxKm7fTJIAsSpu30ySALEqbt9MkgOwpbN5MlwCyp7B5M10CyJ7C5s10CSAHtrx5K20CyIEtb95KmwBy1BY3bwQB5Kgtbt4IAshJW9q8DT4JICdtafM2+CSAnLWFzZvgiwBy0Zo3b4FdAshFa968BXYJIFdZ4+YNMAkgV1vT5tvhGAHkJmvYfDOcIoDc7J033wrnCCB3e6fNt8E1BJCHvMPmm+BaAshT/MTmG+BWAshTfcfmN+FeAshLvGLzG/AoAeTlHtn8L3gmAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIEsAQSyBBDIEkAgSwCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAEEsgQQyBJAIEsAgSwBBLIEEMgSQCBLAIGsf/8HW2CcPEIdAAAAAElFTkSuQmCC"
 })
 
+$footnoteNodes = @(
+    (New-NodeSpec -Id 1 -Parent 0 -Text "First Footnote Chapter" -Type file -Content @'
+<p>FOOTNOTE-FIRST-REFERENCE. This note has a lexically later ID<sup class="wm-footnote-reference" data-wm-footnote-id="note-zeta" role="doc-noteref">note</sup>.</p><aside class="wm-footnote-definition" data-wm-footnote-id="note-zeta" data-wm-footnote-body="FIRST-NOTE-BODY -- zeta ID, first in publication order." role="doc-footnote"><strong>Footnote: </strong><span>FIRST-NOTE-BODY -- zeta ID, first in publication order.</span></aside>
+'@
+    )
+    (New-NodeSpec -Id 2 -Parent 0 -Text "Second Footnote Chapter" -Type file -Content @'
+<p>FOOTNOTE-SECOND-REFERENCE. This note has a lexically earlier ID<sup class="wm-footnote-reference" data-wm-footnote-id="note-alpha" role="doc-noteref">note</sup>.</p><aside class="wm-footnote-definition" data-wm-footnote-id="note-alpha" data-wm-footnote-body="SECOND-NOTE-BODY -- alpha ID, second in publication order." role="doc-footnote"><strong>Footnote: </strong><span>SECOND-NOTE-BODY -- alpha ID, second in publication order.</span></aside>
+'@
+    )
+    (New-NodeSpec -Id 900 -Parent 0 -Text "_QA Guide - Excluded" -Type file -Content "<p>$guidePrefix</p>")
+)
+$footnoteRoles = [ordered]@{
+    "900" = (New-NodeRole -Role "unassigned" -Inclusion (New-Inclusion -Type excluded))
+}
+$footnoteGuide = Read-QaExpectation "08-footnotes.md"
+
+$templateNodes = @(
+    (New-NodeSpec -Id 1 -Parent 0 -Text "Template Chapter" -Type file -Content "<p>TEMPLATE-BODY-SENTINEL. Ordinary body prose follows every generated front-matter component.</p>")
+    (New-NodeSpec -Id 900 -Parent 0 -Text "_QA Guide - Excluded" -Type file -Content "<p>$guidePrefix</p>")
+)
+$templateRoles = [ordered]@{
+    "900" = (New-NodeRole -Role "unassigned" -Inclusion (New-Inclusion -Type excluded))
+}
+$templateMatter = @(
+    [ordered]@{ template_id = "title_page"; template_version = 1; variables = [ordered]@{} }
+    [ordered]@{ template_id = "copyright"; template_version = 1; variables = [ordered]@{ year = "2026"; holder = "Quinn Tester"; rights_statement = "TEMPLATE-COPYRIGHT-RIGHTS-SENTINEL." } }
+    [ordered]@{ template_id = "dedication"; template_version = 1; variables = [ordered]@{ text = "TEMPLATE-DEDICATION-SENTINEL." } }
+    [ordered]@{ template_id = "contents"; template_version = 1; variables = [ordered]@{} }
+    [ordered]@{ template_id = "acknowledgements"; template_version = 1; variables = [ordered]@{ text = "TEMPLATE-ACKNOWLEDGEMENTS-SENTINEL." } }
+    [ordered]@{ template_id = "author_biography"; template_version = 1; variables = [ordered]@{ text = "TEMPLATE-BIOGRAPHY-SENTINEL." } }
+    [ordered]@{ template_id = "also_by"; template_version = 1; variables = [ordered]@{ titles = "Earlier Orbit`nLater Orbit" } }
+)
+$templateMasterPage = [ordered]@{
+    template_id = "classic_book"
+    template_version = 1
+}
+$templateGuide = Read-QaExpectation "09-matter-templates.md"
+
+$advancedPrintNodes = @(
+    (New-NodeSpec -Id 1 -Parent 0 -Text "Large Type Opening" -Type file -Content @'
+<h1>ADVANCED-PRINT-HEADING-SENTINEL</h1><p>ADVANCED-PRINT-FIRST-SENTINEL. This intentionally long paragraph makes the selected large-print measure, body size, line spacing, and paragraph spacing visible during inspection. Every line should remain comfortably readable without clipping into the binding margin, running header, or folio.</p><p>A second paragraph verifies the configured space after paragraphs and keeps enough prose on the page to expose accidental typography regressions.</p><p>The reader followed the path around the harbor until the lamps became a steady constellation. Each doorway held a different story, but the broad type and generous leading kept every sentence distinct. This continuation exists to force a body page after the chapter opening so its running furniture can be inspected.</p><p>At the end of the quay, the map opened across the table. Names, dates, and small observations remained ordinary prose rather than layout instructions. The page should preserve a calm measure with visible space between paragraphs, a clear binding edge, and enough room above and below for navigation furniture.</p><p>Morning brought another set of notes. The editor compared the lines slowly, checking that no word approached the trim edge and that the larger letters did not crowd one another. A continuation page should show the running header and Arabic folio at the configured accessible size.</p><p>Nothing in this fixture names a retailer or promises acceptance by a printer. Its only claim is structural: the selected provider-neutral profile produces the saved page box, typography, margins, headers, folios, and section starts in a deterministic artifact.</p><p>The afternoon review began at the first numbered page and moved forward without skipping a line. On continuation pages, the author name belongs at the outer top edge while the page number remains centered below the text block. Neither element should compete with the prose or disappear into the trim.</p><p>Binding geometry matters most where the reader cannot easily see it. The inside margin and additional gutter must combine before typesetting, leaving a stable reading area on both odd and even pages. Mirroring should move that protected space with the binding edge rather than pinning it to one side.</p><p>Large-print geometry has a different purpose. Its maximum-character setting narrows the measure when the selected page and margins would otherwise produce an overly long line. Because the typeface is proportional, the value is a deterministic estimate and not a literal promise about every individual line.</p><p>The headings remain visibly distinct from body prose without becoming decorative display type. Paragraph spacing supplies another navigation cue, especially for readers who benefit from a clear separation between ideas. These controls should survive a saved workflow, regeneration, and a copied destination artifact.</p><p>A final continuation checks alternating furniture. Even pages should carry the author at the left outer edge; odd continuation pages should carry the title at the right outer edge. Chapter openings remain quiet and omit both running heads and body folios so the hierarchy is immediately apparent.</p><p>After the last review note, the manuscript returns to ordinary narrative. The same sentences should remain selectable text with embedded fonts, not rasterized page images. Search, copy, zoom, and assistive reading workflows depend on preserving that document structure throughout PDF generation.</p><p>The production checklist continues with a deliberate review of the lower margin. Descenders, punctuation, and footnotes must remain above the reserved folio area, even when a paragraph flows close to the page boundary. Automatic pagination should move complete lines instead of squeezing text into unavailable space.</p><p>Next comes the upper margin and running head. The header must remain outside the primary reading area, use the selected furniture size, and alternate according to page parity. An opening-page marker suppresses it only where the structural hierarchy calls for a quiet chapter opening.</p><p>The reviewer then compares consecutive spreads. Protected binding space belongs on the inner edge of each page, so the visible text blocks mirror one another across the gutter. Outside margins remain consistent, and the wider interior allowance never drifts to the trimmed edge.</p><p>Typography is checked again at high zoom and at a whole-page view. Letterforms should remain sharp, Unicode fallback should remain available, and bold or italic emphasis should not alter the intended body size. Headings may scale up, but body paragraphs must stay at the profile's exact base size.</p><p>The final spread confirms continuity. Paragraphs move naturally between pages, the Arabic counter advances once per physical body page, and blank versos do not consume visible furniture. With these observations recorded, the next chapter can begin on its required right-hand page.</p>
+'@)
+    (New-NodeSpec -Id 2 -Parent 0 -Text "Recto Binding Test" -Type file -Content @'
+<p>ADVANCED-PRINT-SECOND-SENTINEL. In Hardcover output this chapter must begin on a right-hand page. Any inserted verso must be intentionally blank, without a running header or folio.</p>
+'@)
+    (New-NodeSpec -Id 900 -Parent 0 -Text "_QA Guide - Excluded" -Type file -Content "<p>$guidePrefix</p>")
+)
+$advancedPrintRoles = [ordered]@{
+    "900" = (New-NodeRole -Role "unassigned" -Inclusion (New-Inclusion -Type excluded))
+}
+$advancedLargePrintProfile = [ordered]@{
+    trim_size = "eight_by_ten"
+    top_margin_inches = 0.875
+    bottom_margin_inches = 0.875
+    inside_margin_inches = 0.875
+    outside_margin_inches = 0.75
+    gutter_inches = 0.125
+    base_font_size_points = 18.0
+    line_spacing = 1.6
+    max_line_length_characters = 48
+    heading_scale = 1.6
+    paragraph_spacing_points = 8.0
+    running_headers = $true
+    front_matter_page_numbers = $true
+    body_page_numbers = $true
+    page_furniture_size_points = 12.0
+}
+$advancedHardcoverProfile = [ordered]@{
+    trim_size = "seven_by_ten"
+    top_margin_inches = 1.0
+    bottom_margin_inches = 1.0
+    inside_margin_inches = 0.875
+    outside_margin_inches = 0.75
+    gutter_inches = 0.375
+    chapter_start = "recto"
+    intentional_blank_pages = $true
+    running_headers = $true
+    front_matter_page_numbers = $true
+    body_page_numbers = $true
+}
+$advancedPrintGuide = Read-QaExpectation "10-large-print-and-hardcover.md"
+
 $unsupportedNodes = @(
     (New-NodeSpec -Id 1 -Parent 0 -Text "Unsupported Table" -Type file -Content "<p>Before the unsupported block.</p><table><tr><td>THIS TABLE MUST NOT BE SILENTLY DROPPED</td></tr></table><p>After the unsupported block.</p>")
     (New-NodeSpec -Id 900 -Parent 0 -Text "_QA Guide — Excluded" -Type file -Content "<p>$guidePrefix</p>")
@@ -512,6 +643,9 @@ $definitions = @(
     (New-QaProjectDefinition -Name "Publish QA 05 - Format Inclusion" -Slug "publish-qa-05" -ProjectType "novel" -Nodes $inclusionNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "The Three-Format Ledger" -Subtitle "Format Inclusion Fixture" -NodeRoles $inclusionRoles -FrontMatter "FORMAT FRONT MATTER SENTINEL." -BackMatter "FORMAT BACK MATTER SENTINEL." -CoverMode valid -IncludeFrontMatter $false -IncludeBackMatter $true) -Guide $inclusionGuide -CoverMode valid)
     (New-QaProjectDefinition -Name "Publish QA 06 - Formatting and Unicode" -Slug "publish-qa-06" -ProjectType "novel" -Nodes $formattingNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Glyphs & Garlands" -Subtitle "Formatting, Unicode, and Reflow Fixture" -NodeRoles $formattingRoles -FrontMatter "FORMATTING FIXTURE FRONT MATTER." -BackMatter "FORMATTING FIXTURE BACK MATTER." -CoverMode valid) -Guide $formattingGuide -CoverMode valid)
     (New-QaProjectDefinition -Name "Publish QA 07 - Accessible Images" -Slug "publish-qa-07" -ProjectType "novel" -Nodes $imageNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "The Moon Registry" -Subtitle "Project Assets and Accessible Images Fixture" -NodeRoles $imageRoles -FrontMatter $null -BackMatter $null -CoverMode valid) -Guide $imageGuide -Assets $imageAssets -CoverMode valid)
+    (New-QaProjectDefinition -Name "Publish QA 08 - Footnotes" -Slug "publish-qa-08" -ProjectType "novel" -Nodes $footnoteNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Notes in Orbit" -Subtitle "Native and Semantic Footnotes Fixture" -NodeRoles $footnoteRoles -FrontMatter $null -BackMatter $null -CoverMode valid) -Guide $footnoteGuide -CoverMode valid)
+    (New-QaProjectDefinition -Name "Publish QA 09 - Matter Templates" -Slug "publish-qa-09" -ProjectType "novel" -Nodes $templateNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Pages of Record" -Subtitle "Versioned Matter and Master Pages Fixture" -NodeRoles $templateRoles -FrontMatter "LEGACY-FRONT-MATTER-SENTINEL." -BackMatter "LEGACY-BACK-MATTER-SENTINEL." -CoverMode valid -MatterTemplates $templateMatter -MasterPage $templateMasterPage) -Guide $templateGuide -CoverMode valid)
+    (New-QaProjectDefinition -Name "Publish QA 10 - Large Print and Hardcover" -Slug "publish-qa-10" -ProjectType "novel" -Nodes $advancedPrintNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Readable Bindings" -Subtitle "Large Print and Hardcover Fixture" -NodeRoles $advancedPrintRoles -FrontMatter "ADVANCED-PRINT-FRONT-SENTINEL." -BackMatter "ADVANCED-PRINT-BACK-SENTINEL." -CoverMode valid -LargePrintProfile $advancedLargePrintProfile -HardcoverProfile $advancedHardcoverProfile) -Guide $advancedPrintGuide -CoverMode valid)
     (New-QaProjectDefinition -Name "Publish QA 90 - Expected Failure - Unsupported HTML" -Slug "publish-qa-90" -ProjectType "novel" -Nodes $unsupportedNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Unsupported HTML Failure" -Subtitle "Expected Compilation Failure" -NodeRoles $unsupportedRoles -FrontMatter $null -BackMatter $null -CoverMode none) -Guide $unsupportedGuide -CoverMode none)
     (New-QaProjectDefinition -Name "Publish QA 91 - Expected Failure - Missing Source" -Slug "publish-qa-91" -ProjectType "novel" -Nodes $missingSourceNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Missing Source Failure" -Subtitle "Expected Snapshot Failure" -NodeRoles $missingSourceRoles -FrontMatter $null -BackMatter $null -CoverMode none) -Guide $missingSourceGuide -CoverMode none)
     (New-QaProjectDefinition -Name "Publish QA 92 - Expected Failure - Empty Scope" -Slug "publish-qa-92" -ProjectType "novel" -Nodes $emptyScopeNodes -PublishingConfig (New-PublishingConfig -ProjectType "novel" -Title "Empty Scope Failure" -Subtitle "Expected Preflight Failure" -NodeRoles $emptyScopeRoles -FrontMatter $null -BackMatter $null -CoverMode none) -Guide $emptyScopeGuide -CoverMode none)

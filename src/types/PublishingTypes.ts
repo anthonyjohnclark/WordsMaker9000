@@ -1,7 +1,11 @@
 import type { ProjectType } from "../utils/fileManager";
 
 export type PublishFormat = "pdf" | "docx" | "epub";
-export type PdfProfileId = "proof_pdf" | "print_interior";
+export type PdfProfileId =
+  | "proof_pdf"
+  | "print_interior"
+  | "large_print"
+  | "hardcover";
 export type DocxProfileId = "standard_manuscript" | "clean_handoff";
 export type PublishProfileId =
   | PdfProfileId
@@ -22,6 +26,48 @@ export interface PrintInteriorPdfSettings {
   outside_margin_inches: number;
   gutter_inches: number;
   chapter_start: ChapterStartSide;
+  running_headers: boolean;
+  front_matter_page_numbers: boolean;
+  body_page_numbers: boolean;
+}
+
+export type LargePrintTrimSize =
+  | "six_by_nine"
+  | "seven_by_ten"
+  | "eight_by_ten";
+
+export interface LargePrintPdfSettings {
+  trim_size: LargePrintTrimSize;
+  top_margin_inches: number;
+  bottom_margin_inches: number;
+  inside_margin_inches: number;
+  outside_margin_inches: number;
+  gutter_inches: number;
+  base_font_size_points: number;
+  line_spacing: number;
+  max_line_length_characters: number;
+  heading_scale: number;
+  paragraph_spacing_points: number;
+  running_headers: boolean;
+  front_matter_page_numbers: boolean;
+  body_page_numbers: boolean;
+  page_furniture_size_points: number;
+}
+
+export type HardcoverTrimSize =
+  | "five_point_five_by_eight_point_five"
+  | "six_by_nine"
+  | "seven_by_ten";
+
+export interface HardcoverPdfSettings {
+  trim_size: HardcoverTrimSize;
+  top_margin_inches: number;
+  bottom_margin_inches: number;
+  inside_margin_inches: number;
+  outside_margin_inches: number;
+  gutter_inches: number;
+  chapter_start: ChapterStartSide;
+  intentional_blank_pages: boolean;
   running_headers: boolean;
   front_matter_page_numbers: boolean;
   body_page_numbers: boolean;
@@ -85,6 +131,52 @@ export interface PublishingMetadata {
   ebook: EbookMetadata;
 }
 
+export interface MatterTemplateSelection {
+  template_id: string;
+  template_version: number;
+  variables: Record<string, string>;
+}
+
+export interface MasterPageSelection {
+  template_id: string;
+  template_version: number;
+}
+
+export interface MatterTemplateVariableDefinition {
+  key: string;
+  label: string;
+  required: boolean;
+  multiline: boolean;
+  default_from?: "title" | "subtitle" | "author" | null;
+  default_value?: string | null;
+}
+
+export interface MatterTemplateDefinition {
+  id: string;
+  version: number;
+  label: string;
+  output_title: string;
+  description: string;
+  placement: "front" | "back";
+  variables: MatterTemplateVariableDefinition[];
+}
+
+export interface MasterPageDefinition {
+  id: string;
+  version: number;
+  label: string;
+  description: string;
+  settings?: MasterPageSettings | null;
+  intentional_blank_pages: boolean;
+}
+
+export interface MasterPageSettings {
+  chapter_start: ChapterStartSide;
+  running_headers: boolean;
+  front_matter_page_numbers: boolean;
+  body_page_numbers: boolean;
+}
+
 export interface NodePublishingOverride {
   role: SectionRole;
   inclusion: SectionInclusion;
@@ -98,10 +190,14 @@ export interface PublishRequest {
   format: PublishFormat;
   profile_id: PublishProfileId;
   pdf_settings: PrintInteriorPdfSettings;
+  large_print_settings: LargePrintPdfSettings;
+  hardcover_settings: HardcoverPdfSettings;
   metadata: PublishingMetadata;
   node_overrides: Record<string, NodePublishingOverride>;
   outline_confirmed: boolean;
   include_shared_matter: boolean;
+  matter_templates: MatterTemplateSelection[];
+  master_page: MasterPageSelection;
   destination?: string;
 }
 
@@ -166,12 +262,16 @@ export interface PublishingConfig {
   profiles: Record<string, unknown>;
   default_profile_by_format: Record<string, string>;
   saved_profiles: SavedPublishingProfile[];
+  matter_templates: MatterTemplateSelection[];
+  master_page: MasterPageSelection;
 }
 
 export interface PublishingSetup {
   config: PublishingConfig;
   project_type: ProjectType;
   outline: PublishingOutlineNode[];
+  matter_template_catalog: MatterTemplateDefinition[];
+  master_page_catalog: MasterPageDefinition[];
 }
 
 export interface PublishFailure {

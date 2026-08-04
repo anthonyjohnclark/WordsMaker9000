@@ -20,7 +20,10 @@ use super::artifacts::{
 };
 use super::assets::as_book_assets;
 use super::compiler::compile_with_assets;
-use super::config::{load_or_default, save_atomic, PublishingConfig, PRINT_INTERIOR_PROFILE_ID};
+use super::config::{
+    load_or_default, save_atomic, PublishingConfig, HARDCOVER_PROFILE_ID, LARGE_PRINT_PROFILE_ID,
+    PRINT_INTERIOR_PROFILE_ID,
+};
 use super::model::{
     AssetSource, BookAsset, BookDocument, BookSection, SectionInclusion, SectionRole,
 };
@@ -29,11 +32,17 @@ use super::preflight::{
 };
 use super::project_types::apply_project_strategy;
 use super::request::{
-    Diagnostic, DiagnosticSeverity, DocxProfileId, PdfProfileId, PublishFormat, PublishPhase,
-    PublishProgress, PublishRecipe, PublishRequest, PublishResult, SavedPublishingProfile,
+    Diagnostic, DiagnosticSeverity, DocxProfileId, PdfProfileId, PrintInteriorPdfSettings,
+    PublishFormat, PublishMetadataOverrides, PublishPhase, PublishProgress, PublishRecipe,
+    PublishRequest, PublishResult, SavedPublishingProfile,
 };
 use super::source::{load_snapshot, project_root};
-use crate::export::pdf_typst_adapter::generate_pdf_for_profile_with_root;
+use super::templates::{
+    apply_matter_templates, master_page_catalog, matter_template_catalog, resolve_master_page,
+    resolve_matter_templates, MasterPageDefinition, MatterTemplateDefinition,
+    PROFILE_DEFAULT_MASTER_PAGE_ID,
+};
+use crate::export::pdf_typst_adapter::generate_pdf_for_profile_with_root_and_settings;
 
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct PublishingOutlineNode {
@@ -49,6 +58,8 @@ pub(crate) struct PublishingSetup {
     pub config: PublishingConfig,
     pub project_type: super::request::ProjectType,
     pub outline: Vec<PublishingOutlineNode>,
+    pub matter_template_catalog: Vec<MatterTemplateDefinition>,
+    pub master_page_catalog: Vec<MasterPageDefinition>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,6 +107,18 @@ impl PublishFailure {
                 message.clone(),
                 None,
                 Some("Resolve the named source or outline problem and retry.".to_string()),
+            )],
+            message,
+        }
+    }
+
+    fn template(message: String) -> Self {
+        Self {
+            diagnostics: vec![Diagnostic::error(
+                "PUBLISH_TEMPLATE_INVALID",
+                message.clone(),
+                None,
+                Some("Review the selected matter and master-page templates.".to_string()),
             )],
             message,
         }
@@ -179,6 +202,15 @@ pub(crate) async fn get_publishing_setup(
             true,
         )
         .map_err(PublishFailure::compilation)?;
+        config.matter_templates = resolve_matter_templates(
+            &config.matter_templates,
+            &PublishMetadataOverrides::from(&config.book_metadata),
+        )
+        .map_err(PublishFailure::template)?;
+        resolve_master_page(&config.master_page, &PrintInteriorPdfSettings::default())
+            .map_err(PublishFailure::template)?;
+        apply_matter_templates(&mut document, &config.matter_templates)
+            .map_err(PublishFailure::template)?;
         if !outline_requires_confirmation(&document) {
             config.project_type_strategy.confirmed = true;
         }
@@ -186,6 +218,8 @@ pub(crate) async fn get_publishing_setup(
             config,
             project_type: snapshot.project_type,
             outline: document.sections.iter().map(outline_node).collect(),
+            matter_template_catalog: matter_template_catalog(),
+            master_page_catalog: master_page_catalog(),
         })
     })
     .await
@@ -281,6 +315,7 @@ pub(crate) async fn save_publishing_profile(
             None,
         );
         let mut diagnostics = Vec::new();
+        resolve_request_templates(&mut validation_request)?;
         validate_profile(&validation_request, &mut diagnostics);
         if has_blocking_diagnostics(&diagnostics) {
             return Err(PublishFailure {
@@ -509,6 +544,7 @@ fn publish_blocking_with_cancellation(
     }
 
     let derived_diagnostics = derive_docx_defaults(&mut request);
+    resolve_request_templates(&mut request)?;
     snapshot.payload.options.title = request.metadata.title.clone();
     snapshot.payload.options.author = request.metadata.author.clone();
     snapshot.payload.options.front_matter = request.metadata.front_matter.clone();
@@ -535,6 +571,10 @@ fn publish_blocking_with_cancellation(
         request.include_shared_matter,
     )
     .map_err(PublishFailure::compilation)?;
+    if request.include_shared_matter {
+        apply_matter_templates(&mut document, &request.matter_templates)
+            .map_err(PublishFailure::template)?;
+    }
     check_cancelled(cancellation)?;
 
     emit_progress(
@@ -633,6 +673,10 @@ fn publish_blocking_with_cancellation(
         request.format,
         &request.profile_id,
         &request.pdf_settings,
+        &request.large_print_settings,
+        &request.hardcover_settings,
+        &request.matter_templates,
+        &request.master_page,
     );
     config.default_profile_by_format.insert(
         format_name(request.format).to_string(),
@@ -730,13 +774,15 @@ fn render_artifact(
     app: Option<&AppHandle>,
 ) -> Result<PathBuf, String> {
     match request.format {
-        PublishFormat::Pdf => generate_pdf_for_profile_with_root(
+        PublishFormat::Pdf => generate_pdf_for_profile_with_root_and_settings(
             document,
             project_root,
             output_dir,
             app,
             parse_pdf_profile(&request.profile_id)?,
             &request.pdf_settings,
+            &request.large_print_settings,
+            &request.hardcover_settings,
         ),
         PublishFormat::Docx => {
             let profile = parse_docx_profile(&request.profile_id)?;
@@ -813,8 +859,27 @@ fn parse_pdf_profile(profile_id: &str) -> Result<PdfProfileId, String> {
     match profile_id {
         "proof_pdf" => Ok(PdfProfileId::ProofPdf),
         PRINT_INTERIOR_PROFILE_ID => Ok(PdfProfileId::PrintInterior),
+        LARGE_PRINT_PROFILE_ID => Ok(PdfProfileId::LargePrint),
+        HARDCOVER_PROFILE_ID => Ok(PdfProfileId::Hardcover),
         other => Err(format!("Unknown PDF profile {other:?}")),
     }
+}
+
+fn resolve_request_templates(request: &mut PublishRequest) -> Result<(), PublishFailure> {
+    request.matter_templates =
+        resolve_matter_templates(&request.matter_templates, &request.metadata)
+            .map_err(PublishFailure::template)?;
+    if request.master_page.template_id != PROFILE_DEFAULT_MASTER_PAGE_ID
+        && (request.format != PublishFormat::Pdf || request.profile_id != PRINT_INTERIOR_PROFILE_ID)
+    {
+        return Err(PublishFailure::template(
+            "Master-page templates are currently available only for Print Interior PDF."
+                .to_string(),
+        ));
+    }
+    request.pdf_settings = resolve_master_page(&request.master_page, &request.pdf_settings)
+        .map_err(PublishFailure::template)?;
+    Ok(())
 }
 
 fn validate_profile(request: &PublishRequest, diagnostics: &mut Vec<Diagnostic>) {
@@ -847,6 +912,34 @@ fn validate_profile(request: &PublishRequest, diagnostics: &mut Vec<Diagnostic>)
                 ),
                 None,
                 Some("Adjust the trim, margins, or gutter and retry.".to_string()),
+            ));
+        }
+    }
+    if request.format == PublishFormat::Pdf && request.profile_id == LARGE_PRINT_PROFILE_ID {
+        let errors = request.large_print_settings.validation_errors();
+        if !errors.is_empty() {
+            diagnostics.push(Diagnostic::error(
+                "PDF_LARGE_PRINT_SETTINGS_INVALID",
+                format!("Large Print settings are invalid: {}.", errors.join("; ")),
+                None,
+                Some(
+                    "Adjust the type, line length, page furniture, or geometry and retry."
+                        .to_string(),
+                ),
+            ));
+        }
+    }
+    if request.format == PublishFormat::Pdf && request.profile_id == HARDCOVER_PROFILE_ID {
+        let errors = request.hardcover_settings.validation_errors();
+        if !errors.is_empty() {
+            diagnostics.push(Diagnostic::error(
+                "PDF_HARDCOVER_SETTINGS_INVALID",
+                format!("Hardcover settings are invalid: {}.", errors.join("; ")),
+                None,
+                Some(
+                    "Adjust the hardcover trim, binding margins, gutter, or chapter starts and retry."
+                        .to_string(),
+                ),
             ));
         }
     }
@@ -1059,10 +1152,30 @@ fn publication_source_hash(
     );
     hasher.update(format_name(request.format).as_bytes());
     hasher.update(request.profile_id.as_bytes());
+    hasher.update(
+        serde_json::to_vec(&request.matter_templates)
+            .map_err(|error| format!("Failed to hash matter templates: {error}"))?,
+    );
+    hasher.update(
+        serde_json::to_vec(&request.master_page)
+            .map_err(|error| format!("Failed to hash master-page template: {error}"))?,
+    );
     if request.format == PublishFormat::Pdf && request.profile_id == PRINT_INTERIOR_PROFILE_ID {
         hasher.update(
             serde_json::to_vec(&request.pdf_settings)
                 .map_err(|error| format!("Failed to hash PDF settings: {error}"))?,
+        );
+    }
+    if request.format == PublishFormat::Pdf && request.profile_id == LARGE_PRINT_PROFILE_ID {
+        hasher.update(
+            serde_json::to_vec(&request.large_print_settings)
+                .map_err(|error| format!("Failed to hash Large Print settings: {error}"))?,
+        );
+    }
+    if request.format == PublishFormat::Pdf && request.profile_id == HARDCOVER_PROFILE_ID {
+        hasher.update(
+            serde_json::to_vec(&request.hardcover_settings)
+                .map_err(|error| format!("Failed to hash Hardcover settings: {error}"))?,
         );
     }
     let mut overrides: Vec<_> = request.node_overrides.iter().collect();
@@ -1122,9 +1235,10 @@ fn profile_label(profile: DocxProfileId) -> &'static str {
 mod tests {
     use super::*;
     use crate::publishing::request::{
-        ContactInformation, EbookCover, ProjectType, PublicationScope, PublishMetadataOverrides,
+        ContactInformation, EbookCover, MatterTemplateSelection, ProjectType, PublicationScope,
+        PublishMetadataOverrides,
     };
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     fn request(format: PublishFormat, profile_id: &str) -> PublishRequest {
         PublishRequest {
@@ -1135,6 +1249,8 @@ mod tests {
             format,
             profile_id: profile_id.to_string(),
             pdf_settings: Default::default(),
+            large_print_settings: Default::default(),
+            hardcover_settings: Default::default(),
             metadata: PublishMetadataOverrides {
                 title: "Book".to_string(),
                 author: "A. Writer".to_string(),
@@ -1144,6 +1260,8 @@ mod tests {
             node_overrides: HashMap::new(),
             outline_confirmed: true,
             include_shared_matter: true,
+            matter_templates: vec![],
+            master_page: Default::default(),
             destination: None,
         }
     }
@@ -1169,6 +1287,28 @@ mod tests {
         let mut diagnostics = vec![];
         validate_profile(&valid, &mut diagnostics);
         assert!(diagnostics.is_empty());
+
+        for profile in ["large_print", "hardcover"] {
+            let valid = request(PublishFormat::Pdf, profile);
+            let mut diagnostics = vec![];
+            validate_profile(&valid, &mut diagnostics);
+            assert!(diagnostics.is_empty(), "{profile}: {diagnostics:#?}");
+        }
+    }
+
+    #[test]
+    fn non_default_master_pages_are_limited_to_print_interior_pdf() {
+        let mut docx_request = request(PublishFormat::Docx, "clean_handoff");
+        docx_request.master_page.template_id = "classic_book".to_string();
+        let failure = resolve_request_templates(&mut docx_request).unwrap_err();
+        assert_eq!(failure.diagnostics[0].code, "PUBLISH_TEMPLATE_INVALID");
+
+        let mut print = request(PublishFormat::Pdf, "print_interior");
+        print.master_page.template_id = "minimal_book".to_string();
+        print.pdf_settings.gutter_inches = 0.375;
+        resolve_request_templates(&mut print).unwrap();
+        assert_eq!(print.pdf_settings.gutter_inches, 0.375);
+        assert!(!print.pdf_settings.running_headers);
     }
 
     #[test]
@@ -1182,6 +1322,21 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, "PDF_SETTINGS_INVALID");
         assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Error);
+    }
+
+    #[test]
+    fn advanced_pdf_legibility_and_binding_fail_closed() {
+        let mut large_print = request(PublishFormat::Pdf, "large_print");
+        large_print.large_print_settings.base_font_size_points = 12.0;
+        let mut diagnostics = vec![];
+        validate_profile(&large_print, &mut diagnostics);
+        assert_eq!(diagnostics[0].code, "PDF_LARGE_PRINT_SETTINGS_INVALID");
+
+        let mut hardcover = request(PublishFormat::Pdf, "hardcover");
+        hardcover.hardcover_settings.gutter_inches = 0.0;
+        let mut diagnostics = vec![];
+        validate_profile(&hardcover, &mut diagnostics);
+        assert_eq!(diagnostics[0].code, "PDF_HARDCOVER_SETTINGS_INVALID");
     }
 
     #[test]
@@ -1239,6 +1394,26 @@ mod tests {
     }
 
     #[test]
+    fn publication_hash_includes_resolved_templates_and_master_page_version() {
+        let project = tempfile::tempdir().unwrap();
+        let mut request = request(PublishFormat::Pdf, "print_interior");
+        let first = publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
+        request.matter_templates.push(MatterTemplateSelection {
+            template_id: "dedication".to_string(),
+            template_version: 1,
+            variables: BTreeMap::from([("text".to_string(), "For one reader".to_string())]),
+        });
+        let with_matter =
+            publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
+        assert_ne!(first, with_matter);
+
+        request.master_page.template_id = "classic_book".to_string();
+        let with_master =
+            publication_source_hash("snapshot", &request, project.path(), &[]).unwrap();
+        assert_ne!(with_matter, with_master);
+    }
+
+    #[test]
     fn generated_epub_identifier_is_stable_once_added_to_a_recipe() {
         let mut request = request(PublishFormat::Epub, "reflowable_epub");
         ensure_epub_identifier(&mut request);
@@ -1268,6 +1443,29 @@ mod tests {
         let proof_second =
             publication_source_hash("snapshot", &proof, project.path(), &[]).unwrap();
         assert_eq!(proof_first, proof_second);
+    }
+
+    #[test]
+    fn advanced_pdf_settings_change_only_their_active_profile_hash() {
+        let project = tempfile::tempdir().unwrap();
+        let mut large = request(PublishFormat::Pdf, "large_print");
+        let first = publication_source_hash("snapshot", &large, project.path(), &[]).unwrap();
+        large.large_print_settings.base_font_size_points = 18.0;
+        let second = publication_source_hash("snapshot", &large, project.path(), &[]).unwrap();
+        assert_ne!(first, second);
+
+        let mut hardcover = request(PublishFormat::Pdf, "hardcover");
+        let first = publication_source_hash("snapshot", &hardcover, project.path(), &[]).unwrap();
+        hardcover.hardcover_settings.gutter_inches = 0.375;
+        let second = publication_source_hash("snapshot", &hardcover, project.path(), &[]).unwrap();
+        assert_ne!(first, second);
+
+        let mut proof = request(PublishFormat::Pdf, "proof_pdf");
+        let first = publication_source_hash("snapshot", &proof, project.path(), &[]).unwrap();
+        proof.large_print_settings.base_font_size_points = 18.0;
+        proof.hardcover_settings.gutter_inches = 0.375;
+        let second = publication_source_hash("snapshot", &proof, project.path(), &[]).unwrap();
+        assert_eq!(first, second);
     }
 
     #[test]

@@ -480,6 +480,8 @@ mod tests {
             format: PublishFormat::Docx,
             profile_id: "clean_handoff".to_string(),
             pdf_settings: PrintInteriorPdfSettings::default(),
+            large_print_settings: Default::default(),
+            hardcover_settings: Default::default(),
             metadata: PublishMetadataOverrides {
                 title: "Book".to_string(),
                 author: "Writer".to_string(),
@@ -488,6 +490,8 @@ mod tests {
             node_overrides: Default::default(),
             outline_confirmed: true,
             include_shared_matter: true,
+            matter_templates: vec![],
+            master_page: Default::default(),
         }
     }
 

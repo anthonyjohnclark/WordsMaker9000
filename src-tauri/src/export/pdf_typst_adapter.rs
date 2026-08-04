@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,16 +9,81 @@ use typst_as_lib::TypstEngine;
 
 use crate::export::types::ExportProgress;
 use crate::publishing::model::{
-    AssetSource, Block, BookDocument, BookSection, ContributorRole, HeadingLevel,
+    AssetSource, Block, BookDocument, BookSection, ContributorRole, FootnoteId, HeadingLevel,
     ImagePresentation, Inline, InlineMarks, ListItem, OutputFormat, ParagraphAlignment,
     ParagraphStyle, SceneBreakStyle, SectionInclusion, SectionRole, TextDirection,
 };
-use crate::publishing::request::{ChapterStartSide, PdfProfileId, PrintInteriorPdfSettings};
+use crate::publishing::request::{
+    ChapterStartSide, HardcoverPdfSettings, LargePrintPdfSettings, PdfProfileId,
+    PrintInteriorPdfSettings,
+};
+use crate::publishing::templates::is_title_page_template_section;
 
 struct PdfSection<'a> {
     title: String,
     role: SectionRole,
     blocks: &'a [Block],
+}
+
+#[derive(Default)]
+struct TypstRenderContext<'a> {
+    footnotes: HashMap<FootnoteId, &'a [Block]>,
+    note_stack: Vec<FootnoteId>,
+    paragraph_spacing_points: Option<f64>,
+    base_font_size_points: Option<f64>,
+    heading_scale: Option<f64>,
+}
+
+impl<'a> TypstRenderContext<'a> {
+    fn new(document: &'a BookDocument) -> Self {
+        let mut context = Self::default();
+        collect_document_footnotes(&document.sections, &mut context.footnotes);
+        context
+    }
+
+    fn with_typography(
+        document: &'a BookDocument,
+        paragraph_spacing_points: f64,
+        base_font_size_points: f64,
+        heading_scale: f64,
+    ) -> Self {
+        let mut context = Self::new(document);
+        context.paragraph_spacing_points = Some(paragraph_spacing_points);
+        context.base_font_size_points = Some(base_font_size_points);
+        context.heading_scale = Some(heading_scale);
+        context
+    }
+}
+
+fn collect_document_footnotes<'a>(
+    sections: &'a [BookSection],
+    footnotes: &mut HashMap<FootnoteId, &'a [Block]>,
+) {
+    for section in sections {
+        collect_block_footnotes(&section.blocks, footnotes);
+        collect_document_footnotes(&section.children, footnotes);
+    }
+}
+
+fn collect_block_footnotes<'a>(
+    blocks: &'a [Block],
+    footnotes: &mut HashMap<FootnoteId, &'a [Block]>,
+) {
+    for block in blocks {
+        match block {
+            Block::FootnoteDefinition { id, blocks } => {
+                footnotes.entry(id.clone()).or_insert(blocks);
+                collect_block_footnotes(blocks, footnotes);
+            }
+            Block::OrderedList { items } | Block::BulletList { items } => {
+                for item in items {
+                    collect_block_footnotes(&item.blocks, footnotes);
+                }
+            }
+            Block::BlockQuote { blocks } => collect_block_footnotes(blocks, footnotes),
+            _ => {}
+        }
+    }
 }
 
 const PUBLISHING_FONTS: [&[u8]; 9] = [
@@ -71,9 +137,33 @@ pub(crate) fn generate_pdf_for_profile_with_root(
     profile: PdfProfileId,
     print_settings: &PrintInteriorPdfSettings,
 ) -> Result<PathBuf, String> {
+    generate_pdf_for_profile_with_root_and_settings(
+        document,
+        project_root,
+        output_dir,
+        app,
+        profile,
+        print_settings,
+        &LargePrintPdfSettings::default(),
+        &HardcoverPdfSettings::default(),
+    )
+}
+
+pub(crate) fn generate_pdf_for_profile_with_root_and_settings(
+    document: &BookDocument,
+    project_root: &Path,
+    output_dir: &Path,
+    app: Option<&AppHandle>,
+    profile: PdfProfileId,
+    print_settings: &PrintInteriorPdfSettings,
+    large_print_settings: &LargePrintPdfSettings,
+    hardcover_settings: &HardcoverPdfSettings,
+) -> Result<PathBuf, String> {
     let section_count = match profile {
         PdfProfileId::ProofPdf => publication_sections(document).len(),
-        PdfProfileId::PrintInterior => print_units(document).len(),
+        PdfProfileId::PrintInterior | PdfProfileId::LargePrint | PdfProfileId::Hardcover => {
+            print_units(document).len()
+        }
     };
     let total_steps = section_count + 2;
     emit_progress(app, "Preparing document...", 0, total_steps);
@@ -90,9 +180,29 @@ pub(crate) fn generate_pdf_for_profile_with_root(
             ));
         }
     }
+    if profile == PdfProfileId::LargePrint {
+        let errors = large_print_settings.validation_errors();
+        if !errors.is_empty() {
+            return Err(format!(
+                "Large Print settings are invalid: {}",
+                errors.join("; ")
+            ));
+        }
+    }
+    if profile == PdfProfileId::Hardcover {
+        let errors = hardcover_settings.validation_errors();
+        if !errors.is_empty() {
+            return Err(format!(
+                "Hardcover settings are invalid: {}",
+                errors.join("; ")
+            ));
+        }
+    }
     let source = match profile {
         PdfProfileId::ProofPdf => proof_typst_source(document)?,
         PdfProfileId::PrintInterior => print_typst_source(document, print_settings)?,
+        PdfProfileId::LargePrint => large_print_typst_source(document, large_print_settings)?,
+        PdfProfileId::Hardcover => hardcover_typst_source(document, hardcover_settings)?,
     };
     emit_progress(
         app,
@@ -139,6 +249,16 @@ pub(crate) fn generate_pdf_for_profile_with_root(
         ),
         PdfProfileId::PrintInterior => format!(
             "{}_Print_Interior_{}.pdf",
+            safe_title_filename(&document.metadata.title),
+            timestamp
+        ),
+        PdfProfileId::LargePrint => format!(
+            "{}_Large_Print_{}.pdf",
+            safe_title_filename(&document.metadata.title),
+            timestamp
+        ),
+        PdfProfileId::Hardcover => format!(
+            "{}_Hardcover_{}.pdf",
             safe_title_filename(&document.metadata.title),
             timestamp
         ),
@@ -214,15 +334,18 @@ fn proof_typst_source(document: &BookDocument) -> Result<String, String> {
     source.push_str(&typst_string(author));
     source.push_str(",))\n");
     render_asset_definitions(&mut source, document);
+    let mut render_context = TypstRenderContext::new(document);
 
     render_title_page(&mut source, document, author);
 
     for section in document.sections.iter().filter(|section| {
-        section.role == SectionRole::FrontMatter && included_for_pdf(&section.inclusion)
+        section.role == SectionRole::FrontMatter
+            && included_for_pdf(&section.inclusion)
+            && !is_title_page_template_section(section)
     }) {
         if !section.blocks.is_empty() {
             source.push_str("#pagebreak()\n");
-            render_blocks(&mut source, &section.blocks)?;
+            render_matter_section(&mut source, section, &mut render_context)?;
         }
     }
 
@@ -241,7 +364,7 @@ fn proof_typst_source(document: &BookDocument) -> Result<String, String> {
                 source.push_str(&typst_string(&section.title));
                 source.push_str(")\n#v(0.5em)\n");
             }
-            render_blocks(&mut source, section.blocks)?;
+            render_blocks_with_context(&mut source, section.blocks, &mut render_context)?;
             source.push_str("#v(0.5em)\n");
         }
     }
@@ -251,7 +374,7 @@ fn proof_typst_source(document: &BookDocument) -> Result<String, String> {
     }) {
         if !section.blocks.is_empty() {
             source.push_str("#pagebreak()\n");
-            render_blocks(&mut source, &section.blocks)?;
+            render_matter_section(&mut source, section, &mut render_context)?;
         }
     }
 
@@ -282,6 +405,7 @@ fn print_typst_source(
     source.push_str(&typst_string(author));
     source.push_str(",))\n");
     render_asset_definitions(&mut source, document);
+    let mut render_context = TypstRenderContext::new(document);
     source.push_str("#let wm-title = ");
     source.push_str(&typst_string(&document.metadata.title));
     source.push_str("\n#let wm-author = ");
@@ -322,6 +446,7 @@ fn print_typst_source(
             section.role == SectionRole::FrontMatter
                 && included_for_pdf(&section.inclusion)
                 && !section.blocks.is_empty()
+                && !is_title_page_template_section(section)
         })
         .collect::<Vec<_>>();
     if !front_sections.is_empty() {
@@ -332,7 +457,7 @@ fn print_typst_source(
         });
         for section in front_sections {
             source.push_str("#pagebreak()\n");
-            render_blocks(&mut source, &section.blocks)?;
+            render_matter_section(&mut source, section, &mut render_context)?;
         }
     }
 
@@ -368,7 +493,7 @@ fn print_typst_source(
             source.push_str("#counter(page).update(1)\n");
         }
         source.push_str("#metadata(\"opening\") <wm-opening>\n");
-        render_print_unit(&mut source, unit)?;
+        render_print_unit(&mut source, unit, &mut render_context)?;
     }
 
     for section in document.sections.iter().filter(|section| {
@@ -381,13 +506,254 @@ fn print_typst_source(
              #pagebreak()\n\
              #metadata(\"opening\") <wm-opening>\n"
         ));
-        render_blocks(&mut source, &section.blocks)?;
+        render_matter_section(&mut source, section, &mut render_context)?;
     }
 
     Ok(source)
 }
 
-fn render_print_unit(source: &mut String, unit: &BookSection) -> Result<(), String> {
+struct AdvancedPrintLayout {
+    width_inches: f64,
+    height_inches: f64,
+    top_margin_inches: f64,
+    bottom_margin_inches: f64,
+    inside_margin_inches: f64,
+    outside_margin_inches: f64,
+    base_font_size_points: f64,
+    line_spacing: f64,
+    heading_scale: f64,
+    paragraph_spacing_points: f64,
+    page_furniture_size_points: f64,
+    chapter_start: ChapterStartSide,
+    intentional_blank_pages: bool,
+    running_headers: bool,
+    front_matter_page_numbers: bool,
+    body_page_numbers: bool,
+}
+
+fn large_print_typst_source(
+    document: &BookDocument,
+    settings: &LargePrintPdfSettings,
+) -> Result<String, String> {
+    let (width, height) = settings.trim_size.dimensions_inches();
+    let (inside, outside) = settings.effective_horizontal_margins_inches();
+    advanced_print_typst_source(
+        document,
+        &AdvancedPrintLayout {
+            width_inches: width,
+            height_inches: height,
+            top_margin_inches: settings.top_margin_inches,
+            bottom_margin_inches: settings.bottom_margin_inches,
+            inside_margin_inches: inside,
+            outside_margin_inches: outside,
+            base_font_size_points: settings.base_font_size_points,
+            line_spacing: settings.line_spacing,
+            heading_scale: settings.heading_scale,
+            paragraph_spacing_points: settings.paragraph_spacing_points,
+            page_furniture_size_points: settings.page_furniture_size_points,
+            chapter_start: ChapterStartSide::NextPage,
+            intentional_blank_pages: false,
+            running_headers: settings.running_headers,
+            front_matter_page_numbers: settings.front_matter_page_numbers,
+            body_page_numbers: settings.body_page_numbers,
+        },
+    )
+}
+
+fn hardcover_typst_source(
+    document: &BookDocument,
+    settings: &HardcoverPdfSettings,
+) -> Result<String, String> {
+    let (width, height) = settings.trim_size.dimensions_inches();
+    advanced_print_typst_source(
+        document,
+        &AdvancedPrintLayout {
+            width_inches: width,
+            height_inches: height,
+            top_margin_inches: settings.top_margin_inches,
+            bottom_margin_inches: settings.bottom_margin_inches,
+            inside_margin_inches: settings.inside_margin_inches + settings.gutter_inches,
+            outside_margin_inches: settings.outside_margin_inches,
+            base_font_size_points: 11.0,
+            line_spacing: 1.55,
+            heading_scale: 1.65,
+            paragraph_spacing_points: 3.3,
+            page_furniture_size_points: 8.5,
+            chapter_start: settings.chapter_start,
+            intentional_blank_pages: settings.intentional_blank_pages,
+            running_headers: settings.running_headers,
+            front_matter_page_numbers: settings.front_matter_page_numbers,
+            body_page_numbers: settings.body_page_numbers,
+        },
+    )
+}
+
+fn advanced_print_typst_source(
+    document: &BookDocument,
+    layout: &AdvancedPrintLayout,
+) -> Result<String, String> {
+    let author = primary_author(document);
+    let mut source = format!(
+        "#set page(width: {width:.3}in, height: {height:.3}in, binding: left, \
+         margin: (top: {top:.3}in, bottom: {bottom:.3}in, inside: {inside:.3}in, \
+         outside: {outside:.3}in), header: none, footer: none)\n\
+         #set text(font: (\"Libertinus Serif\", \"Noto Serif CJK SC\", \"Noto Naskh Arabic\", \
+         \"Noto Sans Hebrew\", \"Noto Emoji\", \"Noto Sans Symbols2\"), size: {base:.3}pt)\n\
+         #set par(leading: {leading:.3}em)\n",
+        width = layout.width_inches,
+        height = layout.height_inches,
+        top = layout.top_margin_inches,
+        bottom = layout.bottom_margin_inches,
+        inside = layout.inside_margin_inches,
+        outside = layout.outside_margin_inches,
+        base = layout.base_font_size_points,
+        leading = layout.line_spacing - 1.0,
+    );
+    source.push_str("#set document(title: ");
+    source.push_str(&typst_string(&document.metadata.title));
+    source.push_str(", author: (");
+    source.push_str(&typst_string(author));
+    source.push_str(",))\n");
+    render_asset_definitions(&mut source, document);
+    let mut render_context = TypstRenderContext::with_typography(
+        document,
+        layout.paragraph_spacing_points,
+        layout.base_font_size_points,
+        layout.heading_scale,
+    );
+    source.push_str("#let wm-title = ");
+    source.push_str(&typst_string(&document.metadata.title));
+    source.push_str("\n#let wm-author = ");
+    source.push_str(&typst_string(author));
+    source.push_str(&format!(
+        "\n#let wm-opening-page() = {{\n\
+           query(<wm-opening>).any(item => item.location().page() == here().page())\n\
+         }}\n\
+         #let wm-running-header = context {{\n\
+           if not wm-opening-page() {{\n\
+             set text(size: {furniture:.3}pt)\n\
+             if calc.even(here().page()) {{\n\
+               align(left, wm-author)\n\
+             }} else {{\n\
+               align(right, wm-title)\n\
+             }}\n\
+           }}\n\
+         }}\n\
+         #let wm-front-footer = context {{\n\
+           set text(size: {furniture:.3}pt)\n\
+           align(center, counter(page).display(\"i\"))\n\
+         }}\n\
+         #let wm-body-footer = context {{\n\
+           if not wm-opening-page() {{\n\
+             set text(size: {furniture:.3}pt)\n\
+             align(center, counter(page).display(\"1\"))\n\
+           }}\n\
+         }}\n",
+        furniture = layout.page_furniture_size_points,
+    ));
+
+    source.push_str("#metadata(\"opening\") <wm-opening>\n");
+    render_title_page_with_sizes(
+        &mut source,
+        document,
+        author,
+        layout.base_font_size_points * layout.heading_scale * 1.2,
+        layout.base_font_size_points * layout.heading_scale,
+        layout.base_font_size_points,
+    );
+
+    let front_sections = document
+        .sections
+        .iter()
+        .filter(|section| {
+            section.role == SectionRole::FrontMatter
+                && included_for_pdf(&section.inclusion)
+                && !section.blocks.is_empty()
+                && !is_title_page_template_section(section)
+        })
+        .collect::<Vec<_>>();
+    if !front_sections.is_empty() {
+        source.push_str(if layout.front_matter_page_numbers {
+            "#set page(header: none, footer: wm-front-footer)\n"
+        } else {
+            "#set page(header: none, footer: none)\n"
+        });
+        for section in front_sections {
+            source.push_str("#pagebreak()\n");
+            render_matter_section_with_size(
+                &mut source,
+                section,
+                &mut render_context,
+                layout.base_font_size_points * layout.heading_scale,
+            )?;
+        }
+    }
+
+    let body_header = if layout.running_headers {
+        "wm-running-header"
+    } else {
+        "none"
+    };
+    let body_footer = if layout.body_page_numbers {
+        "wm-body-footer"
+    } else {
+        "none"
+    };
+    for (unit_index, unit) in print_units(document).iter().enumerate() {
+        match (layout.chapter_start, layout.intentional_blank_pages) {
+            (ChapterStartSide::Recto, true) => {
+                source.push_str(
+                    "#set page(header: none, footer: none)\n\
+                     #pagebreak(to: \"odd\")\n",
+                );
+                source.push_str(&format!(
+                    "#set page(header: {body_header}, footer: {body_footer})\n"
+                ));
+            }
+            _ => source.push_str(&format!(
+                "#set page(header: {body_header}, footer: {body_footer})\n\
+                 #pagebreak()\n"
+            )),
+        }
+        if unit_index == 0 {
+            source.push_str("#counter(page).update(1)\n");
+        }
+        source.push_str("#metadata(\"opening\") <wm-opening>\n");
+        render_print_unit_with_sizes(
+            &mut source,
+            unit,
+            &mut render_context,
+            layout.base_font_size_points,
+            layout.heading_scale,
+        )?;
+    }
+
+    for section in document.sections.iter().filter(|section| {
+        section.role == SectionRole::BackMatter
+            && included_for_pdf(&section.inclusion)
+            && !section.blocks.is_empty()
+    }) {
+        source.push_str(&format!(
+            "#set page(header: {body_header}, footer: {body_footer})\n\
+             #pagebreak()\n\
+             #metadata(\"opening\") <wm-opening>\n"
+        ));
+        render_matter_section_with_size(
+            &mut source,
+            section,
+            &mut render_context,
+            layout.base_font_size_points * layout.heading_scale,
+        )?;
+    }
+
+    Ok(source)
+}
+
+fn render_print_unit(
+    source: &mut String,
+    unit: &BookSection,
+    render_context: &mut TypstRenderContext<'_>,
+) -> Result<(), String> {
     let title_size = if matches!(unit.role, SectionRole::Part | SectionRole::Volume) {
         22
     } else {
@@ -407,9 +773,79 @@ fn render_print_unit(source: &mut String, unit: &BookSection) -> Result<(), Stri
             source.push_str(&typst_string(&section.title));
             source.push_str(")\n#v(0.5em)\n");
         }
-        render_blocks(source, section.blocks)?;
+        render_blocks_with_context(source, section.blocks, render_context)?;
     }
     Ok(())
+}
+
+fn render_print_unit_with_sizes(
+    source: &mut String,
+    unit: &BookSection,
+    render_context: &mut TypstRenderContext<'_>,
+    base_font_size_points: f64,
+    heading_scale: f64,
+) -> Result<(), String> {
+    let mut title_size = base_font_size_points * heading_scale;
+    if matches!(unit.role, SectionRole::Part | SectionRole::Volume) {
+        title_size *= 1.15;
+    }
+    source.push_str(&format!(
+        "#v(12%)\n#align(center)[#text(size: {title_size:.3}pt, weight: \"bold\", "
+    ));
+    source.push_str(&typst_string(unit.title.as_deref().unwrap_or_default()));
+    source.push_str(")]\n#v(2em)\n");
+
+    for (index, section) in print_unit_sections(unit).iter().enumerate() {
+        if index > 0 && section.role == SectionRole::Scene {
+            source.push_str("#v(0.8em)\n#align(center)[#text(\"#\")]\n#v(0.8em)\n");
+        } else if !section.title.is_empty() && section.role != SectionRole::Scene {
+            source.push_str(&format!(
+                "#v(1em)\n#text(size: {:.3}pt, weight: \"bold\", ",
+                base_font_size_points * 1.15
+            ));
+            source.push_str(&typst_string(&section.title));
+            source.push_str(")\n#v(0.5em)\n");
+        }
+        render_blocks_with_context(source, section.blocks, render_context)?;
+    }
+    Ok(())
+}
+
+fn render_matter_section(
+    source: &mut String,
+    section: &BookSection,
+    render_context: &mut TypstRenderContext<'_>,
+) -> Result<(), String> {
+    if let Some(title) = section
+        .title
+        .as_deref()
+        .filter(|title| !title.trim().is_empty())
+    {
+        source.push_str("#align(center)[#text(size: 18pt, weight: \"bold\", ");
+        source.push_str(&typst_string(title));
+        source.push_str(")]\n#v(1.5em)\n");
+    }
+    render_blocks_with_context(source, &section.blocks, render_context)
+}
+
+fn render_matter_section_with_size(
+    source: &mut String,
+    section: &BookSection,
+    render_context: &mut TypstRenderContext<'_>,
+    title_size_points: f64,
+) -> Result<(), String> {
+    if let Some(title) = section
+        .title
+        .as_deref()
+        .filter(|title| !title.trim().is_empty())
+    {
+        source.push_str(&format!(
+            "#align(center)[#text(size: {title_size_points:.3}pt, weight: \"bold\", "
+        ));
+        source.push_str(&typst_string(title));
+        source.push_str(")]\n#v(1.5em)\n");
+    }
+    render_blocks_with_context(source, &section.blocks, render_context)
 }
 
 fn print_units(document: &BookDocument) -> Vec<&BookSection> {
@@ -522,6 +958,42 @@ fn render_title_page(source: &mut String, document: &BookDocument, author: &str)
     source.push_str("]\n");
 }
 
+fn render_title_page_with_sizes(
+    source: &mut String,
+    document: &BookDocument,
+    author: &str,
+    title_size_points: f64,
+    subtitle_size_points: f64,
+    author_size_points: f64,
+) {
+    source.push_str("#align(center + horizon)[\n");
+    source.push_str(&format!(
+        "  #text(size: {title_size_points:.3}pt, weight: \"bold\", "
+    ));
+    source.push_str(&typst_string(&document.metadata.title));
+    source.push_str(")\n");
+    if let Some(subtitle) = document
+        .metadata
+        .subtitle
+        .as_deref()
+        .filter(|subtitle| !subtitle.trim().is_empty())
+    {
+        source.push_str(&format!(
+            "  #v(1em)\n  #text(size: {subtitle_size_points:.3}pt, "
+        ));
+        source.push_str(&typst_string(subtitle));
+        source.push_str(")\n");
+    }
+    if !author.trim().is_empty() {
+        source.push_str(&format!(
+            "  #v(2em)\n  #text(size: {author_size_points:.3}pt, "
+        ));
+        source.push_str(&typst_string(author));
+        source.push_str(")\n");
+    }
+    source.push_str("]\n");
+}
+
 fn publication_sections(document: &BookDocument) -> Vec<&BookSection> {
     document
         .sections
@@ -609,15 +1081,25 @@ fn collect_pdf_sections<'a>(
 }
 
 fn render_blocks(source: &mut String, blocks: &[Block]) -> Result<(), String> {
+    render_blocks_with_context(source, blocks, &mut TypstRenderContext::default())
+}
+
+fn render_blocks_with_context(
+    source: &mut String,
+    blocks: &[Block],
+    context: &mut TypstRenderContext<'_>,
+) -> Result<(), String> {
     for block in blocks {
         match block {
-            Block::Paragraph { inlines, style } => render_paragraph(source, inlines, style)?,
-            Block::Heading { level, inlines } => render_heading(source, level, inlines)?,
-            Block::OrderedList { items } => render_list(source, items, true)?,
-            Block::BulletList { items } => render_list(source, items, false)?,
+            Block::Paragraph { inlines, style } => {
+                render_paragraph_with_context(source, inlines, style, context)?
+            }
+            Block::Heading { level, inlines } => render_heading(source, level, inlines, context)?,
+            Block::OrderedList { items } => render_list(source, items, true, context)?,
+            Block::BulletList { items } => render_list(source, items, false, context)?,
             Block::BlockQuote { blocks } => {
                 source.push_str("#quote(block: true)[\n");
-                render_blocks(source, blocks)?;
+                render_blocks_with_context(source, blocks, context)?;
                 source.push_str("]\n");
             }
             Block::SceneBreak { style } => {
@@ -660,17 +1142,12 @@ fn render_blocks(source: &mut String, blocks: &[Block]) -> Result<(), String> {
                 source.push(')');
                 if let Some(caption) = caption {
                     source.push_str(", caption: [");
-                    render_inlines(source, caption)?;
+                    render_inlines(source, caption, context)?;
                     source.push(']');
                 }
                 source.push_str(")\n");
             }
-            Block::FootnoteDefinition { id, .. } => {
-                return Err(format!(
-                    "Current PDF profile cannot render footnote definition {:?}",
-                    id.0
-                ))
-            }
+            Block::FootnoteDefinition { .. } => {}
         }
     }
     Ok(())
@@ -680,6 +1157,15 @@ fn render_paragraph(
     source: &mut String,
     inlines: &[Inline],
     style: &ParagraphStyle,
+) -> Result<(), String> {
+    render_paragraph_with_context(source, inlines, style, &mut TypstRenderContext::default())
+}
+
+fn render_paragraph_with_context(
+    source: &mut String,
+    inlines: &[Inline],
+    style: &ParagraphStyle,
+    context: &mut TypstRenderContext<'_>,
 ) -> Result<(), String> {
     source.push_str("#block(width: 100%)[\n");
     match style.direction {
@@ -723,11 +1209,16 @@ fn render_paragraph(
         source.push_str(&format!("{indent:.1}em"));
         source.push_str(")[");
     }
-    render_inlines(source, inlines)?;
+    render_inlines(source, inlines, context)?;
     if indent > 0.0 {
         source.push(']');
     }
-    source.push_str("]\n]\n#v(0.3em)\n");
+    source.push_str("]\n]\n");
+    if let Some(spacing) = context.paragraph_spacing_points {
+        source.push_str(&format!("#v({spacing:.3}pt)\n"));
+    } else {
+        source.push_str("#v(0.3em)\n");
+    }
     Ok(())
 }
 
@@ -735,6 +1226,7 @@ fn render_heading(
     source: &mut String,
     level: &HeadingLevel,
     inlines: &[Inline],
+    context: &mut TypstRenderContext<'_>,
 ) -> Result<(), String> {
     let level = match level {
         HeadingLevel::H1 => 1,
@@ -747,23 +1239,39 @@ fn render_heading(
     source.push_str("#heading(level: ");
     source.push_str(&level.to_string());
     source.push_str(", outlined: false)[");
-    render_inlines(source, inlines)?;
+    if let (Some(base), Some(scale)) = (context.base_font_size_points, context.heading_scale) {
+        let factor = 1.0 + (scale - 1.0) * f64::from(7 - level) / 6.0;
+        source.push_str(&format!("#text(size: {:.3}pt)[", base * factor));
+        render_inlines(source, inlines, context)?;
+        source.push(']');
+    } else {
+        render_inlines(source, inlines, context)?;
+    }
     source.push_str("]\n");
     Ok(())
 }
 
-fn render_list(source: &mut String, items: &[ListItem], ordered: bool) -> Result<(), String> {
+fn render_list(
+    source: &mut String,
+    items: &[ListItem],
+    ordered: bool,
+    context: &mut TypstRenderContext<'_>,
+) -> Result<(), String> {
     source.push_str(if ordered { "#enum(\n" } else { "#list(\n" });
     for item in items {
         source.push_str("[\n");
-        render_blocks(source, &item.blocks)?;
+        render_blocks_with_context(source, &item.blocks, context)?;
         source.push_str("],\n");
     }
     source.push_str(")\n");
     Ok(())
 }
 
-fn render_inlines(source: &mut String, inlines: &[Inline]) -> Result<(), String> {
+fn render_inlines(
+    source: &mut String,
+    inlines: &[Inline],
+    context: &mut TypstRenderContext<'_>,
+) -> Result<(), String> {
     for inline in inlines {
         match inline {
             Inline::Text { text, marks, link } => {
@@ -782,10 +1290,20 @@ fn render_inlines(source: &mut String, inlines: &[Inline]) -> Result<(), String>
                 }
             }
             Inline::FootnoteReference { id } => {
-                return Err(format!(
-                    "Current PDF profile cannot render footnote reference {:?}",
-                    id.0
-                ))
+                let blocks = context.footnotes.get(id).copied().ok_or_else(|| {
+                    format!("PDF footnote reference {:?} has no definition", id.0)
+                })?;
+                if context.note_stack.contains(id) {
+                    return Err(format!(
+                        "PDF footnote definitions contain a circular reference at {:?}",
+                        id.0
+                    ));
+                }
+                context.note_stack.push(id.clone());
+                source.push_str("#footnote[\n");
+                render_blocks_with_context(source, blocks, context)?;
+                source.push_str("]");
+                context.note_stack.pop();
             }
         }
     }
@@ -957,6 +1475,37 @@ mod tests {
     }
 
     #[test]
+    fn large_print_source_uses_accessible_typography_measure_and_furniture() {
+        let settings = LargePrintPdfSettings::default();
+        let source = large_print_typst_source(&acceptance_document(), &settings).unwrap();
+
+        assert!(source.contains("width: 7.000in, height: 10.000in"));
+        assert!(source.contains("inside: 1.125in"));
+        assert!(source.contains("outside: 0.875in"));
+        assert!(source.contains("size: 16.000pt"));
+        assert!(source.contains("#set par(leading: 0.500em)"));
+        assert!(source.contains("set text(size: 11.000pt)"));
+        assert!(source.contains("#v(6.000pt)"));
+        assert!(source.contains("size: 24.000pt"));
+        assert!(!source.contains("#pagebreak(to: \"odd\")"));
+    }
+
+    #[test]
+    fn hardcover_source_uses_binding_geometry_recto_blanks_and_folios() {
+        let source =
+            hardcover_typst_source(&recto_document(), &HardcoverPdfSettings::default()).unwrap();
+
+        assert!(source.contains("width: 6.000in, height: 9.000in"));
+        assert!(source.contains("top: 0.875in"));
+        assert!(source.contains("inside: 1.125in"));
+        assert!(source.contains("outside: 0.750in"));
+        assert!(source.contains("#pagebreak(to: \"odd\")"));
+        assert!(source.contains("counter(page).display(\"i\")"));
+        assert!(source.contains("counter(page).display(\"1\")"));
+        assert!(source.contains("set text(size: 8.500pt)"));
+    }
+
+    #[test]
     fn print_interior_typesets_recto_chapters_with_blank_versos() {
         let source =
             print_typst_source(&recto_document(), &PrintInteriorPdfSettings::default()).unwrap();
@@ -978,6 +1527,50 @@ mod tests {
         assert!(!frame_has_text(&document.pages[3].frame));
         assert!(frame_has_text(&document.pages[2].frame));
         assert!(frame_has_text(&document.pages[4].frame));
+    }
+
+    #[test]
+    fn advanced_profiles_typeset_with_expected_page_boxes_and_blank_policy() {
+        let output = tempfile::tempdir().unwrap();
+        let large = generate_pdf_for_profile_with_root_and_settings(
+            &recto_document(),
+            output.path(),
+            output.path(),
+            None,
+            PdfProfileId::LargePrint,
+            &PrintInteriorPdfSettings::default(),
+            &LargePrintPdfSettings::default(),
+            &HardcoverPdfSettings::default(),
+        )
+        .unwrap();
+        assert!(large
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains("_Large_Print_"));
+        let large_pdf = lopdf::Document::load(&large).unwrap();
+        assert_eq!(pdf_page_box_points(&large_pdf), (504, 720));
+        assert_eq!(large_pdf.get_pages().len(), 3);
+
+        let hardcover = generate_pdf_for_profile_with_root_and_settings(
+            &recto_document(),
+            output.path(),
+            output.path(),
+            None,
+            PdfProfileId::Hardcover,
+            &PrintInteriorPdfSettings::default(),
+            &LargePrintPdfSettings::default(),
+            &HardcoverPdfSettings::default(),
+        )
+        .unwrap();
+        assert!(hardcover
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains("_Hardcover_"));
+        let hardcover_pdf = lopdf::Document::load(&hardcover).unwrap();
+        assert_eq!(pdf_page_box_points(&hardcover_pdf), (432, 648));
+        assert_eq!(hardcover_pdf.get_pages().len(), 5);
     }
 
     #[test]
@@ -1135,7 +1728,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_footnote_references_fail_instead_of_becoming_visible_ids() {
+    fn footnote_references_render_as_page_footnotes_without_visible_ids() {
         let mut document = acceptance_document();
         let Block::Paragraph { inlines, .. } = &mut document.sections[1].blocks[1] else {
             panic!("acceptance fixture paragraph moved");
@@ -1143,13 +1736,23 @@ mod tests {
         inlines.push(Inline::FootnoteReference {
             id: crate::publishing::model::FootnoteId("note-1".to_string()),
         });
+        document.sections[1].blocks.push(Block::FootnoteDefinition {
+            id: crate::publishing::model::FootnoteId("note-1".to_string()),
+            blocks: vec![paragraph("The note body.")],
+        });
 
-        let error = proof_typst_source(&document).unwrap_err();
+        let source = proof_typst_source(&document).unwrap();
+        assert!(source.contains("#footnote["));
+        assert!(source.contains("The note body."));
+        assert!(!source.contains("note-1"));
 
-        assert_eq!(
-            error,
-            "Current PDF profile cannot render footnote reference \"note-1\""
-        );
+        let warned = TypstEngine::builder()
+            .main_file(source)
+            .fonts(PUBLISHING_FONTS)
+            .build()
+            .compile::<PagedDocument>();
+        assert!(warned.warnings.is_empty(), "{:#?}", warned.warnings);
+        assert!(warned.output.is_ok());
     }
 
     fn pdf_number(value: &lopdf::Object) -> f64 {
@@ -1158,6 +1761,20 @@ mod tests {
             lopdf::Object::Real(value) => *value,
             other => panic!("expected PDF number, got {other:?}"),
         }
+    }
+
+    fn pdf_page_box_points(pdf: &lopdf::Document) -> (i64, i64) {
+        let pages = pdf.get_pages();
+        let first_page = pdf
+            .get_object(*pages.values().next().unwrap())
+            .unwrap()
+            .as_dict()
+            .unwrap();
+        let media_box = first_page.get(b"MediaBox").unwrap().as_array().unwrap();
+        (
+            pdf_number(&media_box[2]).round() as i64,
+            pdf_number(&media_box[3]).round() as i64,
+        )
     }
 
     fn recto_document() -> BookDocument {

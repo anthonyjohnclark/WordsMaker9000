@@ -264,6 +264,7 @@ mod tests {
         use crate::publishing::request::{
             PublicationScope, PublishFormat, PublishMetadataOverrides,
         };
+        use crate::publishing::templates::{apply_matter_templates, resolve_matter_templates};
 
         fn request_metadata(config: &PublishingConfig) -> PublishMetadataOverrides {
             PublishMetadataOverrides {
@@ -289,6 +290,8 @@ mod tests {
             "Publish QA 05 - Format Inclusion",
             "Publish QA 06 - Formatting and Unicode",
             "Publish QA 07 - Accessible Images",
+            "Publish QA 08 - Footnotes",
+            "Publish QA 09 - Matter Templates",
             "Publish QA 92 - Expected Failure - Empty Scope",
             "Publish QA 93 - Expected EPUB Failure - Missing Cover",
         ];
@@ -320,6 +323,13 @@ mod tests {
                 true,
             )
             .unwrap_or_else(|error| panic!("{project_name}: strategy failed: {error}"));
+            let templates = resolve_matter_templates(&config.matter_templates, &metadata)
+                .unwrap_or_else(|error| {
+                    panic!("{project_name}: template resolution failed: {error}")
+                });
+            apply_matter_templates(&mut document, &templates).unwrap_or_else(|error| {
+                panic!("{project_name}: template compilation failed: {error}")
+            });
 
             if project_name.contains("Empty Scope") {
                 let diagnostics = run_preflight(&document, PublishFormat::Pdf, &metadata, true);

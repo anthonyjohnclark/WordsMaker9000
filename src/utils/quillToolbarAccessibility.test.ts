@@ -21,6 +21,7 @@ describe("Quill toolbar accessibility labels", () => {
   test("labels formatting controls, link actions, and every heading choice", () => {
     const sceneBreak = element();
     const projectImage = element();
+    const footnotes = element();
     const link = element();
     const applyLink = element();
     const headingPicker = element();
@@ -30,6 +31,7 @@ describe("Quill toolbar accessibility labels", () => {
     const matches = new Map<string, FakeElement[]>([
       [".ql-sceneBreak", [sceneBreak]],
       [".ql-projectImage", [projectImage]],
+      [".ql-footnotes", [footnotes]],
       [".ql-link", [link]],
       [".ql-tooltip .ql-action", [applyLink]],
       [".ql-picker.ql-header .ql-picker-label", [headingPicker]],
@@ -50,6 +52,7 @@ describe("Quill toolbar accessibility labels", () => {
     });
     expect(link.attributes["aria-label"]).toBe("Add or edit link");
     expect(projectImage.attributes["aria-label"]).toBe("Insert project image");
+    expect(footnotes.attributes["aria-label"]).toBe("Insert or manage footnotes");
     expect(applyLink.attributes["aria-label"]).toBe("Apply link");
     expect(headingPicker.attributes["aria-label"]).toBe("Heading level");
     expect(normalHeading.attributes["aria-label"]).toBe("Normal text");

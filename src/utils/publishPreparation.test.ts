@@ -2,7 +2,11 @@ import {
   prepareAndPublishProject,
   type PublishPreparationDependencies,
 } from "./publishPreparation";
-import { defaultPrintInteriorPdfSettings } from "./publishingForm";
+import {
+  defaultHardcoverPdfSettings,
+  defaultLargePrintPdfSettings,
+  defaultPrintInteriorPdfSettings,
+} from "./publishingForm";
 import type { PublishRequest } from "../types/PublishingTypes";
 
 const request: PublishRequest = {
@@ -13,6 +17,8 @@ const request: PublishRequest = {
   format: "docx",
   profile_id: "standard_manuscript",
   pdf_settings: defaultPrintInteriorPdfSettings(),
+  large_print_settings: defaultLargePrintPdfSettings(),
+  hardcover_settings: defaultHardcoverPdfSettings(),
   metadata: {
     title: "Book",
     author: "A. Writer",
@@ -32,6 +38,8 @@ const request: PublishRequest = {
   node_overrides: {},
   outline_confirmed: true,
   include_shared_matter: true,
+  matter_templates: [],
+  master_page: { template_id: "profile_default", template_version: 1 },
 };
 
 describe("prepareAndPublishProject", () => {

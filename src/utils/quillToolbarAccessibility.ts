@@ -9,6 +9,7 @@ const TOOLBAR_CONTROL_LABELS = [
   [".ql-link", "Add or edit link"],
   [".ql-sceneBreak", `Insert scene break (${SCENE_BREAK_SHORTCUT})`],
   [".ql-projectImage", "Insert project image"],
+  [".ql-footnotes", "Insert or manage footnotes"],
   ['.ql-list[value="ordered"]', "Ordered list"],
   ['.ql-list[value="bullet"]', "Bullet list"],
   ["select.ql-header", "Heading level"],

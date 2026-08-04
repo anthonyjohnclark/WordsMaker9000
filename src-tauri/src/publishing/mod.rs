@@ -10,3 +10,4 @@ pub(crate) mod project_types;
 pub(crate) mod request;
 pub(crate) mod service;
 pub(crate) mod source;
+pub(crate) mod templates;

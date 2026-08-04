@@ -35,13 +35,24 @@ import {
 } from "../../utils/quillProjectImage";
 import { ProjectImageBlot } from "../../utils/quillProjectImageBlot";
 import { ProjectImageValue } from "../../types/ProjectAssetTypes";
+import {
+  footnoteDefinitionClipboardMatcher,
+  footnoteReferenceClipboardMatcher,
+} from "../../utils/quillFootnotes";
+import {
+  FootnoteDefinitionBlot,
+  FootnoteReferenceBlot,
+} from "../../utils/quillFootnoteBlots";
 import { labelQuillToolbar } from "../../utils/quillToolbarAccessibility";
 import ProjectAssetModal from "./modals/ProjectAssetModal";
+import FootnoteModal from "./modals/FootnoteModal";
 import "../../styles/quill.snow.css";
 
 Quill.register(SoftBreakBlot, true);
 Quill.register(SceneBreakBlot, true);
 Quill.register(ProjectImageBlot, true);
+Quill.register(FootnoteReferenceBlot, true);
+Quill.register(FootnoteDefinitionBlot, true);
 
 type TextEditorProps = {
   selectedFile: ExtendedNodeModel | null;
@@ -74,6 +85,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const findBarSlotRef = useRef<HTMLDivElement | null>(null);
   const imageSelectionRef = useRef<{ index: number; length: number } | null>(null);
   const openProjectImageRef = useRef<() => void>(() => undefined);
+  const openFootnotesRef = useRef<() => void>(() => undefined);
 
   const project = useProjectContext();
 
@@ -100,6 +112,21 @@ const TextEditor: React.FC<TextEditorProps> = ({
           projectName={project.projectName}
           flushCurrentDocument={project.flushCurrentDocument}
           onInsert={insertSelectedProjectImage}
+        />
+      ),
+    });
+  };
+
+  openFootnotesRef.current = () => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    const insertionSelection = editor.getSelection(true);
+    modal.renderModal({
+      modalSize: "wide",
+      modalBody: (
+        <FootnoteModal
+          editor={editor}
+          insertionSelection={insertionSelection}
         />
       ),
     });
@@ -204,11 +231,12 @@ const TextEditor: React.FC<TextEditorProps> = ({
           ["bold", "italic", "underline", "strike"],
           ["blockquote", "link"],
           [{ list: "ordered" }, { list: "bullet" }],
-          ["sceneBreak", "projectImage"],
+          ["sceneBreak", "projectImage", "footnotes"],
         ],
         handlers: {
           sceneBreak: insertSceneBreak,
           projectImage: () => openProjectImageRef.current(),
+          footnotes: () => openFootnotesRef.current(),
         },
       },
       smartTypography: true,
@@ -217,6 +245,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
           ["BR", softBreakClipboardMatcher],
           ["HR", sceneBreakClipboardMatcher],
           ["FIGURE", projectImageClipboardMatcher],
+          ["SUP", footnoteReferenceClipboardMatcher],
+          ["ASIDE", footnoteDefinitionClipboardMatcher],
         ],
       },
       keyboard: {
