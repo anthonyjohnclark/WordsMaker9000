@@ -88,6 +88,7 @@ pub(crate) fn render_docx(
         output_path,
         &document.metadata.title,
         &options.author,
+        options.profile,
         &image_descriptions(document),
     )?;
     validate_docx(output_path, options.profile)
@@ -1003,6 +1004,7 @@ fn finalize_docx_package(
     path: &Path,
     title: &str,
     author: &str,
+    profile: DocxProfileId,
     image_descriptions: &[Option<String>],
 ) -> Result<(), String> {
     let parent = path
@@ -1032,6 +1034,23 @@ fn finalize_docx_package(
         author = xml_text(author),
         title = xml_text(title),
     );
+    let custom_xml = format!(
+        concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",
+            "<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/custom-properties\" ",
+            "xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\">",
+            "<property fmtid=\"{{D5CDD505-2E9C-101B-9397-08002B2CF9AE}}\" pid=\"2\" name=\"Author\">",
+            "<vt:lpwstr>{author}</vt:lpwstr></property>",
+            "<property fmtid=\"{{D5CDD505-2E9C-101B-9397-08002B2CF9AE}}\" pid=\"3\" name=\"Title\">",
+            "<vt:lpwstr>{title}</vt:lpwstr></property>",
+            "<property fmtid=\"{{D5CDD505-2E9C-101B-9397-08002B2CF9AE}}\" pid=\"4\" name=\"PublishingProfile\">",
+            "<vt:lpwstr>{profile}</vt:lpwstr></property>",
+            "</Properties>"
+        ),
+        author = xml_text(author),
+        title = xml_text(title),
+        profile = profile_name(profile),
+    );
 
     {
         let source = File::open(path)
@@ -1040,6 +1059,7 @@ fn finalize_docx_package(
             .map_err(|error| format!("DOCX is not a valid ZIP: {error}"))?;
         let mut writer = zip::ZipWriter::new(replacement.as_file_mut());
         let mut replaced_core = false;
+        let mut replaced_custom = false;
 
         for index in 0..archive.len() {
             let entry = archive
@@ -1057,6 +1077,18 @@ fn finalize_docx_package(
                     .write_all(core_xml.as_bytes())
                     .map_err(|error| format!("Failed to write DOCX core properties: {error}"))?;
                 replaced_core = true;
+            } else if entry.name() == "docProps/custom.xml" {
+                writer
+                    .start_file(
+                        "docProps/custom.xml",
+                        zip::write::SimpleFileOptions::default()
+                            .compression_method(zip::CompressionMethod::Deflated),
+                    )
+                    .map_err(|error| format!("Failed to write DOCX custom properties: {error}"))?;
+                writer
+                    .write_all(custom_xml.as_bytes())
+                    .map_err(|error| format!("Failed to write DOCX custom properties: {error}"))?;
+                replaced_custom = true;
             } else if entry.name() == "word/document.xml" {
                 let mut document_xml = String::new();
                 let mut entry = entry;
@@ -1100,6 +1132,9 @@ fn finalize_docx_package(
         }
         if !replaced_core {
             return Err("DOCX package is missing docProps/core.xml.".to_string());
+        }
+        if !replaced_custom {
+            return Err("DOCX package is missing docProps/custom.xml.".to_string());
         }
         writer
             .finish()
@@ -1222,7 +1257,7 @@ fn add_image_descriptions(
                     "DOCX decorative image metadata element is not self-closing.".to_string(),
                 );
             }
-            updated.push_str("><a:extLst><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\"><adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\" /></a:ext></a:extLst></wp:docPr>");
+            updated.push_str("><a:extLst xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><a:ext uri=\"{C183D7F6-B498-43B3-948B-1728B52AA6E4}\"><adec:decorative xmlns:adec=\"http://schemas.microsoft.com/office/drawing/2017/decorative\" val=\"1\" /></a:ext></a:extLst></wp:docPr>");
             remaining = &rest[1..];
             continue;
         } else if self_closing {
@@ -1238,15 +1273,15 @@ fn add_rtl_run_properties(document_xml: &str) -> String {
     let mut updated = String::with_capacity(document_xml.len());
     let mut remaining = document_xml;
 
-    while let Some(paragraph_start) = remaining.find("<w:p") {
+    while let Some(paragraph_start) = find_word_paragraph_start(remaining) {
         updated.push_str(&remaining[..paragraph_start]);
-        let paragraph = &remaining[paragraph_start..];
-        let Some(relative_end) = paragraph.find("</w:p>") else {
-            updated.push_str(paragraph);
+        let paragraph_and_rest = &remaining[paragraph_start..];
+        let Some(relative_end) = paragraph_and_rest.find("</w:p>") else {
+            updated.push_str(paragraph_and_rest);
             return updated;
         };
         let paragraph_end = relative_end + "</w:p>".len();
-        let paragraph = &paragraph[..paragraph_end];
+        let (paragraph, rest) = paragraph_and_rest.split_at(paragraph_end);
         if paragraph.contains("<w:bidi") {
             updated.push_str(
                 &paragraph
@@ -1256,10 +1291,21 @@ fn add_rtl_run_properties(document_xml: &str) -> String {
         } else {
             updated.push_str(paragraph);
         }
-        remaining = &remaining[paragraph_end..];
+        remaining = rest;
     }
     updated.push_str(remaining);
     updated
+}
+
+fn find_word_paragraph_start(xml: &str) -> Option<usize> {
+    xml.match_indices("<w:p")
+        .find(|(index, _)| {
+            matches!(
+                xml.as_bytes().get(index + "<w:p".len()),
+                Some(b' ') | Some(b'>') | Some(b'/')
+            )
+        })
+        .map(|(index, _)| index)
 }
 
 fn xml_text(value: &str) -> String {
@@ -1300,6 +1346,21 @@ fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
         return Err("Standard manuscript DOCX is missing its running header.".to_string());
     }
 
+    let xml_part_names = archive
+        .file_names()
+        .filter(|name| name.ends_with(".xml") || name.ends_with(".rels"))
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    for part_name in xml_part_names {
+        let mut contents = String::new();
+        archive
+            .by_name(&part_name)
+            .map_err(|error| format!("Failed to inspect DOCX XML part {part_name}: {error}"))?
+            .read_to_string(&mut contents)
+            .map_err(|error| format!("DOCX XML part {part_name} is unreadable: {error}"))?;
+        validate_docx_xml_part(&part_name, &contents)?;
+    }
+
     let mut document_xml = String::new();
     archive
         .by_name("word/document.xml")
@@ -1333,6 +1394,12 @@ fn validate_docx(path: &Path, profile: DocxProfileId) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn validate_docx_xml_part(part_name: &str, contents: &str) -> Result<(), String> {
+    roxmltree::Document::parse(contents)
+        .map(|_| ())
+        .map_err(|error| format!("DOCX XML part {part_name} is malformed: {error}"))
 }
 
 #[cfg(test)]
@@ -1524,6 +1591,64 @@ mod tests {
         contents
     }
 
+    fn assert_all_docx_xml_parts_are_well_formed(path: &Path) {
+        let file = File::open(path).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let names = archive
+            .file_names()
+            .filter(|name| name.ends_with(".xml") || name.ends_with(".rels"))
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        for name in names {
+            let mut contents = String::new();
+            archive
+                .by_name(&name)
+                .unwrap()
+                .read_to_string(&mut contents)
+                .unwrap();
+            validate_docx_xml_part(&name, &contents).unwrap();
+        }
+    }
+
+    fn write_minimal_docx(path: &Path, document_xml: &str) {
+        let file = File::create(path).unwrap();
+        let mut writer = zip::ZipWriter::new(file);
+        let parts = [
+            (
+                "[Content_Types].xml",
+                r#"<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types" />"#,
+            ),
+            (
+                "_rels/.rels",
+                r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />"#,
+            ),
+            ("word/document.xml", document_xml),
+            (
+                "word/styles.xml",
+                r#"<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />"#,
+            ),
+            (
+                "word/numbering.xml",
+                r#"<?xml version="1.0"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" />"#,
+            ),
+            (
+                "docProps/core.xml",
+                r#"<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" />"#,
+            ),
+            (
+                "docProps/custom.xml",
+                r#"<?xml version="1.0"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" />"#,
+            ),
+        ];
+        for (name, contents) in parts {
+            writer
+                .start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            writer.write_all(contents.as_bytes()).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+
     fn style_definition<'a>(styles: &'a str, style_id: &str) -> &'a str {
         let marker = format!("w:styleId=\"{style_id}\"");
         let marker_start = styles.find(&marker).unwrap();
@@ -1642,6 +1767,7 @@ mod tests {
             &path,
         )
         .unwrap();
+        assert_all_docx_xml_parts_are_well_formed(&path);
 
         let document = zip_part(&path, "word/document.xml");
         let styles = zip_part(&path, "word/styles.xml");
@@ -1716,6 +1842,7 @@ mod tests {
             &path,
         )
         .unwrap();
+        assert_all_docx_xml_parts_are_well_formed(&path);
 
         let document = zip_part(&path, "word/document.xml");
         let styles = zip_part(&path, "word/styles.xml");
@@ -1731,6 +1858,66 @@ mod tests {
         assert!(styles.contains("WM Heading 6"));
         assert!(styles.contains("w:line=\"240\""));
         assert!(styles.contains("w:after=\"120\""));
+    }
+
+    #[test]
+    fn custom_properties_escape_xml_sensitive_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("escaped-properties.docx");
+        let mut document = sample_document();
+        document.metadata.title = "Salt & Smoke <Draft>".to_string();
+        let mut render_options = options(DocxProfileId::StandardManuscript);
+        render_options.author = "Writer & Editor".to_string();
+
+        render_docx(&document, &render_options, &path).unwrap();
+
+        assert_all_docx_xml_parts_are_well_formed(&path);
+        let custom = zip_part(&path, "docProps/custom.xml");
+        assert!(custom.contains("Salt &amp; Smoke &lt;Draft&gt;"));
+        assert!(custom.contains("Writer &amp; Editor"));
+        assert!(custom.contains("standard_manuscript"));
+    }
+
+    #[test]
+    fn rtl_postprocessing_preserves_the_document_and_paragraph_boundaries() {
+        let xml = concat!(
+            "<?xml version=\"1.0\"?>",
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">",
+            "<w:body>",
+            "<w:p><w:pPr><w:bidi /></w:pPr><w:r><w:rPr /><w:t>RTL</w:t></w:r></w:p>",
+            "<w:p><w:r><w:rPr /><w:t>LTR</w:t></w:r></w:p>",
+            "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\" /></w:sectPr>",
+            "</w:body></w:document>"
+        );
+
+        let updated = add_rtl_run_properties(xml);
+
+        validate_docx_xml_part("word/document.xml", &updated).unwrap();
+        assert_eq!(updated.matches("<w:document").count(), 1);
+        assert_eq!(updated.matches("<w:body>").count(), 1);
+        assert_eq!(updated.matches("<w:p>").count(), 2);
+        assert_eq!(updated.matches("<w:rtl").count(), 1);
+        assert_eq!(updated.matches("RTL").count(), 1);
+        assert_eq!(updated.matches("LTR").count(), 1);
+    }
+
+    #[test]
+    fn package_validation_rejects_malformed_xml_instead_of_reporting_success() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("malformed.docx");
+        write_minimal_docx(
+            &path,
+            concat!(
+                "<?xml version=\"1.0\"?>",
+                "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">",
+                "<w:body><w:p></w:body><w:sectPr /></w:document>"
+            ),
+        );
+
+        let error = validate_docx(&path, DocxProfileId::CleanHandoff).unwrap_err();
+
+        assert!(error.contains("word/document.xml"), "{error}");
+        assert!(error.contains("malformed"), "{error}");
     }
 
     #[test]

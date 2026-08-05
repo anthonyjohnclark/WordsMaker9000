@@ -105,6 +105,7 @@ dependencies = [
  "image",
  "log",
  "lopdf",
+ "roxmltree",
  "scraper",
  "serde",
  "serde_json",
