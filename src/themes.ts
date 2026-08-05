@@ -214,3 +214,12 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
 };
 
 export const themeNames = Object.keys(themes) as ThemeName[];
+
+export function applyTheme(themeName: ThemeName | undefined): void {
+  const theme = themes[themeName ?? "midnight"] ?? themes.midnight;
+  const root = document.documentElement;
+
+  Object.entries(theme.variables).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
+}

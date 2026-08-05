@@ -46,6 +46,51 @@ body {
   -ms-overflow-style: none;
 }
 
+/* Publish modal controls inherit the active theme, including focus states. */
+.publish-modal .border {
+  border-color: var(--border-color);
+}
+
+.publish-modal input:not([type="checkbox"]),
+.publish-modal select,
+.publish-modal textarea {
+  border-color: var(--border-color);
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.publish-modal input:not([type="checkbox"]):focus,
+.publish-modal select:focus,
+.publish-modal textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent);
+  outline: none;
+}
+
+.publish-modal input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.publish-modal .input-button {
+  border-color: var(--border-color);
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.publish-modal .input-button:hover:not(:disabled) {
+  background: var(--bg-hover) !important;
+}
+
+.publish-modal .publish-save-button:hover:not(:disabled) {
+  border-color: var(--btn-success-hover) !important;
+  background: var(--btn-success-hover) !important;
+}
+
+.publish-modal .publish-delete-button:hover:not(:disabled) {
+  border-color: var(--btn-danger-hover) !important;
+  background: var(--btn-danger-hover) !important;
+}
+
 .fullscreen-editor .ql-toolbar {
   display: none;
 }
@@ -61,6 +106,12 @@ body {
   background: var(--bg-primary);
 }
 
+/* Keep the document text inset while allowing the toolbar to span the pane. */
+.project-text-editor:not(.fullscreen-editor) .ql-editor {
+  padding-left: calc(15px + 1.25rem);
+  padding-right: calc(15px + 1.25rem);
+}
+
 .ql-toolbar .ql-stroke {
   stroke: var(--text-secondary) !important;
 }
@@ -71,6 +122,24 @@ body {
 
 .ql-toolbar .ql-picker-label {
   color: var(--text-secondary) !important;
+}
+
+.ql-toolbar button.ql-sceneBreak,
+.ql-toolbar button.ql-projectImage,
+.ql-toolbar button.ql-footnotes {
+  color: var(--text-secondary) !important;
+}
+
+.ql-toolbar button.ql-sceneBreak:hover,
+.ql-toolbar button.ql-sceneBreak:focus,
+.ql-toolbar button.ql-sceneBreak.ql-active,
+.ql-toolbar button.ql-projectImage:hover,
+.ql-toolbar button.ql-projectImage:focus,
+.ql-toolbar button.ql-projectImage.ql-active,
+.ql-toolbar button.ql-footnotes:hover,
+.ql-toolbar button.ql-footnotes:focus,
+.ql-toolbar button.ql-footnotes.ql-active {
+  color: var(--toolbar-active) !important;
 }
 
 /* Fullscreen editor adjustments */

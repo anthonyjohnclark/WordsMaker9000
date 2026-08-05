@@ -505,7 +505,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   return (
     <div
       ref={editorRef}
-      className={`relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
+      className={`project-text-editor relative h-full ${isFullScreen ? "fullscreen-editor" : ""}`}
     >
       <div
         ref={findBarSlotRef}
@@ -550,16 +550,16 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
       <FiSave
         onClick={handleSave}
-        className="save-icon absolute top-2 right-2 cursor-pointer text-2xl"
+        className="save-icon absolute top-2 right-7 cursor-pointer text-2xl"
         style={{ color: "var(--accent)" }}
         title="Save"
       />
 
       <p
-        className="italic save-icon absolute top-2 right-20"
+        className="italic save-icon absolute top-2 right-20 text-xs"
         style={{ color: "var(--text-muted)" }}
       >
-        Ctrl + wheel to zoom
+        Ctrl + wheel to zoom · F11 for fullscreen
       </p>
 
       <ReactQuill
@@ -567,7 +567,9 @@ const TextEditor: React.FC<TextEditorProps> = ({
         value={content}
         onChange={handleContentChange}
         style={{
-          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+          height: isFullScreen
+            ? "100%"
+            : `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
           fontFamily: "var(--editor-font-family)",
         }}
         modules={modules}

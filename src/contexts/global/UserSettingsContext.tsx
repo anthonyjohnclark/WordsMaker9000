@@ -3,11 +3,16 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
 } from "react";
-import { retrieveSettings, UserSettings } from "../../utils/fileManager";
+import {
+  DEFAULT_USER_SETTINGS,
+  retrieveSettings,
+  UserSettings,
+} from "../../utils/fileManager";
 import { useErrorContext } from "./ErrorContext";
-import { themes } from "../../themes";
+import { applyTheme } from "../../themes";
 
 interface UserSettingsContextProps {
   settings: UserSettings | null;
@@ -19,16 +24,18 @@ const UserSettingsContext = createContext<UserSettingsContextProps | null>(
   null,
 );
 
-export const UserSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
+type UserSettingsProviderProps = {
+  children: React.ReactNode;
+  initialSettings?: UserSettings;
+};
+
+export const UserSettingsProvider: React.FC<UserSettingsProviderProps> = ({
   children,
+  initialSettings,
 }) => {
-  const [settings, setSettings] = useState<UserSettings>({
-    defaultFontZoom: 1,
-    defaultSaveInterval: 60000, // 1 minute
-    defaultBackupInterval: 3600000, // 1 hour
-    theme: "midnight",
-    dictionaryEnabled: true,
-  });
+  const [settings, setSettings] = useState<UserSettings>(
+    initialSettings ?? DEFAULT_USER_SETTINGS,
+  );
 
   const { showError } = useErrorContext();
 
@@ -42,25 +49,20 @@ export const UserSettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [showError]);
 
   useEffect(() => {
-    reloadSettings();
-  }, []);
+    if (!initialSettings) {
+      reloadSettings();
+    }
+  }, [initialSettings, reloadSettings]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.style.setProperty(
       "--editor-font-size",
       `${settings.defaultFontZoom}px`,
     );
   }, [settings.defaultFontZoom]);
 
-  useEffect(() => {
-    const themeName = settings.theme || "midnight";
-    const theme = themes[themeName];
-    if (theme) {
-      const root = document.documentElement;
-      Object.entries(theme.variables).forEach(([key, value]) => {
-        root.style.setProperty(key, value);
-      });
-    }
+  useLayoutEffect(() => {
+    applyTheme(settings.theme);
   }, [settings.theme]);
 
   return (

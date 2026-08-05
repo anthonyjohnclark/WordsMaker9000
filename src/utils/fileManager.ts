@@ -21,6 +21,14 @@ export interface UserSettings {
   dictionaryEnabled: boolean;
 }
 
+export const DEFAULT_USER_SETTINGS: UserSettings = {
+  defaultFontZoom: 16,
+  defaultSaveInterval: 60000,
+  defaultBackupInterval: 3600000,
+  theme: "midnight",
+  dictionaryEnabled: true,
+};
+
 const DEV_PREFIX = IS_DEV ? "Dev_" : "";
 const BASE_DIR = `${DEV_PREFIX}Projects`;
 const BACKUP_DIR = `${DEV_PREFIX}WordsMaker3000Backups`;
@@ -58,14 +66,6 @@ export async function saveSettings(settings: UserSettings) {
 }
 
 export async function retrieveSettings(): Promise<UserSettings> {
-  const defaultSettings: UserSettings = {
-    defaultFontZoom: 16,
-    defaultSaveInterval: 60000, // 1 minute
-    defaultBackupInterval: 3600000, // 1 hour
-    theme: "midnight",
-    dictionaryEnabled: true,
-  };
-
   const filePath = `${USER_DIR}/${SETTINGS_FILE}`;
 
   const settingsExist = await exists(filePath, {
@@ -73,7 +73,7 @@ export async function retrieveSettings(): Promise<UserSettings> {
   });
 
   if (!settingsExist) {
-    await saveSettings(defaultSettings);
+    await saveSettings(DEFAULT_USER_SETTINGS);
   }
 
   const content = await readTextFile(filePath, {

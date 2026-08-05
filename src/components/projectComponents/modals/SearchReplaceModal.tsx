@@ -397,10 +397,7 @@ const SearchReplaceModal = () => {
 
         {/* Footer */}
         {results.length > 0 && (
-          <div
-            className="px-4 py-3 flex justify-end border-t"
-            style={{ borderColor: "var(--border)" }}
-          >
+          <div className="px-4 pt-4 pb-3 flex justify-end">
             <button
               onClick={handleReplaceAllInProject}
               className="text-xs px-3 py-1.5 rounded font-semibold transition-colors"

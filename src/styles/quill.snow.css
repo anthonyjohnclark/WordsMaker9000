@@ -984,16 +984,13 @@
 
 .ql-toolbar.ql-snow button.ql-sceneBreak::before {
   content: "#";
-  display: block;
+  align-items: center;
+  display: flex;
   font-size: 17px;
   font-weight: 700;
-  line-height: 18px;
-  text-align: center;
-}
-
-.ql-toolbar.ql-snow button.ql-sceneBreak:hover::before,
-.ql-toolbar.ql-snow button.ql-sceneBreak:focus::before {
-  color: #06c;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
 }
 
 .ql-editor hr.wm-scene-break {
@@ -1075,19 +1072,47 @@
 .ql-container.ql-snow {
   border: 1px solid #ccc;
 }
+.ql-snow .ql-toolbar button.ql-projectImage,
+.ql-snow.ql-toolbar button.ql-projectImage {
+  position: relative;
+}
+
 .ql-snow .ql-toolbar button.ql-projectImage::before,
 .ql-snow.ql-toolbar button.ql-projectImage::before {
-  content: "\1F5BC";
-  font-size: 16px;
-  line-height: 1;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  content: "";
+  height: 13px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+}
+
+.ql-snow .ql-toolbar button.ql-projectImage::after,
+.ql-snow.ql-toolbar button.ql-projectImage::after {
+  background: currentColor;
+  bottom: 6px;
+  clip-path: polygon(0 100%, 32% 45%, 52% 70%, 73% 20%, 100% 100%);
+  content: "";
+  height: 7px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 12px;
 }
 
 .ql-snow .ql-toolbar button.ql-footnotes::before,
 .ql-snow.ql-toolbar button.ql-footnotes::before {
+  align-items: center;
   content: "\00B9";
+  display: flex;
   font-size: 18px;
   font-weight: 700;
-  line-height: 18px;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
 }
 
 .ql-editor sup.wm-footnote-reference {

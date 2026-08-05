@@ -552,7 +552,7 @@ export const ExportModal = () => {
 
   if (result) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="publish-modal flex flex-col gap-4">
         <h2
           className="text-lg font-bold flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
@@ -579,7 +579,7 @@ export const ExportModal = () => {
           <button
             onClick={modal.handleClose}
             className="px-4 py-2 rounded border input-button"
-            style={{ borderColor: "var(--border-color)" }}
+            style={inputStyle}
           >
             Done
           </button>
@@ -617,7 +617,7 @@ export const ExportModal = () => {
         ? Math.round((progress.current / progress.total) * 100)
         : 0;
     return (
-      <div className="flex flex-col gap-4">
+      <div className="publish-modal flex flex-col gap-4">
         <h2
           className="text-lg font-bold flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
@@ -651,7 +651,7 @@ export const ExportModal = () => {
             onClick={() => void handleCancelPublish()}
             disabled={isCancelling}
             className="px-4 py-2 rounded border input-button disabled:opacity-50"
-            style={{ borderColor: "var(--border-color)" }}
+            style={inputStyle}
           >
             {isCancelling ? "Cancelling…" : "Cancel Publish"}
           </button>
@@ -732,7 +732,7 @@ export const ExportModal = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto pr-1">
+    <div className="publish-modal flex flex-col gap-4 max-h-[75vh] overflow-y-auto pr-1">
       <h2
         className="text-lg font-bold flex items-center gap-2"
         style={{ color: "var(--text-primary)" }}
@@ -809,8 +809,8 @@ export const ExportModal = () => {
               isSavingProfile ||
               publishBlockers.length > 0
             }
-            className="px-3 py-2 rounded border input-button flex items-center gap-2 disabled:opacity-50"
-            style={{ borderColor: "var(--border-color)" }}
+            className="publish-save-button px-3 py-2 rounded border input-button flex items-center gap-2 disabled:opacity-50"
+            style={saveButtonStyle}
           >
             <FiSave />
             {selectedSavedProfileId ? "Update" : "Save"}
@@ -819,8 +819,8 @@ export const ExportModal = () => {
             type="button"
             onClick={() => void handleDeleteProfile()}
             disabled={!selectedSavedProfileId}
-            className="px-3 py-2 rounded border input-button disabled:opacity-50"
-            style={{ borderColor: "var(--border-color)" }}
+            className="publish-delete-button px-3 py-2 rounded border input-button disabled:opacity-50"
+            style={deleteButtonStyle}
             title="Delete saved workflow"
           >
             <FiTrash2 />
@@ -1199,7 +1199,7 @@ export const ExportModal = () => {
           <button
             onClick={modal.handleClose}
             className="px-4 py-2 rounded border input-button"
-            style={{ borderColor: "var(--border-color)" }}
+            style={inputStyle}
           >
             Cancel
           </button>
@@ -1231,6 +1231,18 @@ const inputStyle = {
   borderColor: "var(--border-color)",
   background: "var(--bg-input)",
   color: "var(--text-primary)",
+};
+
+const saveButtonStyle = {
+  borderColor: "var(--btn-success)",
+  background: "var(--btn-success)",
+  color: "var(--btn-text)",
+};
+
+const deleteButtonStyle = {
+  borderColor: "var(--btn-danger)",
+  background: "var(--btn-danger)",
+  color: "var(--btn-text)",
 };
 
 function profileSummary(
@@ -2152,8 +2164,8 @@ function EbookFields({
                   ebook: { ...metadata.ebook, cover: undefined },
                 })
               }
-              className="px-3 py-2 rounded border input-button"
-              style={{ borderColor: "var(--border-color)" }}
+              className="publish-delete-button px-3 py-2 rounded border input-button"
+              style={deleteButtonStyle}
             >
               Remove
             </button>
@@ -2312,7 +2324,7 @@ function DiagnosticList({ diagnostics }: { diagnostics: Diagnostic[] }) {
     {
       severity: "warning" as const,
       label: "Warnings",
-      color: "var(--warning-color, #b7791f)",
+      color: "var(--accent)",
     },
     {
       severity: "info" as const,
@@ -2361,7 +2373,7 @@ function DiagnosticList({ diagnostics }: { diagnostics: Diagnostic[] }) {
 
 function StatusPanel({ title, message }: { title: string; message: string }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="publish-modal flex flex-col gap-3">
       <h2 className="text-lg font-bold">{title}</h2>
       <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
         {message}

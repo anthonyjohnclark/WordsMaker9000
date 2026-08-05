@@ -7,10 +7,10 @@ import TextEditor from "./TextEditor";
 
 const Editor: React.FC = () => {
   const project = useProjectContext();
-  const [drawerHeight, setDrawerHeight] = useState(48); // Default height for collapsed drawer
+  const [drawerHeight, setDrawerHeight] = useState(48);
 
-  const handleDrawerStateChange = (_: boolean, height: number) => {
-    setDrawerHeight(height); // Update the drawer height dynamically
+  const handleDrawerStateChange = (_isExpanded: boolean, height: number) => {
+    setDrawerHeight(height);
   };
 
   return (
@@ -18,10 +18,10 @@ const Editor: React.FC = () => {
       <Loadable isLoading={project.isEditorLoading}>
         <div className="relative flex flex-col h-full">
           {/* Header */}
-          <div className="relative flex flex-col pl-5 pr-5 h-full">
+          <div className="relative flex flex-col h-full">
             {/* Slot for the in-file find bar, aligned with the title input */}
             <div id="findbar-slot" className="absolute top-3 right-5 z-50" />
-            <div className="mb-0 flex items-center justify-between border-b pb-2 pt-2">
+            <div className="mx-5 mb-0 flex items-center justify-between pb-2 pt-2">
               <input
                 type="text"
                 value={project.selectedFile?.text || ""}
@@ -48,7 +48,6 @@ const Editor: React.FC = () => {
               />
             </div>
           </div>
-          {/* Fixed Bottom Drawer */}
           <BottomDrawer onStateChange={handleDrawerStateChange} />
         </div>
       </Loadable>

@@ -61,37 +61,6 @@ const TitleBar = () => {
             <span>WordsMaker9000</span>
           </Link>
         )}
-        {pathname !== "/" && !isLoading && projectName && (
-          <button
-            onClick={() => {
-              modal.renderModal({
-                modalBody: <ExportModal />,
-                modalSize: "wide",
-              });
-            }}
-            className="h-6 px-2 rounded flex items-center gap-1 text-xs font-semibold transition-colors shrink-0"
-            style={{
-              color: "var(--text-primary)",
-              background: "var(--bg-input)",
-              marginLeft: "1.5rem",
-              WebkitAppRegion: "no-drag",
-              cursor: "pointer",
-            } as React.CSSProperties}
-            onMouseEnter={(event) =>
-              (event.currentTarget.style.background = "var(--bg-hover)")
-            }
-            onMouseLeave={(event) =>
-              (event.currentTarget.style.background = "var(--bg-input)")
-            }
-            aria-label="Publish project"
-            title="Publish project"
-          >
-            <span aria-hidden="true" className="text-sm leading-none">
-              🚀
-            </span>
-            <span>Publish</span>
-          </button>
-        )}
       </div>
 
       {/* Render "Welcome!" if on the home page */}
@@ -145,6 +114,37 @@ const TitleBar = () => {
               {wordCount} words
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              modal.renderModal({
+                modalBody: <ExportModal />,
+                modalSize: "wide",
+              });
+            }}
+            className="h-6 px-2 ml-3 mr-4 rounded flex items-center gap-1 text-xs font-semibold transition-colors shrink-0"
+            style={
+              {
+                color: "var(--text-primary)",
+                background: "var(--bg-input)",
+                WebkitAppRegion: "no-drag",
+                cursor: "pointer",
+              } as React.CSSProperties
+            }
+            onMouseEnter={(event) =>
+              (event.currentTarget.style.background = "var(--bg-hover)")
+            }
+            onMouseLeave={(event) =>
+              (event.currentTarget.style.background = "var(--bg-input)")
+            }
+            aria-label="Publish project"
+            title="Publish project"
+          >
+            <span aria-hidden="true" className="text-sm leading-none">
+              🚀
+            </span>
+            <span>Publish</span>
+          </button>
         </>
       )}
 

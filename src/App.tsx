@@ -7,12 +7,17 @@ import { ErrorProvider } from "./contexts/global/ErrorContext";
 import { GlobalProjectProvider } from "./contexts/global/GlobalProjectContext";
 import { ProvideModal } from "./contexts/global/ModalContext";
 import { UserSettingsProvider } from "./contexts/global/UserSettingsContext";
+import type { UserSettings } from "./utils/fileManager";
 
-function App() {
+type AppProps = {
+  initialSettings?: UserSettings;
+};
+
+function App({ initialSettings }: AppProps) {
   return (
     <ErrorProvider>
       <GlobalProjectProvider>
-        <UserSettingsProvider>
+        <UserSettingsProvider initialSettings={initialSettings}>
           <ErrorModal />
           <ProvideModal>
             <div className="grid grid-rows-[auto,1fr] h-screen">
