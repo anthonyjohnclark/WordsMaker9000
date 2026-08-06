@@ -4,6 +4,7 @@
 mod context_menu;
 mod export;
 mod publishing;
+mod window_fullscreen;
 
 use tauri_plugin_fs;
 
@@ -18,6 +19,7 @@ use publishing::service::{
     regenerate_publication, reveal_publication_artifact, save_publishing_profile,
 };
 use tauri::Manager;
+use window_fullscreen::set_editor_fullscreen;
 
 fn main() {
     tauri::Builder::default()
@@ -51,7 +53,8 @@ fn main() {
             import_project_asset,
             replace_project_asset,
             remove_project_asset,
-            cleanup_project_assets
+            cleanup_project_assets,
+            set_editor_fullscreen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -7,7 +7,10 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { FiSave } from "react-icons/fi";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useUserSettings } from "../../contexts/global/UserSettingsContext";
+import { useErrorContext } from "../../contexts/global/ErrorContext";
 import { useEditorContext } from "../../contexts/pages/EditorContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import { useModal } from "../../contexts/global/ModalContext";
@@ -59,6 +62,18 @@ type TextEditorProps = {
   isDrawerExpanded: boolean;
 };
 
+const getEditorBackgroundRgba = (): [number, number, number, number] => {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--editor-bg")
+    .trim()
+    .replace(/^#/, "");
+  const rgb = Number.parseInt(value, 16);
+
+  return Number.isNaN(rgb)
+    ? [0, 0, 0, 255]
+    : [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, 255];
+};
+
 const TextEditor: React.FC<TextEditorProps> = ({
   selectedFile,
   isDrawerExpanded,
@@ -67,6 +82,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const { content, setContent } = useEditorContext();
   const modal = useModal();
   const { setModalContainer } = modal;
+  const { showError } = useErrorContext();
 
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [fontSize, setFontSize] = useState(settings?.defaultFontZoom || 0); // Default font size in pixels
@@ -86,6 +102,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const imageSelectionRef = useRef<{ index: number; length: number } | null>(null);
   const openProjectImageRef = useRef<() => void>(() => undefined);
   const openFootnotesRef = useRef<() => void>(() => undefined);
+  const fullscreenTransitionRef = useRef(false);
+  const restoreMaximizedAfterFullscreenRef = useRef(false);
 
   const project = useProjectContext();
 
@@ -168,20 +186,68 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
   }, [content, selectedFile]);
 
+  const toggleFullScreen = useCallback(async () => {
+    if (fullscreenTransitionRef.current) return;
+
+    fullscreenTransitionRef.current = true;
+    const appWindow = getCurrentWindow();
+
+    try {
+      const nextFullScreen = !(await appWindow.isFullscreen());
+      if (nextFullScreen) {
+        restoreMaximizedAfterFullscreenRef.current =
+          await appWindow.isMaximized();
+
+        // Paint the editor-only overlay before Windows expands the native
+        // window so the normal application layout cannot flash in between.
+        setIsFullScreen(true);
+        await new Promise<void>((resolve) => {
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => resolve());
+          });
+        });
+      }
+
+      await invoke("set_editor_fullscreen", {
+        fullscreen: nextFullScreen,
+        restoreMaximized: restoreMaximizedAfterFullscreenRef.current,
+        backgroundColor: getEditorBackgroundRgba(),
+      });
+
+      const actualFullScreen = await appWindow.isFullscreen();
+      setIsFullScreen(actualFullScreen);
+
+      if (!actualFullScreen) {
+        restoreMaximizedAfterFullscreenRef.current = false;
+      }
+
+      if (actualFullScreen !== nextFullScreen) {
+        throw new Error("Windows did not complete the fullscreen transition.");
+      }
+    } catch (error) {
+      showError(error, "while toggling fullscreen");
+
+      try {
+        const actualFullScreen = await appWindow.isFullscreen();
+        setIsFullScreen(actualFullScreen);
+        if (!actualFullScreen) {
+          restoreMaximizedAfterFullscreenRef.current = false;
+        }
+      } catch (syncError) {
+        console.error("Failed to read fullscreen state", syncError);
+      }
+    } finally {
+      fullscreenTransitionRef.current = false;
+    }
+  }, [showError]);
+
   useEffect(() => {
     const handleFullScreenShortcut = (event: KeyboardEvent) => {
-      if (event.key === "F11") {
-        event.preventDefault();
-        const element = editorRef.current;
-        if (element) {
-          if (!document.fullscreenElement) {
-            element.requestFullscreen().catch(console.error);
-            setIsFullScreen(true);
-          } else {
-            document.exitFullscreen().catch(console.error);
-            setIsFullScreen(false);
-          }
-        }
+      if (event.key !== "F11") return;
+
+      event.preventDefault();
+      if (!event.repeat) {
+        void toggleFullScreen();
       }
     };
 
@@ -189,7 +255,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleFullScreenShortcut);
     };
-  }, []);
+  }, [toggleFullScreen]);
 
   useEffect(() => {
     const defaultContainer =

@@ -144,6 +144,10 @@ body {
 
 /* Fullscreen editor adjustments */
 .fullscreen-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
   background: var(--editor-bg);
 }
 
