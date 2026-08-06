@@ -567,9 +567,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
         value={content}
         onChange={handleContentChange}
         style={{
-          height: isFullScreen
-            ? "100%"
-            : `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
           fontFamily: "var(--editor-font-family)",
         }}
         modules={modules}
