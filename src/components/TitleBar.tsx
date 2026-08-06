@@ -126,7 +126,7 @@ const TitleBar = () => {
             style={
               {
                 color: "var(--text-primary)",
-                background: "var(--bg-input)",
+                background: "transparent",
                 WebkitAppRegion: "no-drag",
                 cursor: "pointer",
               } as React.CSSProperties
@@ -135,7 +135,7 @@ const TitleBar = () => {
               (event.currentTarget.style.background = "var(--bg-hover)")
             }
             onMouseLeave={(event) =>
-              (event.currentTarget.style.background = "var(--bg-input)")
+              (event.currentTarget.style.background = "transparent")
             }
             aria-label="Publish project"
             title="Publish project"
