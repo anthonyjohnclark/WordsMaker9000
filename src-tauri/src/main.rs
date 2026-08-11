@@ -2,12 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod context_menu;
+mod dictionary;
 mod export;
 mod publishing;
 mod window_fullscreen;
 
 use tauri_plugin_fs;
 
+use dictionary::lookup_dictionary_definition;
 use export::{export_project, list_project_exports, open_file_default};
 use publishing::assets::{
     cleanup_project_assets, import_project_asset, list_project_assets, remove_project_asset,
@@ -54,6 +56,7 @@ fn main() {
             replace_project_asset,
             remove_project_asset,
             cleanup_project_assets,
+            lookup_dictionary_definition,
             set_editor_fullscreen
         ])
         .run(tauri::generate_context!())

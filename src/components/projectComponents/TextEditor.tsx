@@ -47,6 +47,7 @@ import {
   FootnoteReferenceBlot,
 } from "../../utils/quillFootnoteBlots";
 import { labelQuillToolbar } from "../../utils/quillToolbarAccessibility";
+import { hasWholeWordBoundaries } from "../../utils/dictionarySelection";
 import ProjectAssetModal from "./modals/ProjectAssetModal";
 import FootnoteModal from "./modals/FootnoteModal";
 import "../../styles/quill.snow.css";
@@ -379,15 +380,14 @@ const TextEditor: React.FC<TextEditorProps> = ({
       // by checking the characters adjacent to the selection in the text.
       const editor = quillRef.current?.getEditor();
       const qSel = editor?.getSelection();
-      if (editor && qSel && qSel.length > 0) {
-        const text = editor.getText();
-        const isWordChar = (c?: string) => !!c && /[\p{L}\p{M}'’-]/u.test(c);
-        const before = text[qSel.index - 1];
-        const after = text[qSel.index + qSel.length];
-        if (isWordChar(before) || isWordChar(after)) {
-          setDefineButton(null);
-          return;
-        }
+      if (
+        editor &&
+        qSel &&
+        qSel.length > 0 &&
+        !hasWholeWordBoundaries(editor, qSel)
+      ) {
+        setDefineButton(null);
+        return;
       }
 
       const rect = range.getBoundingClientRect();
