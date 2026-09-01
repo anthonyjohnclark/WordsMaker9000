@@ -2,13 +2,31 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
 import {
   FiCheckCircle,
+  FiChevronLeft,
+  FiChevronRight,
   FiHome,
   FiSearch,
 } from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
-import { Link, useLocation } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+} from "react-router-dom";
 import { useModal } from "../contexts/global/ModalContext";
 import { ExportModal } from "./projectComponents/modals/ExportModal";
+import { useLayoutEffect, useState } from "react";
+import {
+  canNavigateBack,
+  canNavigateForward,
+  createNavigationHistory,
+  updateNavigationHistory,
+} from "../utils/navigationHistory";
+import {
+  formatWritingQuote,
+  getRandomWritingQuote,
+} from "../utils/writingQuotes";
 
 const TitleBar = () => {
   const modal = useModal();
@@ -27,11 +45,27 @@ const TitleBar = () => {
 
   // Get the current route path
   const location = useLocation();
+  const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const pathname = location.pathname;
+  const [navigationHistory, setNavigationHistory] = useState(() =>
+    createNavigationHistory(location.key),
+  );
+  const [homeQuote] = useState(getRandomWritingQuote);
+  const formattedHomeQuote = formatWritingQuote(homeQuote);
+
+  useLayoutEffect(() => {
+    setNavigationHistory((current) =>
+      updateNavigationHistory(current, navigationType, location.key),
+    );
+  }, [location.key, navigationType]);
+
+  const canGoBack = canNavigateBack(navigationHistory);
+  const canGoForward = canNavigateForward(navigationHistory);
 
   return (
     <div
-      className="h-8 flex items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
+      className="relative h-8 flex items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
       style={
         {
           background: "var(--bg-primary)",
@@ -42,29 +76,93 @@ const TitleBar = () => {
     >
       {/* App Logo and Title */}
       <div
-        className="flex items-center space-x-2 shrink-0"
+        className="flex items-center gap-1 shrink-0"
         style={{ WebkitAppRegion: "no-drag" }}
       >
-        {pathname !== "/" && ( // Only show the link if not at the home page
+        <svg
+          className="w-4 h-4 shrink-0"
+          viewBox="0 0 500 500"
+          role="img"
+          aria-label="WordsMaker9000 application icon"
+          focusable="false"
+        >
+          <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
+        </svg>
+        {pathname !== "/" && (
           <Link
-            to="/" // Use `to` for navigation in React Router
-            className="text-sm font-semibold futuristic-font flex items-center space-x-1 truncate"
+            to="/"
+            className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
             style={
               {
                 color: "var(--accent)",
+                background: "transparent",
                 WebkitAppRegion: "no-drag",
                 cursor: "pointer",
               } as React.CSSProperties
             }
+            aria-label="Home"
+            title="Home"
           >
-            <FiHome /> {/* Add the home icon here */}
-            <span>WordsMaker9000</span>
+            <FiHome size={14} aria-hidden="true" />
           </Link>
         )}
+        <button
+          type="button"
+          onClick={() => {
+            if (canGoBack) navigate(-1);
+          }}
+          disabled={!canGoBack}
+          className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
+          style={
+            {
+              color: canGoBack
+                ? "var(--text-secondary)"
+                : "var(--text-muted)",
+              background: "transparent",
+              WebkitAppRegion: "no-drag",
+              cursor: canGoBack ? "pointer" : "default",
+            } as React.CSSProperties
+          }
+          aria-label="Back"
+          title="Back"
+        >
+          <FiChevronLeft size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (canGoForward) navigate(1);
+          }}
+          disabled={!canGoForward}
+          className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
+          style={
+            {
+              color: canGoForward
+                ? "var(--text-secondary)"
+                : "var(--text-muted)",
+              background: "transparent",
+              WebkitAppRegion: "no-drag",
+              cursor: canGoForward ? "pointer" : "default",
+            } as React.CSSProperties
+          }
+          aria-label="Forward"
+          title="Forward"
+        >
+          <FiChevronRight size={14} aria-hidden="true" />
+        </button>
       </div>
 
-      {/* Render "Welcome!" if on the home page */}
-      {pathname === "/" && <h2 className="text-lg font-semibold">Welcome!</h2>}
+      {/* Keep the home-page quotation centered independently of the controls. */}
+      {pathname === "/" && (
+        <h2
+          className="absolute left-24 right-24 truncate text-center text-sm italic font-medium"
+          style={{ color: "var(--text-secondary)" }}
+          title={`${formattedHomeQuote} — ${homeQuote.source}`}
+          aria-label={`${formattedHomeQuote}. Source: ${homeQuote.source}`}
+        >
+          {formattedHomeQuote}
+        </h2>
+      )}
 
       {/* Render project-related info if not on the home page */}
       {pathname !== "/" && !isLoading && projectName && (

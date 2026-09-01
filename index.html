@@ -19,24 +19,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WordsMaker9000</title>
   </head>
-  <body style="margin: 0; background: #000">
+  <body style="margin: 0; background: var(--bg-secondary, #000)">
     <div id="root">
       <!-- Splash screen shown while React loads -->
-      <div
-        id="splash"
-        style="
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 100vh;
-          background: #000;
-        "
-      >
-        <img
-          src="/wordsmaker9000.png"
-          alt="WordsMaker9000"
-          style="width: 120px; height: auto"
-        />
+      <div id="splash" class="splash-screen">
+        <svg
+          class="splash-logo"
+          viewBox="0 0 500 500"
+          role="img"
+          aria-label="WordsMaker9000"
+        >
+          <image href="/wordsmaker9000.png" width="500" height="500" />
+          <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
+        </svg>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

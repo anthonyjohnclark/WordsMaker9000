@@ -222,4 +222,18 @@ export function applyTheme(themeName: ThemeName | undefined): void {
   Object.entries(theme.variables).forEach(([key, value]) => {
     root.style.setProperty(key, value);
   });
+
+  root.style.setProperty(
+    "--wm-logo-background",
+    theme.variables["--bg-secondary"],
+  );
+  root.style.setProperty("--wm-logo-ink", theme.variables["--accent"]);
+  root.style.setProperty(
+    "--wm-logo-lettering",
+    theme.variables["--text-primary"],
+  );
+  root.style.setProperty(
+    "--wm-logo-outline",
+    theme.variables["--bg-secondary"],
+  );
 }

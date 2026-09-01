@@ -32,6 +32,11 @@
   --modal-bg: #111827;
   --btn-text: #111827;
   --accent-text: #111827;
+  /* Static fallback is black and white; applyTheme maps these to the saved theme. */
+  --wm-logo-background: #ffffff;
+  --wm-logo-ink: #000000;
+  --wm-logo-lettering: #ffffff;
+  --wm-logo-outline: #000000;
 }
 
 /* Themed text selection color (overrides the WebView's default blue) */
@@ -44,6 +49,34 @@ body {
   background: var(--bg-secondary);
   font-family: var(--editor-font-family);
   -ms-overflow-style: none;
+}
+
+.splash-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg-secondary);
+}
+
+.splash-logo {
+  display: block;
+  width: 120px;
+  height: 120px;
+}
+
+.title-bar-navigation-button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.title-bar-navigation-button:not(:disabled):hover {
+  color: var(--accent) !important;
+  background: var(--bg-hover) !important;
+}
+
+.title-bar-navigation-button:disabled {
+  opacity: 0.45;
 }
 
 /* Publish modal controls inherit the active theme, including focus states. */
