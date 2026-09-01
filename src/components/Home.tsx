@@ -396,7 +396,15 @@ export default function HomePage() {
             color: "var(--text-secondary)",
           }}
         >
-          <div className="container mx-auto text-center">
+          <div className="container mx-auto flex items-center justify-center gap-2 text-center">
+            <svg
+              className="w-5 h-5 shrink-0"
+              viewBox="0 0 500 500"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
+            </svg>
             © {new Date().getFullYear()} WordsMaker9000 - All Rights Reserved
           </div>
         </footer>

@@ -76,7 +76,7 @@ const TitleBar = () => {
     >
       {/* App Logo and Title */}
       <div
-        className="flex items-center gap-1 shrink-0"
+        className="ml-3 flex items-center shrink-0"
         style={{ WebkitAppRegion: "no-drag" }}
       >
         <svg
@@ -88,68 +88,70 @@ const TitleBar = () => {
         >
           <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
         </svg>
-        {pathname !== "/" && (
-          <Link
-            to="/"
+        <div className="ml-5 flex items-center gap-1">
+          {pathname !== "/" && (
+            <Link
+              to="/"
+              className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
+              style={
+                {
+                  color: "var(--accent)",
+                  background: "transparent",
+                  WebkitAppRegion: "no-drag",
+                  cursor: "pointer",
+                } as React.CSSProperties
+              }
+              aria-label="Home"
+              title="Home"
+            >
+              <FiHome size={14} aria-hidden="true" />
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (canGoBack) navigate(-1);
+            }}
+            disabled={!canGoBack}
             className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
             style={
               {
-                color: "var(--accent)",
+                color: canGoBack
+                  ? "var(--text-secondary)"
+                  : "var(--text-muted)",
                 background: "transparent",
                 WebkitAppRegion: "no-drag",
-                cursor: "pointer",
+                cursor: canGoBack ? "pointer" : "default",
               } as React.CSSProperties
             }
-            aria-label="Home"
-            title="Home"
+            aria-label="Back"
+            title="Back"
           >
-            <FiHome size={14} aria-hidden="true" />
-          </Link>
-        )}
-        <button
-          type="button"
-          onClick={() => {
-            if (canGoBack) navigate(-1);
-          }}
-          disabled={!canGoBack}
-          className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
-          style={
-            {
-              color: canGoBack
-                ? "var(--text-secondary)"
-                : "var(--text-muted)",
-              background: "transparent",
-              WebkitAppRegion: "no-drag",
-              cursor: canGoBack ? "pointer" : "default",
-            } as React.CSSProperties
-          }
-          aria-label="Back"
-          title="Back"
-        >
-          <FiChevronLeft size={14} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (canGoForward) navigate(1);
-          }}
-          disabled={!canGoForward}
-          className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
-          style={
-            {
-              color: canGoForward
-                ? "var(--text-secondary)"
-                : "var(--text-muted)",
-              background: "transparent",
-              WebkitAppRegion: "no-drag",
-              cursor: canGoForward ? "pointer" : "default",
-            } as React.CSSProperties
-          }
-          aria-label="Forward"
-          title="Forward"
-        >
-          <FiChevronRight size={14} aria-hidden="true" />
-        </button>
+            <FiChevronLeft size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (canGoForward) navigate(1);
+            }}
+            disabled={!canGoForward}
+            className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
+            style={
+              {
+                color: canGoForward
+                  ? "var(--text-secondary)"
+                  : "var(--text-muted)",
+                background: "transparent",
+                WebkitAppRegion: "no-drag",
+                cursor: canGoForward ? "pointer" : "default",
+              } as React.CSSProperties
+            }
+            aria-label="Forward"
+            title="Forward"
+          >
+            <FiChevronRight size={14} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {/* Keep the home-page quotation centered independently of the controls. */}
