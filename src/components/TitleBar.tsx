@@ -85,6 +85,14 @@ const TitleBar = () => {
           role="img"
           aria-label="WordsMaker9000 application icon"
           focusable="false"
+          style={
+            {
+              "--wm-logo-background": "var(--bg-primary)",
+              "--wm-logo-ink": "var(--accent)",
+              "--wm-logo-lettering": "var(--text-primary)",
+              "--wm-logo-outline": "var(--bg-primary)",
+            } as React.CSSProperties
+          }
         >
           <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
         </svg>

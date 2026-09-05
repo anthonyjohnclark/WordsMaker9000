@@ -32,7 +32,7 @@
   --modal-bg: #111827;
   --btn-text: #111827;
   --accent-text: #111827;
-  /* Static fallback is black and white; applyTheme maps these to the saved theme. */
+  /* Neutral fallback avoids accent flash before saved theme is loaded. */
   --wm-logo-background: #ffffff;
   --wm-logo-ink: #000000;
   --wm-logo-lettering: #ffffff;

@@ -236,4 +236,10 @@ export function applyTheme(themeName: ThemeName | undefined): void {
     "--wm-logo-outline",
     theme.variables["--bg-secondary"],
   );
+
+  try {
+    window.localStorage.setItem("wm9000:last-theme", themeName ?? "midnight");
+  } catch {
+    // Ignore storage failures (private mode, disabled storage, test envs).
+  }
 }

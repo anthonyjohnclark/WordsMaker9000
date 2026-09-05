@@ -402,6 +402,14 @@ export default function HomePage() {
               viewBox="0 0 500 500"
               aria-hidden="true"
               focusable="false"
+              style={
+                {
+                  "--wm-logo-background": "var(--bg-primary)",
+                  "--wm-logo-ink": "var(--accent)",
+                  "--wm-logo-lettering": "var(--text-primary)",
+                  "--wm-logo-outline": "var(--bg-primary)",
+                } as React.CSSProperties
+              }
             >
               <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
             </svg>
