@@ -26,10 +26,14 @@ import Loader from "../../Loader";
 
 interface ExportVersionsModalProps {
   projectName: string;
+  mode?: "modal" | "page";
+  onArtifactsChanged?: () => void;
 }
 
 export default function ExportVersionsModal({
   projectName,
+  mode = "modal",
+  onArtifactsChanged,
 }: ExportVersionsModalProps) {
   const [artifacts, setArtifacts] = useState<ArtifactHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -147,6 +151,7 @@ export default function ExportVersionsModal({
         `Regenerated ${result.primary_artifact_path.split(/[\\/]/).pop() ?? entry.filename}.`,
       );
       await fetchArtifacts();
+      onArtifactsChanged?.();
     } catch (error) {
       const failure = parsePublishFailure(error);
       showError(formatPublishFailure(failure), "regenerating publication");
@@ -171,13 +176,19 @@ export default function ExportVersionsModal({
       "deleting artifact history",
     );
     await fetchArtifacts();
+    onArtifactsChanged?.();
   };
 
   if (isLoading) {
     return (
       <div
-        className="p-6 rounded-lg max-w-5xl mx-auto"
-        style={{ background: "var(--modal-bg)", color: "var(--text-primary)" }}
+        className={
+          mode === "modal" ? "p-6 rounded-lg max-w-5xl mx-auto" : "p-1"
+        }
+        style={{
+          background: mode === "modal" ? "var(--modal-bg)" : "transparent",
+          color: "var(--text-primary)",
+        }}
       >
         <Loader />
       </div>
@@ -186,8 +197,15 @@ export default function ExportVersionsModal({
 
   return (
     <div
-      className="p-6 rounded-lg max-w-5xl mx-auto"
-      style={{ background: "var(--modal-bg)", color: "var(--text-primary)" }}
+      className={
+        mode === "modal"
+          ? "p-6 rounded-lg max-w-5xl mx-auto"
+          : "p-1 h-full flex flex-col"
+      }
+      style={{
+        background: mode === "modal" ? "var(--modal-bg)" : "transparent",
+        color: "var(--text-primary)",
+      }}
     >
       <h2 className="text-xl font-bold mb-1">
         Artifact History for{" "}
@@ -218,7 +236,13 @@ export default function ExportVersionsModal({
           No published artifacts found for this project.
         </p>
       ) : (
-        <ul className="max-h-[60vh] overflow-y-auto space-y-3 pr-1">
+        <ul
+          className={
+            mode === "modal"
+              ? "max-h-[60vh] overflow-y-auto space-y-3 pr-1"
+              : "flex-1 overflow-y-auto space-y-3 pr-1"
+          }
+        >
           {artifacts.map((entry) => {
             const busy = busyPath === entry.path;
             return (
@@ -297,15 +321,17 @@ export default function ExportVersionsModal({
         </ul>
       )}
 
-      <div className="flex justify-end mt-4">
-        <button
-          onClick={modal.handleClose}
-          className="px-4 py-2 rounded border input-button"
-          style={{ borderColor: "var(--border-color)" }}
-        >
-          Done
-        </button>
-      </div>
+      {mode === "modal" && (
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={modal.handleClose}
+            className="px-4 py-2 rounded border input-button"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -18,9 +18,15 @@ type EditorContextType = {
 // Default values for the context
 const EditorContext = createContext<EditorContextType | undefined>(undefined);
 
+type EditorProviderProps = {
+  children: ReactNode;
+  isActive?: boolean;
+};
+
 // Editor Provider component
-export const EditorProvider: React.FC<{ children: ReactNode }> = ({
+export const EditorProvider: React.FC<EditorProviderProps> = ({
   children,
+  isActive = true,
 }) => {
   const { fileContent, saveFileContent, editorContentRef } =
     useProjectContext();
@@ -30,8 +36,25 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({
   const [content, setContent] = useState("");
   const [lastSavedContent, setLastSavedContent] = useState("");
 
+  const setContentAndBuffer: React.Dispatch<React.SetStateAction<string>> =
+    useCallback(
+      (value) => {
+        setContent((previous) => {
+          const next =
+            typeof value === "function"
+              ? (value as (current: string) => string)(previous)
+              : value;
+          editorContentRef.current = next;
+          return next;
+        });
+      },
+      [editorContentRef],
+    );
+
   useEffect(() => {
-    setContent(fileContent ?? "");
+    const next = fileContent ?? "";
+    setContent(next);
+    editorContentRef.current = next;
   }, [fileContent]);
 
   useEffect(() => {
@@ -48,6 +71,8 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({
   }, [content, saveFileContent]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     const interval = setInterval(() => {
       if (content !== lastSavedContent) {
         console.log("Auto-saving content...");
@@ -56,13 +81,19 @@ export const EditorProvider: React.FC<{ children: ReactNode }> = ({
     }, settings?.defaultSaveInterval ?? 60000);
 
     return () => clearInterval(interval);
-  }, [content, handleSave, lastSavedContent, settings?.defaultSaveInterval]);
+  }, [
+    content,
+    handleSave,
+    isActive,
+    lastSavedContent,
+    settings?.defaultSaveInterval,
+  ]);
 
   return (
     <EditorContext.Provider
       value={{
         content,
-        setContent,
+        setContent: setContentAndBuffer,
       }}
     >
       {children}

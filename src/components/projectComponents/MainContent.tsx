@@ -3,7 +3,13 @@ import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import Editor from "./Editor";
 import NoFileSelectedContent from "./NoFileSelected";
 
-const MainContent: React.FC = () => {
+type MainContentProps = {
+  isEditorActive?: boolean;
+};
+
+const MainContentWithActivity: React.FC<MainContentProps> = ({
+  isEditorActive = true,
+}) => {
   const project = useProjectContext();
 
   return (
@@ -11,9 +17,13 @@ const MainContent: React.FC = () => {
       className="relative flex-1"
       style={{ background: "var(--bg-secondary)" }}
     >
-      {project.selectedFile ? <Editor /> : <NoFileSelectedContent />}
+      {project.selectedFile ? (
+        <Editor isEditorActive={isEditorActive} />
+      ) : (
+        <NoFileSelectedContent />
+      )}
     </section>
   );
 };
 
-export default MainContent;
+export default MainContentWithActivity;

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ProjectsPageModalWrapper } from "./projectComponents/ProjectsPageModalWrapper";
 import FileSavedMessage from "./projectComponents/FileSavedMessage";
 import MainContent from "./projectComponents/MainContent";
@@ -9,10 +9,18 @@ import {
 } from "../contexts/pages/ProjectProvider";
 import Sidebar from "./projectComponents/SideBar";
 import SearchReplaceModal from "./projectComponents/modals/SearchReplaceModal";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
+import PublishingWorkspace from "./publishing/PublishingWorkspace";
 
 export default function Project() {
   const projectName = useParams().projectName ?? "";
+  const location = useLocation();
+  const isPublishRoute = location.pathname.endsWith("/publish");
+  const isArtifactsRoute = location.pathname.endsWith("/artifacts");
+  const isPublishingWorkspaceRoute = isPublishRoute || isArtifactsRoute;
+  const [publishMounted, setPublishMounted] = useState(
+    isPublishingWorkspaceRoute,
+  );
 
   const { setProjectName, setWordCount, setLastBackupTime, setIsSearchOpen } =
     useGlobalProjectContext();
@@ -35,15 +43,35 @@ export default function Project() {
     setIsSearchOpen,
   ]);
 
+  useEffect(() => {
+    if (isPublishingWorkspaceRoute) {
+      setPublishMounted(true);
+      setIsSearchOpen(false);
+    }
+  }, [isPublishingWorkspaceRoute, setIsSearchOpen]);
+
   return (
-    <ProjectProvider projectName={projectName}>
+    <ProjectProvider key={projectName} projectName={projectName}>
       <TitleBarUpdater /> {/* Keeps GlobalProjectContext updated */}
-      <SearchReplaceModal />
-      <ProjectsPageModalWrapper>
-        <FileSavedMessage />
-        <Sidebar />
-        <MainContent />
-      </ProjectsPageModalWrapper>
+      {!isPublishingWorkspaceRoute && <SearchReplaceModal />}
+      <div className="relative h-full">
+        <div
+          className={isPublishingWorkspaceRoute ? "hidden" : "block h-full"}
+          aria-hidden={isPublishingWorkspaceRoute}
+        >
+          <ProjectsPageModalWrapper>
+            <FileSavedMessage />
+            <Sidebar />
+            <MainContent isEditorActive={!isPublishingWorkspaceRoute} />
+          </ProjectsPageModalWrapper>
+        </div>
+        <div
+          className={isPublishingWorkspaceRoute ? "block h-full" : "hidden"}
+          aria-hidden={!isPublishingWorkspaceRoute}
+        >
+          {publishMounted && <PublishingWorkspace />}
+        </div>
+      </div>
     </ProjectProvider>
   );
 }

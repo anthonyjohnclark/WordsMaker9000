@@ -4,6 +4,7 @@ import { BaseDirectory, readDir } from "@tauri-apps/plugin-fs";
 import { restoreProjectFromBackup } from "../../../utils/fileManager";
 import Loader from "../../Loader";
 import { useErrorContext } from "../../../contexts/global/ErrorContext";
+import { IS_DEV } from "../../../utils/env";
 
 interface RestoreBackupsModalProps {
   projectName: string;
@@ -29,7 +30,7 @@ export default function RestoreBackupsModal({
 
   const { showError } = useErrorContext();
 
-  const BACKUP_DIR = "WordsMaker3000Backups";
+  const BACKUP_DIR = `${IS_DEV ? "Dev_" : ""}WordsMaker3000Backups`;
 
   function formatBackupNameToDate(name: string): string {
     const timestampPart = name.substring(projectName.length + 1);

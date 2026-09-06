@@ -15,10 +15,9 @@ import { useErrorContext } from "../contexts/global/ErrorContext";
 import ErrorModal from "../components/ErrorModal";
 import { UserSettingsModal } from "../components/UserSettingsModal";
 import RestoreBackupsModal from "../components/projectComponents/modals/RestoreBackupsModal";
-import ExportVersionsModal from "../components/projectComponents/modals/ExportVersionsModal";
 import { FaCog } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
-import { FiArchive, FiEdit2, FiTrash2, FiRotateCcw } from "react-icons/fi";
+import { FiEdit2, FiTrash2, FiRotateCcw } from "react-icons/fi";
 import EditProjectTypeModal from "./EditProjectTypeModal";
 
 export default function HomePage() {
@@ -198,7 +197,7 @@ export default function HomePage() {
                 </button>
               </div>
             </div>
-            <ul className="mb-6 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
+            <ul className="mb-6 space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
               {projects.map((project) => (
                 <li
                   key={project.projectName}
@@ -253,23 +252,6 @@ export default function HomePage() {
                         title="Restore Backup"
                       >
                         <FiRotateCcw size={16} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          modal.renderModal({
-                            modalBody: (
-                              <ExportVersionsModal
-                                projectName={project.projectName}
-                              />
-                            ),
-                            modalSize: "wide",
-                          });
-                        }}
-                        className="p-1.5 rounded hover:opacity-80 transition"
-                        style={{ color: "var(--btn-primary)" }}
-                        title="Artifact History"
-                      >
-                        <FiArchive size={16} />
                       </button>
                       <button
                         onClick={() => {
@@ -390,13 +372,13 @@ export default function HomePage() {
         </Loadable>
         {/* Footer */}
         <footer
-          className="py-4"
+          className="h-8"
           style={{
             background: "var(--bg-primary)",
             color: "var(--text-secondary)",
           }}
         >
-          <div className="container mx-auto flex items-center justify-center gap-2 text-center">
+          <div className="h-full px-6 flex items-center justify-end gap-2 text-right">
             <svg
               className="w-5 h-5 shrink-0"
               viewBox="0 0 500 500"

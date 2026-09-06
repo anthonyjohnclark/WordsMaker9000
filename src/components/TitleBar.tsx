@@ -1,9 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
 import {
+  FiArchive,
   FiCheckCircle,
   FiChevronLeft,
   FiChevronRight,
+  FiEdit3,
   FiHome,
   FiSearch,
 } from "react-icons/fi";
@@ -14,8 +16,6 @@ import {
   useNavigate,
   useNavigationType,
 } from "react-router-dom";
-import { useModal } from "../contexts/global/ModalContext";
-import { ExportModal } from "./projectComponents/modals/ExportModal";
 import { useLayoutEffect, useState } from "react";
 import {
   canNavigateBack,
@@ -29,7 +29,6 @@ import {
 } from "../utils/writingQuotes";
 
 const TitleBar = () => {
-  const modal = useModal();
   const {
     projectName,
     wordCount,
@@ -48,6 +47,10 @@ const TitleBar = () => {
   const navigate = useNavigate();
   const navigationType = useNavigationType();
   const pathname = location.pathname;
+  const isProjectRoute = pathname.startsWith("/projects/");
+  const isPublishRoute = pathname.endsWith("/publish");
+  const isArtifactsRoute = pathname.endsWith("/artifacts");
+  const isEditorRoute = isProjectRoute && !isPublishRoute && !isArtifactsRoute;
   const [navigationHistory, setNavigationHistory] = useState(() =>
     createNavigationHistory(location.key),
   );
@@ -175,84 +178,104 @@ const TitleBar = () => {
       )}
 
       {/* Render project-related info if not on the home page */}
-      {pathname !== "/" && !isLoading && projectName && (
+      {pathname !== "/" && projectName && (
         <>
           <h2 className="text-lg font-semibold futuristic-font truncate min-w-0">
             <span style={{ color: "var(--text-primary)" }}>
               {decodeURIComponent(projectName)}
             </span>
           </h2>
-          <button
-            onClick={() => setIsSearchOpen(true)}
-            className="p-1 rounded transition-colors shrink-0"
-            style={
-              {
-                color: "var(--text-secondary)",
-                WebkitAppRegion: "no-drag",
-                cursor: "pointer",
-              } as React.CSSProperties
-            }
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.color = "var(--accent)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.color = "var(--text-secondary)")
-            }
-            aria-label="Search & Replace"
-            title="Search & Replace (Ctrl+Shift+F)"
-          >
-            <FiSearch size={14} />
-          </button>
-          <div className="text-sm flex items-center space-x-2 shrink-0">
-            {isBackingUp ? (
-              <span style={{ color: "var(--text-muted)" }}>Backing up...</span>
-            ) : lastBackupTime ? (
-              <>
-                <span style={{ color: "var(--text-secondary)" }}>
-                  Backed up at {formatDateTime(lastBackupTime)}
+          {!isLoading && isEditorRoute && (
+            <>
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="p-1 rounded transition-colors shrink-0"
+                style={
+                  {
+                    color: "var(--text-secondary)",
+                    WebkitAppRegion: "no-drag",
+                    cursor: "pointer",
+                  } as React.CSSProperties
+                }
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = "var(--accent)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = "var(--text-secondary)")
+                }
+                aria-label="Search & Replace"
+                title="Search & Replace (Ctrl+Shift+F)"
+              >
+                <FiSearch size={14} />
+              </button>
+              <div className="text-sm flex items-center space-x-2 shrink-0">
+                {isBackingUp ? (
+                  <span style={{ color: "var(--text-muted)" }}>
+                    Backing up...
+                  </span>
+                ) : lastBackupTime ? (
+                  <>
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      Backed up at {formatDateTime(lastBackupTime)}
+                    </span>
+                    <FiCheckCircle style={{ color: "var(--btn-success)" }} />
+                  </>
+                ) : (
+                  <span style={{ color: "var(--btn-danger)" }}>
+                    No backups yet
+                  </span>
+                )}
+              </div>
+              {wordCount !== null && (
+                <span
+                  className="shrink-0"
+                  style={{ color: "var(--btn-primary)" }}
+                >
+                  {wordCount} words
                 </span>
-                <FiCheckCircle style={{ color: "var(--btn-success)" }} />
-              </>
-            ) : (
-              <span style={{ color: "var(--btn-danger)" }}>No backups yet</span>
-            )}
-          </div>
-          {wordCount !== null && (
-            <span className="shrink-0" style={{ color: "var(--btn-primary)" }}>
-              {wordCount} words
-            </span>
+              )}
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              modal.renderModal({
-                modalBody: <ExportModal />,
-                modalSize: "wide",
-              });
-            }}
-            className="h-6 px-2 ml-3 mr-4 rounded flex items-center gap-1 text-xs font-semibold transition-colors shrink-0"
-            style={
-              {
-                color: "var(--text-primary)",
-                background: "transparent",
-                WebkitAppRegion: "no-drag",
-                cursor: "pointer",
-              } as React.CSSProperties
-            }
-            onMouseEnter={(event) =>
-              (event.currentTarget.style.background = "var(--bg-hover)")
-            }
-            onMouseLeave={(event) =>
-              (event.currentTarget.style.background = "transparent")
-            }
-            aria-label="Publish project"
-            title="Publish project"
-          >
-            <span aria-hidden="true" className="text-sm leading-none">
-              🚀
-            </span>
-            <span>Publish</span>
-          </button>
+          {isProjectRoute && (
+            <div className="ml-3 mr-4 flex items-center gap-1">
+              {!isEditorRoute && (
+                <TitleBarRouteButton
+                  label="Editor"
+                  title="Editor"
+                  ariaLabel="Open editor"
+                  icon={<FiEdit3 size={12} />}
+                  onClick={() => {
+                    const encoded = encodeURIComponent(projectName);
+                    navigate(`/projects/${encoded}`);
+                  }}
+                />
+              )}
+              {!isPublishRoute && (
+                <TitleBarRouteButton
+                  label="Publish"
+                  title="Publish project"
+                  ariaLabel="Open publish page"
+                  icon={<span aria-hidden="true">🚀</span>}
+                  onClick={() => {
+                    const encoded = encodeURIComponent(projectName);
+                    navigate(`/projects/${encoded}/publish`);
+                  }}
+                />
+              )}
+              {!isArtifactsRoute && (
+                <TitleBarRouteButton
+                  label="Artifacts"
+                  title="Artifacts"
+                  ariaLabel="Open artifact history"
+                  icon={<FiArchive size={12} />}
+                  onClick={() => {
+                    const encoded = encodeURIComponent(projectName);
+                    navigate(`/projects/${encoded}/artifacts`);
+                  }}
+                />
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -307,5 +330,46 @@ const TitleBar = () => {
     </div>
   );
 };
+
+function TitleBarRouteButton({
+  label,
+  title,
+  ariaLabel,
+  icon,
+  onClick,
+}: {
+  label: string;
+  title: string;
+  ariaLabel: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-6 px-2 rounded flex items-center gap-1 text-xs font-semibold transition-colors shrink-0"
+      style={
+        {
+          color: "var(--text-primary)",
+          background: "transparent",
+          WebkitAppRegion: "no-drag",
+          cursor: "pointer",
+        } as React.CSSProperties
+      }
+      onMouseEnter={(event) =>
+        (event.currentTarget.style.background = "var(--bg-hover)")
+      }
+      onMouseLeave={(event) =>
+        (event.currentTarget.style.background = "transparent")
+      }
+      aria-label={ariaLabel}
+      title={title}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
 
 export default TitleBar;

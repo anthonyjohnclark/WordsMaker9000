@@ -30,8 +30,10 @@ function App({ initialSettings }: AppProps) {
                 }}
               >
                 <Routes>
-                  {" "}
-                  <Route path="/projects/:projectName" element={<Project />} />
+                  <Route
+                    path="/projects/:projectName/*"
+                    element={<Project />}
+                  />
                   <Route path="/" element={<Home />} />
                 </Routes>
               </main>

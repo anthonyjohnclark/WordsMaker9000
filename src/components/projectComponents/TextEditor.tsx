@@ -61,6 +61,7 @@ Quill.register(FootnoteDefinitionBlot, true);
 type TextEditorProps = {
   selectedFile: ExtendedNodeModel | null;
   isDrawerExpanded: boolean;
+  isActive?: boolean;
 };
 
 const getEditorBackgroundRgba = (): [number, number, number, number] => {
@@ -78,6 +79,7 @@ const getEditorBackgroundRgba = (): [number, number, number, number] => {
 const TextEditor: React.FC<TextEditorProps> = ({
   selectedFile,
   isDrawerExpanded,
+  isActive = true,
 }) => {
   const { settings } = useUserSettings();
   const { content, setContent } = useEditorContext();
@@ -100,7 +102,9 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const quillRef = useRef<ReactQuill | null>(null);
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const findBarSlotRef = useRef<HTMLDivElement | null>(null);
-  const imageSelectionRef = useRef<{ index: number; length: number } | null>(null);
+  const imageSelectionRef = useRef<{ index: number; length: number } | null>(
+    null,
+  );
   const openProjectImageRef = useRef<() => void>(() => undefined);
   const openFootnotesRef = useRef<() => void>(() => undefined);
   const fullscreenTransitionRef = useRef(false);
@@ -174,6 +178,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
   }, [content]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     const handleSaveShortcut = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key === "s") {
         event.preventDefault();
@@ -185,7 +191,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleSaveShortcut);
     };
-  }, [content, selectedFile]);
+  }, [content, isActive, selectedFile]);
 
   const toggleFullScreen = useCallback(async () => {
     if (fullscreenTransitionRef.current) return;
@@ -243,6 +249,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
   }, [showError]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     const handleFullScreenShortcut = (event: KeyboardEvent) => {
       if (event.key !== "F11") return;
 
@@ -256,7 +264,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     return () => {
       window.removeEventListener("keydown", handleFullScreenShortcut);
     };
-  }, [toggleFullScreen]);
+  }, [isActive, toggleFullScreen]);
 
   useEffect(() => {
     const defaultContainer =
@@ -284,11 +292,13 @@ const TextEditor: React.FC<TextEditorProps> = ({
   };
 
   useEffect(() => {
+    if (!isActive) return;
+
     window.addEventListener("wheel", handleWheelZoom, { passive: false });
     return () => {
       window.removeEventListener("wheel", handleWheelZoom);
     };
-  }, [fontSize]);
+  }, [fontSize, isActive]);
 
   const modules = useMemo(() => {
     return {
@@ -341,6 +351,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   }, [fontSize]);
 
   const handleContentChange = (newContent: string) => {
+    if (!isActive) return;
     setContent(newContent); // Save raw content without processing
   };
 
@@ -349,6 +360,11 @@ const TextEditor: React.FC<TextEditorProps> = ({
   const dictionaryEnabled = settings?.dictionaryEnabled ?? true;
 
   useEffect(() => {
+    if (!isActive) {
+      setDefineButton(null);
+      return;
+    }
+
     if (!dictionaryEnabled) {
       setDefineButton(null);
       return;
@@ -397,11 +413,12 @@ const TextEditor: React.FC<TextEditorProps> = ({
     document.addEventListener("selectionchange", handleSelectionChange);
     return () =>
       document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [dictionaryEnabled]);
+  }, [dictionaryEnabled, isActive]);
 
   // Keep the Define button anchored to the word while scrolling; hide it once
   // the selection scrolls out of the editor's visible area.
   useEffect(() => {
+    if (!isActive) return;
     if (!defineButton) return;
 
     const reposition = () => {
@@ -427,7 +444,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
     // Capture so scrolls from any inner container (e.g. .ql-editor) are caught.
     window.addEventListener("scroll", reposition, true);
     return () => window.removeEventListener("scroll", reposition, true);
-  }, [defineButton?.word]);
+  }, [defineButton?.word, isActive]);
 
   const handleDefine = () => {
     if (!defineButton) return;
@@ -485,6 +502,8 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   // Open with Ctrl+F, prefilling a single-word selection when present.
   useEffect(() => {
+    if (!isActive) return;
+
     const handler = (event: KeyboardEvent) => {
       if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "f") {
         event.preventDefault();
@@ -506,11 +525,12 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isFindOpen]);
+  }, [isActive, isFindOpen]);
 
   // While open: Enter/Shift+Enter navigate, Escape closes. Global so it works
   // regardless of whether focus is in the find input or the editor.
   useEffect(() => {
+    if (!isActive) return;
     if (!isFindOpen) return;
     const handler = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -530,7 +550,13 @@ const TextEditor: React.FC<TextEditorProps> = ({
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [isFindOpen, nextMatch, prevMatch]);
+  }, [isActive, isFindOpen, nextMatch, prevMatch]);
+
+  useEffect(() => {
+    if (isActive) return;
+    setIsFindOpen(false);
+    setDefineButton(null);
+  }, [isActive]);
 
   const handleSave = () => {
     if (content) {
@@ -615,7 +641,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
       )}
 
       <FiSave
-        onClick={handleSave}
+        onClick={isActive ? handleSave : undefined}
         className="save-icon absolute top-2 right-7 cursor-pointer text-2xl"
         style={{ color: "var(--accent)" }}
         title="Save"
@@ -632,6 +658,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
         ref={quillRef}
         value={content}
         onChange={handleContentChange}
+        readOnly={!isActive}
         style={{
           height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
           fontFamily: "var(--editor-font-family)",

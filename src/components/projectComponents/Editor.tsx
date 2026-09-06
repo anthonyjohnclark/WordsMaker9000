@@ -6,7 +6,9 @@ import Loadable from "../Loadable";
 import BottomDrawer from "./BottomDrawer";
 import TextEditor from "./TextEditor";
 
-const Editor: React.FC = () => {
+const EditorView: React.FC<{ isEditorActive?: boolean }> = ({
+  isEditorActive = true,
+}) => {
   const project = useProjectContext();
   const [drawerHeight, setDrawerHeight] = useState(48);
 
@@ -15,7 +17,7 @@ const Editor: React.FC = () => {
   };
 
   return (
-    <EditorProvider>
+    <EditorProvider isActive={isEditorActive}>
       <Loadable isLoading={project.isEditorLoading}>
         <div className="relative flex flex-col h-full">
           {/* Header */}
@@ -52,6 +54,7 @@ const Editor: React.FC = () => {
                 key={project.selectedFile?.id}
                 selectedFile={project.selectedFile}
                 isDrawerExpanded={drawerHeight > 48} // Example condition
+                isActive={isEditorActive}
               />
             </div>
           </div>
@@ -62,4 +65,4 @@ const Editor: React.FC = () => {
   );
 };
 
-export default Editor;
+export default EditorView;

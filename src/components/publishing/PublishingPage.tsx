@@ -11,11 +11,11 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { v4 as uuidv4 } from "uuid";
+import Loader from "../Loader";
 
-import { useProjectContext } from "../../../contexts/pages/ProjectProvider";
-import { useModal } from "../../../contexts/global/ModalContext";
-import { useErrorContext } from "../../../contexts/global/ErrorContext";
-import { prepareAndPublishProject } from "../../../utils/publishPreparation";
+import { useProjectContext } from "../../contexts/pages/ProjectProvider";
+import { useErrorContext } from "../../contexts/global/ErrorContext";
+import { prepareAndPublishProject } from "../../utils/publishPreparation";
 import {
   defaultMasterPageSelection,
   defaultMatterTemplateVariables,
@@ -37,7 +37,7 @@ import {
   progressForExport,
   selectionForScope,
   scopeForSelection,
-} from "../../../utils/publishingForm";
+} from "../../utils/publishingForm";
 import type {
   Diagnostic,
   DocxProfileId,
@@ -62,7 +62,7 @@ import type {
   PublishResult,
   SavedPublishingProfile,
   SectionRole,
-} from "../../../types/PublishingTypes";
+} from "../../types/PublishingTypes";
 
 const emptyMetadata = (title: string): PublishingMetadata => ({
   title,
@@ -93,9 +93,18 @@ const roles: SectionRole[] = [
   "unassigned",
 ];
 
-export const ExportModal = () => {
+type PublishingPageProps = {
+  onNavigateEditor?: () => void;
+  onOpenArtifactHistory?: () => void;
+  onPublishComplete?: () => void;
+};
+
+export const PublishingPage = ({
+  onNavigateEditor,
+  onOpenArtifactHistory,
+  onPublishComplete,
+}: PublishingPageProps = {}) => {
   const project = useProjectContext();
-  const modal = useModal();
   const { showError } = useErrorContext();
 
   const [setup, setSetup] = useState<PublishingSetup | null>(null);
@@ -103,18 +112,16 @@ export const ExportModal = () => {
     emptyMetadata(project.projectMetadata.projectName || ""),
   );
   const [format, setFormat] = useState<PublishFormat>("pdf");
-  const [pdfProfileId, setPdfProfileId] =
-    useState<PdfProfileId>("proof_pdf");
+  const [pdfProfileId, setPdfProfileId] = useState<PdfProfileId>("proof_pdf");
   const [printInteriorSettings, setPrintInteriorSettings] =
-    useState<PrintInteriorPdfSettings>(() =>
-      defaultPrintInteriorPdfSettings(),
-    );
+    useState<PrintInteriorPdfSettings>(() => defaultPrintInteriorPdfSettings());
   const [largePrintSettings, setLargePrintSettings] =
     useState<LargePrintPdfSettings>(() => defaultLargePrintPdfSettings());
   const [hardcoverSettings, setHardcoverSettings] =
     useState<HardcoverPdfSettings>(() => defaultHardcoverPdfSettings());
-  const [docxProfileId, setDocxProfileId] =
-    useState<DocxProfileId>("standard_manuscript");
+  const [docxProfileId, setDocxProfileId] = useState<DocxProfileId>(
+    "standard_manuscript",
+  );
   const [matterTemplates, setMatterTemplates] = useState<
     MatterTemplateSelection[]
   >([]);
@@ -135,6 +142,8 @@ export const ExportModal = () => {
   const [isSetupLoading, setIsSetupLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [setupAttempt, setSetupAttempt] = useState(0);
   const [cancellationNotice, setCancellationNotice] = useState("");
   const [result, setResult] = useState<PublishResult | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -142,18 +151,30 @@ export const ExportModal = () => {
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const currentExportIdRef = useRef<string | null>(null);
   const cancelRequestedRef = useRef(false);
-  const setupStartedRef = useRef(false);
+  const setupRunIdRef = useRef(0);
 
   useEffect(() => {
-    if (setupStartedRef.current) return;
-    setupStartedRef.current = true;
+    if (project.isProjectPageLoading) {
+      return;
+    }
+
+    let isDisposed = false;
+    const runId = ++setupRunIdRef.current;
+    setIsSetupLoading(true);
+    setSetupError(null);
 
     const loadSetup = async () => {
+      const minLoaderDelay = new Promise<void>((resolve) => {
+        setTimeout(resolve, 1000);
+      });
+
       try {
         await project.flushProjectSnapshot();
         const loaded = await invoke<PublishingSetup>("get_publishing_setup", {
           projectName: decodeURIComponent(project.projectName),
         });
+        await minLoaderDelay;
+        if (isDisposed || runId !== setupRunIdRef.current) return;
         setSetup(loaded);
         setMetadata({
           ...emptyMetadata(project.projectMetadata.projectName || ""),
@@ -171,7 +192,7 @@ export const ExportModal = () => {
         setMatterTemplates(loaded.config.matter_templates ?? []);
         setMasterPage(
           loaded.config.default_profile_by_format.pdf === "print_interior"
-            ? loaded.config.master_page ?? defaultMasterPageSelection()
+            ? (loaded.config.master_page ?? defaultMasterPageSelection())
             : defaultMasterPageSelection(),
         );
         setOutlineConfirmed(loaded.config.project_type_strategy.confirmed);
@@ -196,26 +217,33 @@ export const ExportModal = () => {
           setDocxProfileId("clean_handoff");
         }
       } catch (error) {
+        await minLoaderDelay;
+        if (isDisposed || runId !== setupRunIdRef.current) return;
         const parsed = parsePublishFailure(error);
-        modal.handleClose();
-        showError(
-          formatPublishFailure(parsed),
-          "loading publishing settings",
-        );
+        setSetupError(formatPublishFailure(parsed));
       } finally {
+        if (isDisposed || runId !== setupRunIdRef.current) return;
         setIsSetupLoading(false);
       }
     };
 
-    void loadSetup();
+    // Defer one tick so React StrictMode's throwaway effect cleanup can cancel
+    // the first pass before we perform side effects.
+    const deferredStart = setTimeout(() => {
+      if (!isDisposed) {
+        void loadSetup();
+      }
+    }, 0);
+
     return () => {
+      isDisposed = true;
+      clearTimeout(deferredStart);
       unlistenRef.current?.();
     };
   }, [
-    project.flushProjectSnapshot,
-    project.projectMetadata.projectName,
+    project.isProjectPageLoading,
     project.projectName,
-    modal.handleClose,
+    setupAttempt,
     showError,
   ]);
 
@@ -311,13 +339,10 @@ export const ExportModal = () => {
     setIsSavingProfile(true);
     try {
       const id = selectedSavedProfileId || uuidv4();
-      const config = await invoke<PublishingConfig>(
-        "save_publishing_profile",
-        {
-          projectName: decodeURIComponent(project.projectName),
-          profile: { id, name, recipe },
-        },
-      );
+      const config = await invoke<PublishingConfig>("save_publishing_profile", {
+        projectName: decodeURIComponent(project.projectName),
+        profile: { id, name, recipe },
+      });
       replaceSetupConfig(config);
       const persisted = config.saved_profiles.find(
         (profile) => profile.id === id,
@@ -493,6 +518,7 @@ export const ExportModal = () => {
         },
       );
       setResult(publishResult);
+      onPublishComplete?.();
     } catch (error) {
       const parsed = parsePublishFailure(error);
       if (
@@ -547,12 +573,53 @@ export const ExportModal = () => {
   };
 
   if (isSetupLoading) {
-    return <StatusPanel title="Preparing publishing…" message="Saving and loading the project outline." />;
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader />
+      </div>
+    );
+  }
+
+  if (setupError) {
+    return (
+      <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4">
+        <h2
+          className="text-lg font-bold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Preparing publishing failed
+        </h2>
+        <p className="text-sm" style={{ color: "var(--btn-danger)" }}>
+          {setupError}
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setSetupAttempt((value) => value + 1)}
+            className="px-4 py-2 rounded border input-button"
+            style={inputStyle}
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={onNavigateEditor}
+            className="px-4 py-2 rounded"
+            style={{
+              background: "var(--btn-primary)",
+              color: "var(--btn-text)",
+            }}
+          >
+            Editor
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (result) {
     return (
-      <div className="publish-modal flex flex-col gap-4">
+      <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4">
         <h2
           className="text-lg font-bold flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
@@ -577,11 +644,21 @@ export const ExportModal = () => {
         )}
         <div className="flex justify-end gap-4">
           <button
-            onClick={modal.handleClose}
+            onClick={() => {
+              setResult(null);
+              setPreviewOpen(false);
+            }}
             className="px-4 py-2 rounded border input-button"
             style={inputStyle}
           >
-            Done
+            New Publish
+          </button>
+          <button
+            onClick={onOpenArtifactHistory}
+            className="px-4 py-2 rounded border input-button"
+            style={inputStyle}
+          >
+            Artifact History
           </button>
           {format === "pdf" && (
             <button
@@ -617,7 +694,7 @@ export const ExportModal = () => {
         ? Math.round((progress.current / progress.total) * 100)
         : 0;
     return (
-      <div className="publish-modal flex flex-col gap-4">
+      <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4">
         <h2
           className="text-lg font-bold flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
@@ -642,7 +719,10 @@ export const ExportModal = () => {
             }}
           />
         </div>
-        <p className="text-xs text-right" style={{ color: "var(--text-secondary)" }}>
+        <p
+          className="text-xs text-right"
+          style={{ color: "var(--text-secondary)" }}
+        >
           {percent}%
         </p>
         <div className="flex justify-end">
@@ -732,7 +812,7 @@ export const ExportModal = () => {
   }
 
   return (
-    <div className="publish-modal flex flex-col gap-4 max-h-[75vh] overflow-y-auto pr-1">
+    <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4 h-full overflow-y-auto pr-1 pb-6">
       <h2
         className="text-lg font-bold flex items-center gap-2"
         style={{ color: "var(--text-primary)" }}
@@ -827,9 +907,8 @@ export const ExportModal = () => {
           </button>
         </div>
         <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-          {profileSummary(format, pdfProfileId, docxProfileId)}. Named
-          workflows preserve metadata, scope, outline roles, and format
-          settings.
+          {profileSummary(format, pdfProfileId, docxProfileId)}. Named workflows
+          preserve metadata, scope, outline roles, and format settings.
         </p>
       </div>
 
@@ -863,305 +942,329 @@ export const ExportModal = () => {
         </summary>
         <div className="grid gap-4 mt-4">
           <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            Fields marked{" "}
-            <span style={{ color: "var(--btn-danger)" }}>*</span> are required.
+            Fields marked <span style={{ color: "var(--btn-danger)" }}>*</span>{" "}
+            are required.
           </p>
 
-      <Field label="Title" required>
-        <input
-          value={metadata.title}
-          onChange={(event) =>
-            setMetadata({ ...metadata, title: event.target.value })
-          }
-          className="border rounded w-full p-2 focus:outline-none"
-          style={inputStyle}
-          required
-        />
-      </Field>
-      <Field label="Subtitle (optional)">
-        <input
-          value={metadata.subtitle ?? ""}
-          onChange={(event) =>
-            setMetadata({ ...metadata, subtitle: event.target.value })
-          }
-          className="border rounded w-full p-2 focus:outline-none"
-          style={inputStyle}
-        />
-      </Field>
-      <Field label="Author" required>
-        <input
-          value={metadata.author}
-          onChange={(event) => {
-            const author = event.target.value;
-            setMetadata({
-              ...metadata,
-              author,
-              contact: {
-                ...metadata.contact,
-                author_name: metadata.contact.author_name || author,
-              },
-            });
-          }}
-          className="border rounded w-full p-2 focus:outline-none"
-          style={inputStyle}
-          required
-        />
-      </Field>
-
-      {format === "pdf" && (
-        <>
-          <Field label="PDF profile">
-            <select
-              value={pdfProfileId}
-              onChange={(event) => {
-                const profile = event.target.value as PdfProfileId;
-                setPdfProfileId(profile);
-                if (profile === "print_interior") {
-                  setMasterPage(
-                    setup.config.master_page ?? defaultMasterPageSelection(),
-                  );
-                } else {
-                  setMasterPage(defaultMasterPageSelection());
-                }
-              }}
-              className="border rounded w-full p-2"
+          <Field label="Title" required>
+            <input
+              value={metadata.title}
+              onChange={(event) =>
+                setMetadata({ ...metadata, title: event.target.value })
+              }
+              className="border rounded w-full p-2 focus:outline-none"
               style={inputStyle}
-            >
-              <option value="proof_pdf">Proof PDF</option>
-              <option value="print_interior">Print Interior PDF</option>
-              <option value="large_print">Large Print PDF</option>
-              <option value="hardcover">Hardcover PDF</option>
-            </select>
+              required
+            />
           </Field>
-          {pdfProfileId === "print_interior" && (
+          <Field label="Subtitle (optional)">
+            <input
+              value={metadata.subtitle ?? ""}
+              onChange={(event) =>
+                setMetadata({ ...metadata, subtitle: event.target.value })
+              }
+              className="border rounded w-full p-2 focus:outline-none"
+              style={inputStyle}
+            />
+          </Field>
+          <Field label="Author" required>
+            <input
+              value={metadata.author}
+              onChange={(event) => {
+                const author = event.target.value;
+                setMetadata({
+                  ...metadata,
+                  author,
+                  contact: {
+                    ...metadata.contact,
+                    author_name: metadata.contact.author_name || author,
+                  },
+                });
+              }}
+              className="border rounded w-full p-2 focus:outline-none"
+              style={inputStyle}
+              required
+            />
+          </Field>
+
+          {format === "pdf" && (
             <>
-              <Field label="Master page">
+              <Field label="PDF profile">
                 <select
-                  value={`${masterPage.template_id}@${masterPage.template_version}`}
+                  value={pdfProfileId}
                   onChange={(event) => {
-                    const definition = setup.master_page_catalog.find(
-                      (candidate) =>
-                        `${candidate.id}@${candidate.version}` ===
-                        event.target.value,
-                    );
-                    if (!definition) return;
-                    setMasterPage({
-                      template_id: definition.id,
-                      template_version: definition.version,
-                    });
-                    if (definition.settings) {
-                      setPrintInteriorSettings({
-                        ...printInteriorSettings,
-                        ...definition.settings,
-                      });
+                    const profile = event.target.value as PdfProfileId;
+                    setPdfProfileId(profile);
+                    if (profile === "print_interior") {
+                      setMasterPage(
+                        setup.config.master_page ??
+                          defaultMasterPageSelection(),
+                      );
+                    } else {
+                      setMasterPage(defaultMasterPageSelection());
                     }
                   }}
                   className="border rounded w-full p-2"
                   style={inputStyle}
                 >
-                  {setup.master_page_catalog.map((definition) => (
-                    <option
-                      key={`${definition.id}@${definition.version}`}
-                      value={`${definition.id}@${definition.version}`}
-                    >
-                      {definition.label} (v{definition.version})
-                    </option>
-                  ))}
+                  <option value="proof_pdf">Proof PDF</option>
+                  <option value="print_interior">Print Interior PDF</option>
+                  <option value="large_print">Large Print PDF</option>
+                  <option value="hardcover">Hardcover PDF</option>
                 </select>
               </Field>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                {
-                  setup.master_page_catalog.find(
-                    (definition) =>
-                      definition.id === masterPage.template_id &&
-                      definition.version === masterPage.template_version,
-                  )?.description
-                }
-              </p>
-              <PrintInteriorFields
-                settings={printInteriorSettings}
-                onChange={(settings) => {
-                  setPrintInteriorSettings(settings);
-                  setMasterPage(defaultMasterPageSelection());
-                }}
-                errors={printSettingsErrors}
-              />
+              {pdfProfileId === "print_interior" && (
+                <>
+                  <Field label="Master page">
+                    <select
+                      value={`${masterPage.template_id}@${masterPage.template_version}`}
+                      onChange={(event) => {
+                        const definition = setup.master_page_catalog.find(
+                          (candidate) =>
+                            `${candidate.id}@${candidate.version}` ===
+                            event.target.value,
+                        );
+                        if (!definition) return;
+                        setMasterPage({
+                          template_id: definition.id,
+                          template_version: definition.version,
+                        });
+                        if (definition.settings) {
+                          setPrintInteriorSettings({
+                            ...printInteriorSettings,
+                            ...definition.settings,
+                          });
+                        }
+                      }}
+                      className="border rounded w-full p-2"
+                      style={inputStyle}
+                    >
+                      {setup.master_page_catalog.map((definition) => (
+                        <option
+                          key={`${definition.id}@${definition.version}`}
+                          value={`${definition.id}@${definition.version}`}
+                        >
+                          {definition.label} (v{definition.version})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {
+                      setup.master_page_catalog.find(
+                        (definition) =>
+                          definition.id === masterPage.template_id &&
+                          definition.version === masterPage.template_version,
+                      )?.description
+                    }
+                  </p>
+                  <PrintInteriorFields
+                    settings={printInteriorSettings}
+                    onChange={(settings) => {
+                      setPrintInteriorSettings(settings);
+                      setMasterPage(defaultMasterPageSelection());
+                    }}
+                    errors={printSettingsErrors}
+                  />
+                </>
+              )}
+              {pdfProfileId === "large_print" && (
+                <LargePrintFields
+                  settings={largePrintSettings}
+                  onChange={setLargePrintSettings}
+                  errors={printSettingsErrors}
+                />
+              )}
+              {pdfProfileId === "hardcover" && (
+                <HardcoverFields
+                  settings={hardcoverSettings}
+                  onChange={setHardcoverSettings}
+                  errors={printSettingsErrors}
+                />
+              )}
             </>
           )}
-          {pdfProfileId === "large_print" && (
-            <LargePrintFields
-              settings={largePrintSettings}
-              onChange={setLargePrintSettings}
-              errors={printSettingsErrors}
-            />
-          )}
-          {pdfProfileId === "hardcover" && (
-            <HardcoverFields
-              settings={hardcoverSettings}
-              onChange={setHardcoverSettings}
-              errors={printSettingsErrors}
-            />
-          )}
-        </>
-      )}
 
-      {format === "docx" && (
-        <>
-          <Field label="DOCX profile">
+          {format === "docx" && (
+            <>
+              <Field label="DOCX profile">
+                <select
+                  value={docxProfileId}
+                  onChange={(event) =>
+                    setDocxProfileId(event.target.value as DocxProfileId)
+                  }
+                  className="border rounded w-full p-2"
+                  style={inputStyle}
+                >
+                  <option value="standard_manuscript">
+                    Standard Manuscript
+                  </option>
+                  <option value="clean_handoff">Clean Handoff</option>
+                </select>
+              </Field>
+              <ContactFields metadata={metadata} onChange={setMetadata} />
+            </>
+          )}
+
+          {format === "epub" && (
+            <EbookFields
+              metadata={metadata}
+              onChange={setMetadata}
+              onChooseCover={handleChooseCover}
+            />
+          )}
+
+          <Field label="Publication scope">
             <select
-              value={docxProfileId}
-              onChange={(event) =>
-                setDocxProfileId(event.target.value as DocxProfileId)
-              }
+              value={scopeMode}
+              onChange={(event) => {
+                setScopeMode(event.target.value);
+                setSelectedNodeId(null);
+              }}
               className="border rounded w-full p-2"
               style={inputStyle}
             >
-              <option value="standard_manuscript">Standard Manuscript</option>
-              <option value="clean_handoff">Clean Handoff</option>
+              <option value="full_project">Full project</option>
+              <option value="selected_nodes">Selected section</option>
+              {setup.project_type === "collection" && (
+                <option value="single_work">Single work</option>
+              )}
+              {setup.project_type === "serial" && (
+                <option value="single_installment">Single installment</option>
+              )}
+              {flattenOutline(setup.outline).some(
+                (node) => outlineNodeRole(node, nodeOverrides) === "volume",
+              ) && <option value="volume">Single volume</option>}
             </select>
           </Field>
-          <ContactFields metadata={metadata} onChange={setMetadata} />
-        </>
-      )}
 
-      {format === "epub" && (
-        <EbookFields
-          metadata={metadata}
-          onChange={setMetadata}
-          onChooseCover={handleChooseCover}
-        />
-      )}
-
-      <Field label="Publication scope">
-        <select
-          value={scopeMode}
-          onChange={(event) => {
-            setScopeMode(event.target.value);
-            setSelectedNodeId(null);
-          }}
-          className="border rounded w-full p-2"
-          style={inputStyle}
-        >
-          <option value="full_project">Full project</option>
-          <option value="selected_nodes">Selected section</option>
-          {setup.project_type === "collection" && (
-            <option value="single_work">Single work</option>
+          {scopeMode !== "full_project" && (
+            <Field label="Included item" required>
+              <select
+                value={selectedNodeId ?? ""}
+                onChange={(event) =>
+                  setSelectedNodeId(
+                    event.target.value ? Number(event.target.value) : null,
+                  )
+                }
+                className="border rounded w-full p-2"
+                style={inputStyle}
+                required
+              >
+                <option value="">Choose an item…</option>
+                {selectableNodes.map((node) => (
+                  <option key={node.id} value={node.id}>
+                    {node.title || `Node ${node.id}`}
+                  </option>
+                ))}
+              </select>
+            </Field>
           )}
-          {setup.project_type === "serial" && (
-            <option value="single_installment">Single installment</option>
-          )}
-          {flattenOutline(setup.outline).some(
-            (node) => outlineNodeRole(node, nodeOverrides) === "volume",
-          ) && <option value="volume">Single volume</option>}
-        </select>
-      </Field>
 
-      {scopeMode !== "full_project" && (
-        <Field label="Included item" required>
-          <select
-            value={selectedNodeId ?? ""}
-            onChange={(event) =>
-              setSelectedNodeId(
-                event.target.value ? Number(event.target.value) : null,
-              )
-            }
-            className="border rounded w-full p-2"
+          <button
+            type="button"
+            onClick={() => setOutlineOpen((open) => !open)}
+            className="flex items-center justify-between rounded border p-2 text-left"
             style={inputStyle}
-            required
           >
-            <option value="">Choose an item…</option>
-            {selectableNodes.map((node) => (
-              <option key={node.id} value={node.id}>
-                {node.title || `Node ${node.id}`}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setOutlineOpen((open) => !open)}
-        className="flex items-center justify-between rounded border p-2 text-left"
-        style={inputStyle}
-      >
-        <span>
-          <span className="font-medium">Outline and roles</span>
-          <span className="block text-xs" style={{ color: "var(--text-secondary)" }}>
-            Review inferred structure and exclusions
-          </span>
-        </span>
-        <FiChevronDown
-          style={{ transform: outlineOpen ? "rotate(180deg)" : undefined }}
-        />
-      </button>
-      {outlineOpen && (
-        <div className="rounded border p-2" style={{ borderColor: "var(--border-color)" }}>
-          {displayedOutline.map((node) => (
-            <OutlineRow
-              key={`${node.id ?? "matter"}-${node.title ?? node.role}`}
-              node={node}
-              depth={0}
-              overrides={nodeOverrides}
-              onChange={setNodeOverrides}
+            <span>
+              <span className="font-medium">Outline and roles</span>
+              <span
+                className="block text-xs"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Review inferred structure and exclusions
+              </span>
+            </span>
+            <FiChevronDown
+              style={{ transform: outlineOpen ? "rotate(180deg)" : undefined }}
             />
-          ))}
-        </div>
-      )}
+          </button>
+          {outlineOpen && (
+            <div
+              className="rounded border p-2"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              {displayedOutline.map((node) => (
+                <OutlineRow
+                  key={`${node.id ?? "matter"}-${node.title ?? node.role}`}
+                  node={node}
+                  depth={0}
+                  overrides={nodeOverrides}
+                  onChange={setNodeOverrides}
+                />
+              ))}
+            </div>
+          )}
 
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={outlineConfirmed}
-          onChange={(event) => setOutlineConfirmed(event.target.checked)}
-          className="mt-1"
-          required
-        />
-        <span>
-          I reviewed and confirm this publishing outline.{" "}
-          <span style={{ color: "var(--btn-danger)" }}>*</span>
-          <span className="block text-xs" style={{ color: "var(--text-secondary)" }}>
-            Confirmation and role overrides are saved with the project.
-          </span>
-        </span>
-      </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={outlineConfirmed}
+              onChange={(event) => setOutlineConfirmed(event.target.checked)}
+              className="mt-1"
+              required
+            />
+            <span>
+              I reviewed and confirm this publishing outline.{" "}
+              <span style={{ color: "var(--btn-danger)" }}>*</span>
+              <span
+                className="block text-xs"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Confirmation and role overrides are saved with the project.
+              </span>
+            </span>
+          </label>
 
-      <details>
-        <summary className="text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-          Front and back matter
-        </summary>
-        <div className="grid gap-3 mt-2">
-          <MatterTemplateFields
-            catalog={setup.matter_template_catalog}
-            selections={matterTemplates}
-            metadata={metadata}
-            errors={templateErrors}
-            onChange={setMatterTemplates}
-          />
-          <Field label="Front matter (optional)">
-            <textarea
-              value={metadata.front_matter ?? ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, front_matter: event.target.value })
-              }
-              rows={2}
-              className="border rounded w-full p-2 resize-y"
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="Back matter (optional)">
-            <textarea
-              value={metadata.back_matter ?? ""}
-              onChange={(event) =>
-                setMetadata({ ...metadata, back_matter: event.target.value })
-              }
-              rows={2}
-              className="border rounded w-full p-2 resize-y"
-              style={inputStyle}
-            />
-          </Field>
-        </div>
-      </details>
+          <details>
+            <summary
+              className="text-sm cursor-pointer"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Front and back matter
+            </summary>
+            <div className="grid gap-3 mt-2">
+              <MatterTemplateFields
+                catalog={setup.matter_template_catalog}
+                selections={matterTemplates}
+                metadata={metadata}
+                errors={templateErrors}
+                onChange={setMatterTemplates}
+              />
+              <Field label="Front matter (optional)">
+                <textarea
+                  value={metadata.front_matter ?? ""}
+                  onChange={(event) =>
+                    setMetadata({
+                      ...metadata,
+                      front_matter: event.target.value,
+                    })
+                  }
+                  rows={2}
+                  className="border rounded w-full p-2 resize-y"
+                  style={inputStyle}
+                />
+              </Field>
+              <Field label="Back matter (optional)">
+                <textarea
+                  value={metadata.back_matter ?? ""}
+                  onChange={(event) =>
+                    setMetadata({
+                      ...metadata,
+                      back_matter: event.target.value,
+                    })
+                  }
+                  rows={2}
+                  className="border rounded w-full p-2 resize-y"
+                  style={inputStyle}
+                />
+              </Field>
+            </div>
+          </details>
         </div>
       </details>
 
@@ -1197,11 +1300,11 @@ export const ExportModal = () => {
         </div>
         <div className="flex justify-end gap-4">
           <button
-            onClick={modal.handleClose}
+            onClick={onNavigateEditor}
             className="px-4 py-2 rounded border input-button"
             style={inputStyle}
           >
-            Cancel
+            Editor
           </button>
           <button
             onClick={handlePublish}
@@ -1288,7 +1391,8 @@ function Field({
         {label}
         {required && (
           <span aria-hidden="true" style={{ color: "var(--btn-danger)" }}>
-            {" "}*
+            {" "}
+            *
           </span>
         )}
       </span>
@@ -1319,7 +1423,10 @@ function ChoiceButton({
       }}
     >
       <span className="block font-medium text-sm">{title}</span>
-      <span className="block text-xs" style={{ color: "var(--text-secondary)" }}>
+      <span
+        className="block text-xs"
+        style={{ color: "var(--text-secondary)" }}
+      >
         {description}
       </span>
     </button>
@@ -1436,7 +1543,9 @@ function MatterTemplateFields({
                       <input
                         type="checkbox"
                         className="mt-1"
-                        checked={definition.id === "title_page" || Boolean(selection)}
+                        checked={
+                          definition.id === "title_page" || Boolean(selection)
+                        }
                         disabled={definition.id === "title_page"}
                         onChange={(event) =>
                           setEnabled(definition, event.target.checked)
@@ -1502,7 +1611,10 @@ function MatterTemplateFields({
         ))}
       </div>
       {errors.length > 0 && (
-        <ul className="text-xs list-disc pl-5" style={{ color: "var(--btn-danger)" }}>
+        <ul
+          className="text-xs list-disc pl-5"
+          style={{ color: "var(--btn-danger)" }}
+        >
           {errors.map((error) => (
             <li key={error}>{error}</li>
           ))}
@@ -1567,9 +1679,7 @@ function PrintInteriorFields({
             style={inputStyle}
           >
             <option value="five_by_eight">5 × 8 in</option>
-            <option value="five_point_two_five_by_eight">
-              5.25 × 8 in
-            </option>
+            <option value="five_point_two_five_by_eight">5.25 × 8 in</option>
             <option value="five_point_five_by_eight_point_five">
               5.5 × 8.5 in
             </option>
@@ -1708,7 +1818,8 @@ function LargePrintFields({
       </legend>
       <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
         Provider-neutral controls use a deterministic proportional-type estimate
-        to cap line length. They do not claim compliance with a specific printer.
+        to cap line length. They do not claim compliance with a specific
+        printer.
       </p>
       <div className="grid grid-cols-3 gap-3">
         <Field label="Trim size">
@@ -1887,8 +1998,8 @@ function HardcoverFields({
         Hardcover settings
       </legend>
       <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-        The binding gutter is added to the inside margin. Hardcover minimums
-        are provider-neutral and intentionally stricter than general interiors.
+        The binding gutter is added to the inside margin. Hardcover minimums are
+        provider-neutral and intentionally stricter than general interiors.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Trim size">
@@ -1988,7 +2099,10 @@ function HardcoverFields({
 function PdfSettingsErrors({ errors }: { errors: string[] }) {
   if (errors.length === 0) return null;
   return (
-    <ul className="text-xs list-disc pl-5" style={{ color: "var(--btn-danger)" }}>
+    <ul
+      className="text-xs list-disc pl-5"
+      style={{ color: "var(--btn-danger)" }}
+    >
       {errors.map((error) => (
         <li key={error}>{error}</li>
       ))}
@@ -2003,10 +2117,7 @@ function ContactFields({
   metadata: PublishingMetadata;
   onChange: (metadata: PublishingMetadata) => void;
 }) {
-  const update = (
-    key: keyof PublishingMetadata["contact"],
-    value: string,
-  ) => {
+  const update = (key: keyof PublishingMetadata["contact"], value: string) => {
     onChange({
       ...metadata,
       contact: { ...metadata.contact, [key]: value },
@@ -2014,7 +2125,10 @@ function ContactFields({
   };
   return (
     <details>
-      <summary className="text-sm cursor-pointer" style={{ color: "var(--text-secondary)" }}>
+      <summary
+        className="text-sm cursor-pointer"
+        style={{ color: "var(--text-secondary)" }}
+      >
         Contact and manuscript header
       </summary>
       <div className="grid grid-cols-2 gap-3 mt-2">
@@ -2147,31 +2261,34 @@ function EbookFields({
         </p>
         <div className="grid grid-cols-[auto_1fr] items-center gap-3">
           <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void onChooseCover()}
-            className="px-3 py-2 rounded border input-button"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            {cover ? "Change cover" : "Choose cover"}
-          </button>
-          {cover && (
             <button
               type="button"
-              onClick={() =>
-                onChange({
-                  ...metadata,
-                  ebook: { ...metadata.ebook, cover: undefined },
-                })
-              }
-              className="publish-delete-button px-3 py-2 rounded border input-button"
-              style={deleteButtonStyle}
+              onClick={() => void onChooseCover()}
+              className="px-3 py-2 rounded border input-button"
+              style={{ borderColor: "var(--border-color)" }}
             >
-              Remove
+              {cover ? "Change cover" : "Choose cover"}
             </button>
-          )}
+            {cover && (
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...metadata,
+                    ebook: { ...metadata.ebook, cover: undefined },
+                  })
+                }
+                className="publish-delete-button px-3 py-2 rounded border input-button"
+                style={deleteButtonStyle}
+              >
+                Remove
+              </button>
+            )}
           </div>
-          <span className="text-xs truncate" style={{ color: "var(--text-secondary)" }}>
+          <span
+            className="text-xs truncate"
+            style={{ color: "var(--text-secondary)" }}
+          >
             {cover ? displayFilename(cover.source) : "No cover selected"}
           </span>
         </div>
@@ -2266,7 +2383,9 @@ function OutlineRow({
         className="grid grid-cols-[1fr_auto_auto] items-center gap-2 py-1"
         style={{ paddingLeft: `${depth * 0.75}rem` }}
       >
-        <span className="text-sm truncate">{node.title || formatRole(node.role)}</span>
+        <span className="text-sm truncate">
+          {node.title || formatRole(node.role)}
+        </span>
         <select
           value={role}
           disabled={!key}
@@ -2371,16 +2490,7 @@ function DiagnosticList({ diagnostics }: { diagnostics: Diagnostic[] }) {
   );
 }
 
-function StatusPanel({ title, message }: { title: string; message: string }) {
-  return (
-    <div className="publish-modal flex flex-col gap-3">
-      <h2 className="text-lg font-bold">{title}</h2>
-      <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-        {message}
-      </p>
-    </div>
-  );
-}
+export default PublishingPage;
 
 function flattenOutline(
   nodes: PublishingOutlineNode[],
@@ -2393,9 +2503,12 @@ function outlineWithMatterTemplates(
   catalog: MatterTemplateDefinition[],
   selections: MatterTemplateSelection[],
 ): PublishingOutlineNode[] {
-  const generatedTitles = new Set(catalog.map((definition) => definition.output_title));
+  const generatedTitles = new Set(
+    catalog.map((definition) => definition.output_title),
+  );
   const base = outline.filter(
-    (node) => !(node.id === null && node.title && generatedTitles.has(node.title)),
+    (node) =>
+      !(node.id === null && node.title && generatedTitles.has(node.title)),
   );
   const generated = selections.flatMap((selection) => {
     const definition = catalog.find(

@@ -94,6 +94,10 @@ export const ProjectProvider: React.FC<{
   const editorContentRef = useRef<string>("");
   const documentSaveQueueRef = useRef(createDocumentSaveQueue());
   const metadataSaveQueueRef = useRef(createDocumentSaveQueue());
+  const metadataDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const selectedFileRef = useRef<ExtendedNodeModel | null>(null);
 
   const setFileContentDirectly = useCallback((content: string) => {
     setFileContent(content);
@@ -115,6 +119,10 @@ export const ProjectProvider: React.FC<{
   // New state for pending metadata
   const [pendingMetadata, setPendingMetadata] =
     useState<ProjectMetadata | null>(null);
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFile;
+  }, [selectedFile]);
 
   const { showError } = useErrorContext();
 
@@ -182,7 +190,11 @@ export const ProjectProvider: React.FC<{
   useEffect(() => {
     if (!pendingMetadata) return;
 
-    const timeout = setTimeout(async () => {
+    if (metadataDebounceTimerRef.current) {
+      clearTimeout(metadataDebounceTimerRef.current);
+    }
+
+    metadataDebounceTimerRef.current = setTimeout(async () => {
       try {
         await metadataSaveQueueRef.current.enqueue(() =>
           updateMetadata(pendingMetadata.projectName, pendingMetadata),
@@ -190,10 +202,16 @@ export const ProjectProvider: React.FC<{
         setPendingMetadata(null);
       } catch (error) {
         showError(error, "updating metadata");
+      } finally {
+        metadataDebounceTimerRef.current = null;
       }
     }, 300);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      if (metadataDebounceTimerRef.current) {
+        clearTimeout(metadataDebounceTimerRef.current);
+      }
+    };
   }, [pendingMetadata, showError]);
 
   useEffect(() => {
@@ -393,28 +411,6 @@ export const ProjectProvider: React.FC<{
     return newArray;
   };
 
-  useEffect(() => {
-    async function saveTreeData() {
-      try {
-        const metadata = {
-          ...projectMetadata,
-          treeData,
-          lastModified: new Date(),
-        };
-
-        if (metadata.treeData && metadata.treeData.length !== 0) {
-          await metadataSaveQueueRef.current.enqueue(() =>
-            updateMetadata(projectName, metadata),
-          );
-        }
-      } catch (error) {
-        showError(error, "updating tree metadata");
-      }
-    }
-
-    saveTreeData();
-  }, [projectMetadata, projectName, showError, treeData]);
-
   const handleDrop = (
     _newTree: NodeModel<NodeData>[],
     options: DropOptions,
@@ -541,7 +537,14 @@ export const ProjectProvider: React.FC<{
               : currentFile,
           );
 
-          setFileContent(content);
+          const latestSelected = selectedFileRef.current;
+          const stillSameDocument =
+            latestSelected?.id === targetFile.id &&
+            latestSelected?.data?.fileId === targetFile.data?.fileId;
+          const contentStillCurrent = editorContentRef.current === content;
+          if (stillSameDocument && contentStillCurrent) {
+            setFileContent(content);
+          }
           setFileSavedMessage(true);
           setTimeout(() => setFileSavedMessage(false), 3000);
         } finally {
@@ -581,6 +584,11 @@ export const ProjectProvider: React.FC<{
 
   const flushProjectSnapshot = useCallback(async () => {
     await flushCurrentDocument();
+
+    if (metadataDebounceTimerRef.current) {
+      clearTimeout(metadataDebounceTimerRef.current);
+      metadataDebounceTimerRef.current = null;
+    }
 
     const metadata = pendingMetadata ?? {
       ...projectMetadata,
