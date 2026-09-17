@@ -365,7 +365,8 @@ export const ProjectProvider: React.FC<{
         showError(error, "saving file");
       }
     }
-    setTreeData([
+    // Route through handleTreeDataChange so the new node is queued for a metadata save
+    handleTreeDataChange([
       ...treeData,
       {
         ...newItem,
