@@ -47,6 +47,7 @@ import {
   FootnoteReferenceBlot,
 } from "../../utils/quillFootnoteBlots";
 import { labelQuillToolbar } from "../../utils/quillToolbarAccessibility";
+import { attachClipboardExportFix } from "../../utils/quillClipboardExport";
 import { hasWholeWordBoundaries } from "../../utils/dictionarySelection";
 import ProjectAssetModal from "./modals/ProjectAssetModal";
 import FootnoteModal from "./modals/FootnoteModal";
@@ -341,6 +342,12 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
   useEffect(() => {
     labelQuillToolbar(editorRef.current?.querySelector(".ql-toolbar") ?? null);
+  }, []);
+
+  useEffect(() => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    return attachClipboardExportFix(editor);
   }, []);
 
   useEffect(() => {
