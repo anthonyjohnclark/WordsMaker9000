@@ -15,6 +15,7 @@ import {
   readFile,
   fetchFullMetadata,
   saveFile,
+  saveLastActiveSession,
   updateMetadata,
   backupProject,
 } from "../../utils/fileManager";
@@ -45,7 +46,7 @@ interface ProjectContextProps {
   saveFileContent: (content: string) => Promise<void>;
   flushCurrentDocument: () => Promise<void>;
   flushProjectSnapshot: () => Promise<void>;
-  loadFileContent(node: ExtendedNodeModel): Promise<void>;
+  loadFileContent(node: ExtendedNodeModel): Promise<boolean>;
   handleDrop: (newTree: NodeModel<NodeData>[], options: DropOptions) => void;
   handleSubmit: (newNode: ExtendedNodeModel | null) => Promise<void>;
   handleDelete: (
@@ -76,28 +77,54 @@ const ProjectContext = createContext<ProjectContextProps | undefined>(
 
 export const ProjectProvider: React.FC<{
   projectName: string;
+  initialFileId?: string;
+  initialFileContent?: string;
+  initialProjectMetadata?: ProjectMetadata;
   children: React.ReactNode;
-}> = ({ projectName, children }) => {
-  const [treeData, setTreeData] = useState<ExtendedNodeModel[]>([]);
-  const [selectedFile, setSelectedFile] = useState<ExtendedNodeModel | null>(
-    null,
+}> = ({
+  projectName,
+  initialFileId,
+  initialFileContent,
+  initialProjectMetadata,
+  children,
+}) => {
+  const initialSelectedFile =
+    initialFileId && initialProjectMetadata?.treeData
+      ? initialProjectMetadata.treeData.find(
+          (node) =>
+            node.data?.fileType === "file" &&
+            node.data.fileId === initialFileId,
+        ) ?? null
+      : null;
+  const [treeData, setTreeData] = useState<ExtendedNodeModel[]>(
+    initialProjectMetadata?.treeData ?? [],
   );
-  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<ExtendedNodeModel | null>(
+    initialSelectedFile,
+  );
+  const [fileContent, setFileContent] = useState<string | null>(
+    initialSelectedFile ? initialFileContent ?? null : null,
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
-  const [isProjectPageLoading, setIsProjectPageLoading] = useState(true);
+  const [isProjectPageLoading, setIsProjectPageLoading] = useState(
+    !initialProjectMetadata,
+  );
   const [isEditorLoading, setIsEditorLoading] = useState(false);
   const [fileSaveInProgress, setFileSaveInProgress] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false); // Track backup status
 
-  const editorContentRef = useRef<string>("");
+  const editorContentRef = useRef<string>(
+    initialSelectedFile ? initialFileContent ?? "" : "",
+  );
   const documentSaveQueueRef = useRef(createDocumentSaveQueue());
   const metadataSaveQueueRef = useRef(createDocumentSaveQueue());
   const metadataDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const selectedFileRef = useRef<ExtendedNodeModel | null>(null);
+  const documentLoadRequestRef = useRef(0);
 
   const setFileContentDirectly = useCallback((content: string) => {
     setFileContent(content);
@@ -106,15 +133,17 @@ export const ProjectProvider: React.FC<{
 
   const { settings } = useUserSettings();
 
-  const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>({
-    projectName: "",
-    treeData: [],
-    lastModified: new Date(),
-    createDate: new Date(),
-    wordCount: 0,
-    lastBackedUp: null,
-    projectType: "",
-  });
+  const [projectMetadata, setProjectMetadata] = useState<ProjectMetadata>(
+    initialProjectMetadata ?? {
+      projectName: "",
+      treeData: [],
+      lastModified: new Date(),
+      createDate: new Date(),
+      wordCount: 0,
+      lastBackedUp: null,
+      projectType: "",
+    },
+  );
 
   // New state for pending metadata
   const [pendingMetadata, setPendingMetadata] =
@@ -215,6 +244,8 @@ export const ProjectProvider: React.FC<{
   }, [pendingMetadata, showError]);
 
   useEffect(() => {
+    if (initialProjectMetadata) return;
+
     async function fetchMetadata() {
       try {
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -225,13 +256,36 @@ export const ProjectProvider: React.FC<{
         setTreeData(metadata.treeData);
         setProjectMetadata(metadata);
         setIsProjectPageLoading(false);
+
+        if (initialFileId) {
+          const initialFile = metadata.treeData.find(
+            (node) =>
+              node.data?.fileType === "file" &&
+              node.data.fileId === initialFileId,
+          );
+
+          if (initialFile) {
+            const restored = await loadFileContent(initialFile);
+            if (!restored) {
+              void saveLastActiveSession({
+                location: "project",
+                projectName: decodeURIComponent(projectName),
+              });
+            }
+          } else {
+            void saveLastActiveSession({
+              location: "project",
+              projectName: decodeURIComponent(projectName),
+            });
+          }
+        }
       } catch (error) {
         showError(error, "fetching metadata");
       }
     }
 
     fetchMetadata();
-  }, [projectName, showError]);
+  }, [initialFileId, initialProjectMetadata, projectName, showError]);
 
   // Handle tree data changes and buffer the save operation
   const handleTreeDataChange = (newTreeData: ExtendedNodeModel[]) => {
@@ -363,6 +417,7 @@ export const ProjectProvider: React.FC<{
         await saveFile(projectName, newItem?.data?.fileId, "");
       } catch (error) {
         showError(error, "saving file");
+        return;
       }
     }
     // Route through handleTreeDataChange so the new node is queued for a metadata save
@@ -466,19 +521,30 @@ export const ProjectProvider: React.FC<{
     }
   };
 
-  async function loadFileContent(node: ExtendedNodeModel) {
-    if (node?.data?.fileType === "folder") return; // Skip folders
+  async function loadFileContent(node: ExtendedNodeModel): Promise<boolean> {
+    if (node?.data?.fileType === "folder") return false; // Skip folders
 
-    setSelectedFile(node);
+    const requestId = ++documentLoadRequestRef.current;
     setIsEditorLoading(true);
+    setSelectedFile(node);
     try {
       setFileContent("");
       const content = await readFile(projectName, node?.data?.fileId);
       await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (requestId !== documentLoadRequestRef.current) return false;
       setFileContent(content);
       setIsEditorLoading(false);
+      void saveLastActiveSession({
+        location: "project",
+        projectName: decodeURIComponent(projectName),
+        fileId: node.data?.fileId,
+      });
+      return true;
     } catch (error) {
+      if (requestId !== documentLoadRequestRef.current) return false;
+      setIsEditorLoading(false);
       showError(error, "reading file");
+      return false;
     }
   }
 

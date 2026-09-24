@@ -34,6 +34,17 @@ const BASE_DIR = `${DEV_PREFIX}Projects`;
 const BACKUP_DIR = `${DEV_PREFIX}WordsMaker3000Backups`;
 const USER_DIR = `${DEV_PREFIX}User`;
 const SETTINGS_FILE = "settings.json";
+const LAST_ACTIVE_SESSION_FILE = "last-active-session.json";
+let lastActiveSessionSave = Promise.resolve();
+
+export interface ProjectLastActiveSession {
+  projectName: string;
+  fileId?: string;
+}
+
+export type LastActiveSession =
+  | { location: "home" }
+  | ({ location: "project" } & ProjectLastActiveSession);
 
 export type ProjectType = "novel" | "collection" | "serial" | "novella";
 
@@ -81,6 +92,57 @@ export async function retrieveSettings(): Promise<UserSettings> {
   });
 
   return JSON.parse(content) as UserSettings;
+}
+
+export async function saveLastActiveSession(session: LastActiveSession) {
+  const save = lastActiveSessionSave.then(async () => {
+    try {
+      await mkdir(USER_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+      await writeTextFile(
+        `${USER_DIR}/${LAST_ACTIVE_SESSION_FILE}`,
+        JSON.stringify(session),
+        { baseDir: BaseDirectory.AppData },
+      );
+    } catch (error) {
+      console.error("Error saving last active session:", error);
+    }
+  });
+  lastActiveSessionSave = save.catch(() => undefined);
+  await save;
+}
+
+export async function retrieveLastActiveSession(): Promise<LastActiveSession | null> {
+  try {
+    const filePath = `${USER_DIR}/${LAST_ACTIVE_SESSION_FILE}`;
+    if (!(await exists(filePath, { baseDir: BaseDirectory.AppData }))) {
+      return null;
+    }
+
+    const parsed = JSON.parse(
+      await readTextFile(filePath, { baseDir: BaseDirectory.AppData }),
+    ) as Partial<ProjectLastActiveSession & { location?: unknown }>;
+
+    if (parsed.location === "home") {
+      return { location: "home" };
+    }
+
+    if (
+      typeof parsed.projectName !== "string" ||
+      !parsed.projectName.trim() ||
+      (parsed.fileId !== undefined && typeof parsed.fileId !== "string")
+    ) {
+      return null;
+    }
+
+    return {
+      location: "project",
+      projectName: parsed.projectName,
+      ...(parsed.fileId ? { fileId: parsed.fileId } : {}),
+    };
+  } catch (error) {
+    console.error("Error reading last active session:", error);
+    return null;
+  }
 }
 
 // Create a new project

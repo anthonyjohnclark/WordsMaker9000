@@ -4,6 +4,7 @@ import {
   createProject,
   listProjectsSummary,
   ProjectType,
+  saveLastActiveSession,
 } from "../utils/fileManager";
 import { ProjectMetadata } from "../utils/fileManager";
 import Loadable from "../components/Loadable";
@@ -40,6 +41,10 @@ export default function HomePage() {
   const modal = useModal();
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    void saveLastActiveSession({ location: "home" });
+  }, []);
 
   useEffect(() => {
     async function fetchProjects() {
