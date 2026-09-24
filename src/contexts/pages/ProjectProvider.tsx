@@ -17,6 +17,8 @@ import {
   saveFile,
   updateMetadata,
   backupProject,
+  retrieveLastActiveSession,
+  saveLastActiveSession,
 } from "../../utils/fileManager";
 
 import {
@@ -225,6 +227,23 @@ export const ProjectProvider: React.FC<{
         setTreeData(metadata.treeData);
         setProjectMetadata(metadata);
         setIsProjectPageLoading(false);
+
+        const session = await retrieveLastActiveSession();
+        if (
+          session &&
+          decodeURIComponent(session.projectName) === decodeURIComponent(projectName) &&
+          session.documentFileId
+        ) {
+          const rememberedFile = metadata.treeData.find(
+            (node) =>
+              node.data?.fileType === "file" &&
+              node.data.fileId === session.documentFileId,
+          );
+
+          if (rememberedFile) {
+            await loadFileContent(rememberedFile);
+          }
+        }
       } catch (error) {
         showError(error, "fetching metadata");
       }
@@ -477,6 +496,12 @@ export const ProjectProvider: React.FC<{
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setFileContent(content);
       setIsEditorLoading(false);
+      if (node.data?.fileId) {
+        await saveLastActiveSession({
+          projectName,
+          documentFileId: node.data.fileId,
+        });
+      }
     } catch (error) {
       showError(error, "reading file");
     }

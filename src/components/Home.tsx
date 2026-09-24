@@ -4,6 +4,7 @@ import {
   createProject,
   listProjectsSummary,
   ProjectType,
+  saveLastActiveSession,
 } from "../utils/fileManager";
 import { ProjectMetadata } from "../utils/fileManager";
 import Loadable from "../components/Loadable";
@@ -63,6 +64,7 @@ export default function HomePage() {
       if (newProjectName.trim()) {
         const trimmedName = newProjectName.trim();
         await createProject(trimmedName, projectType); // Pass projectType
+        await saveLastActiveSession({ projectName: trimmedName });
         setNewProjectName("");
         setProjectType("novel"); // Reset to default type
         const updatedProjects = await listProjectsWithMetadata();
@@ -214,6 +216,14 @@ export default function HomePage() {
                   <div className="flex items-center justify-between">
                     <Link
                       to={`/projects/${project.projectName}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void saveLastActiveSession({
+                          projectName: project.projectName,
+                        }).then(() => {
+                          navigate(`/projects/${project.projectName}`);
+                        });
+                      }}
                       className="text-xl font-semibold hover:underline futuristic-font"
                       style={{ color: "var(--btn-primary)" }}
                     >

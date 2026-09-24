@@ -21,6 +21,11 @@ export interface UserSettings {
   dictionaryEnabled: boolean;
 }
 
+export interface LastActiveSession {
+  projectName: string;
+  documentFileId?: string;
+}
+
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   defaultFontZoom: 16,
   defaultSaveInterval: 60000,
@@ -34,6 +39,7 @@ const BASE_DIR = `${DEV_PREFIX}Projects`;
 const BACKUP_DIR = `${DEV_PREFIX}WordsMaker3000Backups`;
 const USER_DIR = `${DEV_PREFIX}User`;
 const SETTINGS_FILE = "settings.json";
+const LAST_ACTIVE_SESSION_FILE = "last-active-session.json";
 
 export type ProjectType = "novel" | "collection" | "serial" | "novella";
 
@@ -81,6 +87,49 @@ export async function retrieveSettings(): Promise<UserSettings> {
   });
 
   return JSON.parse(content) as UserSettings;
+}
+
+export async function saveLastActiveSession(session: LastActiveSession) {
+  try {
+    await mkdir(USER_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
+    await writeTextFile(
+      `${USER_DIR}/${LAST_ACTIVE_SESSION_FILE}`,
+      JSON.stringify(session),
+      { baseDir: BaseDirectory.AppData },
+    );
+  } catch (error) {
+    console.error("Error saving last active session:", error);
+  }
+}
+
+export async function retrieveLastActiveSession(): Promise<LastActiveSession | null> {
+  const filePath = `${USER_DIR}/${LAST_ACTIVE_SESSION_FILE}`;
+
+  try {
+    if (!(await exists(filePath, { baseDir: BaseDirectory.AppData }))) {
+      return null;
+    }
+
+    const parsed = JSON.parse(
+      await readTextFile(filePath, { baseDir: BaseDirectory.AppData }),
+    ) as Partial<LastActiveSession>;
+
+    if (!parsed.projectName || typeof parsed.projectName !== "string") {
+      console.warn("Ignoring invalid last active session: missing project name");
+      return null;
+    }
+
+    return {
+      projectName: parsed.projectName,
+      documentFileId:
+        typeof parsed.documentFileId === "string"
+          ? parsed.documentFileId
+          : undefined,
+    };
+  } catch (error) {
+    console.warn("Unable to read last active session; starting normally:", error);
+    return null;
+  }
 }
 
 // Create a new project
