@@ -7,14 +7,36 @@ import {
   ProjectProvider,
   useProjectContext,
 } from "../contexts/pages/ProjectProvider";
+import { ProjectMetadata, saveLastActiveSession } from "../utils/fileManager";
 import Sidebar from "./projectComponents/SideBar";
 import SearchReplaceModal from "./projectComponents/modals/SearchReplaceModal";
 import { useLocation, useParams } from "react-router-dom";
 import PublishingWorkspace from "./publishing/PublishingWorkspace";
 
+type StartupProjectState = {
+  startupFileId?: unknown;
+  startupFileContent?: unknown;
+  startupProjectMetadata?: unknown;
+  startupProjectName?: unknown;
+};
+
 export default function Project() {
   const projectName = useParams().projectName ?? "";
   const location = useLocation();
+  const startupState = location.state as StartupProjectState | null;
+  const {
+    startupFileId,
+    startupFileContent,
+    startupProjectMetadata,
+    startupProjectName,
+  } = startupState ?? {};
+  const isStartupRestoreForProject =
+    typeof startupProjectName === "string" &&
+    startupProjectName === decodeURIComponent(projectName);
+  const initialFileId =
+    isStartupRestoreForProject && typeof startupFileId === "string"
+      ? startupFileId
+      : undefined;
   const isPublishRoute = location.pathname.endsWith("/publish");
   const isArtifactsRoute = location.pathname.endsWith("/artifacts");
   const isPublishingWorkspaceRoute = isPublishRoute || isArtifactsRoute;
@@ -28,6 +50,13 @@ export default function Project() {
   useEffect(() => {
     setProjectName(projectName);
 
+    if (!isStartupRestoreForProject) {
+      void saveLastActiveSession({
+        location: "project",
+        projectName: decodeURIComponent(projectName),
+      });
+    }
+
     // Cleanup when navigating away
     return () => {
       setProjectName("");
@@ -37,6 +66,7 @@ export default function Project() {
     };
   }, [
     projectName,
+    isStartupRestoreForProject,
     setLastBackupTime,
     setProjectName,
     setWordCount,
@@ -51,7 +81,21 @@ export default function Project() {
   }, [isPublishingWorkspaceRoute, setIsSearchOpen]);
 
   return (
-    <ProjectProvider key={projectName} projectName={projectName}>
+    <ProjectProvider
+      key={projectName}
+      projectName={projectName}
+      initialFileId={initialFileId}
+      initialFileContent={
+        isStartupRestoreForProject && typeof startupFileContent === "string"
+          ? startupFileContent
+          : undefined
+      }
+      initialProjectMetadata={
+        isStartupRestoreForProject && startupProjectMetadata
+          ? (startupProjectMetadata as ProjectMetadata)
+          : undefined
+      }
+    >
       <TitleBarUpdater /> {/* Keeps GlobalProjectContext updated */}
       {!isPublishingWorkspaceRoute && <SearchReplaceModal />}
       <div className="relative h-full">
