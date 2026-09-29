@@ -16,6 +16,7 @@ import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import { useModal } from "../../contexts/global/ModalContext";
 import { ExtendedNodeModel, NodeData } from "../../types/ProjectPageTypes";
 import { convertToCurlyQuotes } from "../../utils/helpers";
+import { countWordsInHtml } from "../../utils/searchUtils";
 import { normalizeWord } from "../../agents/dictionaryAgent";
 import DefinitionModal from "./DefinitionModal";
 import FindBar from "./FindBar";
@@ -157,14 +158,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
   };
 
   useEffect(() => {
-    const countWords = (text: string): number => {
-      return text
-        .trim()
-        .split(/\s+/)
-        .filter((n) => n !== "").length;
-    };
-
-    const wordCount = countWords(content || "");
+    const wordCount = countWordsInHtml(content || "");
 
     if (selectedFile?.data) {
       project.setSelectedFile({

@@ -258,7 +258,11 @@ export function replaceInHtml(
  * Count words in an HTML string (visible text only).
  */
 export function countWordsInHtml(html: string): number {
-  const { plainText } = extractTextSegments(html);
+  const htmlWithBlockBoundaries = html.replace(
+    /(<br\s*\/?>|<\/(?:address|article|aside|blockquote|div|figcaption|figure|footer|h[1-6]|header|li|main|nav|p|pre|section|td|th|tr)>)/gi,
+    " $1 ",
+  );
+  const { plainText } = extractTextSegments(htmlWithBlockBoundaries);
   const trimmed = plainText.trim();
   if (!trimmed) return 0;
   return trimmed.split(/\s+/).length;

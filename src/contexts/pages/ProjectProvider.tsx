@@ -28,6 +28,7 @@ import {
 
 import { v4 as uuidv4 } from "uuid";
 import { calculateTreeWordCount } from "../../utils/helpers";
+import { countWordsInHtml } from "../../utils/searchUtils";
 import { createDocumentSaveQueue } from "../../utils/documentSaveQueue";
 import { useErrorContext } from "../global/ErrorContext";
 import { useUserSettings } from "../global/UserSettingsContext";
@@ -124,6 +125,18 @@ export const ProjectProvider: React.FC<{
     null,
   );
   const selectedFileRef = useRef<ExtendedNodeModel | null>(null);
+  const treeDataRef = useRef<ExtendedNodeModel[]>(treeData);
+  const projectMetadataRef = useRef<ProjectMetadata>(
+    initialProjectMetadata ?? {
+      projectName: "",
+      treeData: [],
+      lastModified: new Date(),
+      createDate: new Date(),
+      wordCount: 0,
+      lastBackedUp: null,
+      projectType: "",
+    },
+  );
   const documentLoadRequestRef = useRef(0);
 
   const setFileContentDirectly = useCallback((content: string) => {
@@ -153,7 +166,41 @@ export const ProjectProvider: React.FC<{
     selectedFileRef.current = selectedFile;
   }, [selectedFile]);
 
+  useEffect(() => {
+    treeDataRef.current = treeData;
+  }, [treeData]);
+
+  useEffect(() => {
+    projectMetadataRef.current = projectMetadata;
+  }, [projectMetadata]);
+
   const { showError } = useErrorContext();
+
+  const flushProjectMetadata = useCallback(async () => {
+    if (metadataDebounceTimerRef.current) {
+      clearTimeout(metadataDebounceTimerRef.current);
+      metadataDebounceTimerRef.current = null;
+    }
+
+    const metadata = pendingMetadata ?? {
+      ...projectMetadataRef.current,
+      projectName,
+      treeData: treeDataRef.current,
+    };
+
+    const metadataToPersist = {
+      ...metadata,
+      projectName,
+      treeData: treeDataRef.current,
+    };
+
+    await metadataSaveQueueRef.current.enqueue(() =>
+      updateMetadata(projectName, metadataToPersist),
+    );
+    projectMetadataRef.current = metadataToPersist;
+    setProjectMetadata(metadataToPersist);
+    setPendingMetadata(null);
+  }, [pendingMetadata, projectName]);
 
   const handleBackup = useCallback(async () => {
     if (!isBackingUp) {
@@ -185,12 +232,19 @@ export const ProjectProvider: React.FC<{
       if (shouldBackup()) {
         try {
           setIsBackingUp(true);
+          await flushProjectMetadata();
           await new Promise((resolve) => setTimeout(resolve, 1000));
           await backupProject(decodeURIComponent(projectName));
-          setProjectMetadata((prevMetadata) => ({
-            ...prevMetadata,
-            lastBackedUp: new Date(),
-          }));
+          const backedUpAt = new Date();
+          const updatedMetadata = {
+            ...projectMetadataRef.current,
+            lastBackedUp: backedUpAt,
+          };
+          projectMetadataRef.current = updatedMetadata;
+          setProjectMetadata(updatedMetadata);
+          await metadataSaveQueueRef.current.enqueue(() =>
+            updateMetadata(projectName, updatedMetadata),
+          );
         } catch (error) {
           showError(error, "backing up project");
         } finally {
@@ -199,6 +253,7 @@ export const ProjectProvider: React.FC<{
       }
     }
   }, [
+    flushProjectMetadata,
     isBackingUp,
     projectMetadata,
     projectName,
@@ -567,30 +622,32 @@ export const ProjectProvider: React.FC<{
           await saveFile(projectName, fileId, content);
           await new Promise((resolve) => setTimeout(resolve, 1000));
           const savedAt = new Date();
+          const savedFileWordCount = countWordsInHtml(content);
+          const updatedTreeData = treeDataRef.current.map((node) =>
+            node.id === targetFile.id
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    wordCount: savedFileWordCount,
+                    lastModified: savedAt,
+                  },
+                }
+              : node,
+          ) as ExtendedNodeModel[];
+          const projectWordCount = calculateTreeWordCount(updatedTreeData);
+          const metadataToPersist: ProjectMetadata = {
+            ...projectMetadataRef.current,
+            projectName,
+            treeData: updatedTreeData,
+            lastModified: savedAt,
+            wordCount: projectWordCount,
+          };
 
-          setTreeData((prevTreeData) => {
-            const updatedTreeData = prevTreeData.map((node) =>
-              node.id === targetFile.id
-                ? {
-                    ...node,
-                    data: {
-                      ...node.data,
-                      wordCount: targetFile.data?.wordCount,
-                      lastModified: savedAt,
-                    },
-                  }
-                : node,
-            ) as ExtendedNodeModel[];
-
-            const projectWordCount = calculateTreeWordCount(updatedTreeData);
-            setProjectMetadata((prevMetadata) => ({
-              ...prevMetadata,
-              lastModified: savedAt,
-              wordCount: projectWordCount,
-            }));
-
-            return updatedTreeData;
-          });
+          treeDataRef.current = updatedTreeData;
+          projectMetadataRef.current = metadataToPersist;
+          setTreeData(updatedTreeData);
+          setProjectMetadata(metadataToPersist);
 
           setSelectedFile((currentFile) =>
             currentFile?.id === targetFile.id
@@ -598,10 +655,21 @@ export const ProjectProvider: React.FC<{
                   ...currentFile,
                   data: {
                     ...(currentFile.data as NodeData),
+                    wordCount: savedFileWordCount,
                     lastModified: savedAt,
                   },
                 } as ExtendedNodeModel)
               : currentFile,
+          );
+
+          if (metadataDebounceTimerRef.current) {
+            clearTimeout(metadataDebounceTimerRef.current);
+            metadataDebounceTimerRef.current = null;
+          }
+          setPendingMetadata(null);
+
+          await metadataSaveQueueRef.current.enqueue(() =>
+            updateMetadata(projectName, metadataToPersist),
           );
 
           const latestSelected = selectedFileRef.current;
