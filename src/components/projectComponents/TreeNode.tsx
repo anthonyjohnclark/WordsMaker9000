@@ -1,5 +1,5 @@
 import { NodeModel } from "@minoru/react-dnd-treeview";
-import { FiFilePlus, FiFolderPlus, FiTrash2, FiEdit } from "react-icons/fi";
+import { FiFilePlus, FiFolderPlus, FiTrash2, FiEdit, FiFolder, FiFileText } from "react-icons/fi";
 import { useModal } from "../../contexts/global/ModalContext";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import { NodeData, ExtendedNodeModel } from "../../types/ProjectPageTypes";
@@ -25,10 +25,10 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
         marginLeft: depth * 20,
         backgroundColor:
           project.selectedFile?.id === node.id
-            ? "rgba(59, 130, 246, 0.2)"
+            ? "var(--selection-bg)"
             : "transparent",
       }}
-      className="p-2 cursor-pointer flex items-center gap-2 group"
+      className="sidebar-tree-row p-2 rounded cursor-pointer flex items-center gap-2 group"
       onClick={() => {
         if (node.data?.fileType === "folder") {
           onToggle();
@@ -37,14 +37,21 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
         }
       }}
     >
-      <span>
-        {node.data?.fileType === "folder"
-          ? isOpen
-            ? "📂 " + node.text
-            : "📁 " + node.text
-          : "📄 " + node.text}
+      <span className="flex min-w-0 items-center gap-2">
+        {node.data?.fileType === "folder" ? (
+          <FiFolder
+            size={16}
+            className="shrink-0"
+            style={{ color: "var(--text-secondary)" }}
+            title={isOpen ? "Collapse folder" : "Expand folder"}
+            aria-hidden="true"
+          />
+        ) : (
+          <FiFileText size={16} className="shrink-0" style={{ color: "var(--text-secondary)" }} aria-hidden="true" />
+        )}
+        <span className="truncate" title={node.text}>{node.text}</span>
       </span>
-      <div className="flex items-center gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-2 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         {node.data?.fileType === "folder" && (
           <>
             <FiFilePlus
@@ -73,8 +80,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                   ),
                 });
               }}
-              className="cursor-pointer"
-              style={{ color: "var(--btn-success)" }}
+              className="sidebar-row-action cursor-pointer"
+              
               title="Add File"
             />
             <FiFolderPlus
@@ -103,8 +110,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                   ),
                 });
               }}
-              className="cursor-pointer"
-              style={{ color: "var(--btn-primary)" }}
+              className="sidebar-row-action cursor-pointer"
+              
               title="Add Folder"
             />
             <FiEdit
@@ -113,8 +120,8 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
                   modalBody: <RenameModal node={node} />,
                 })
               }
-              className="cursor-pointer"
-              style={{ color: "var(--accent)" }}
+              className="sidebar-row-action cursor-pointer"
+              
               title="Rename"
             />
           </>
@@ -126,8 +133,7 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
             });
             e.stopPropagation();
           }}
-          className="cursor-pointer"
-          style={{ color: "var(--btn-danger)" }}
+          className="sidebar-row-action sidebar-row-delete cursor-pointer"
           title="Delete"
         />
       </div>

@@ -643,13 +643,13 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
       <FiSave
         onClick={isActive ? handleSave : undefined}
-        className="save-icon absolute top-2 right-7 cursor-pointer text-2xl"
+        className="save-icon absolute top-4 right-12 cursor-pointer text-lg"
         style={{ color: "var(--accent)" }}
         title="Save"
       />
 
       <p
-        className="italic save-icon absolute top-2 right-20 text-xs"
+        className="save-icon absolute top-2 right-[100px] flex h-[34px] items-center text-xs"
         style={{ color: "var(--text-muted)" }}
       >
         Ctrl + wheel to zoom · F11 for fullscreen
@@ -661,7 +661,7 @@ const TextEditor: React.FC<TextEditorProps> = ({
         onChange={handleContentChange}
         readOnly={!isActive}
         style={{
-          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"})`,
+          height: `calc(100% - ${isDrawerExpanded ? "3rem" : "3rem"} - ${isFullScreen ? "0px" : "20px"})`,
           fontFamily: "var(--editor-font-family)",
         }}
         modules={modules}

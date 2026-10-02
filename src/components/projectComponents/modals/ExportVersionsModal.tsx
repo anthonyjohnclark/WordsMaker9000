@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  FiArchive,
   FiCopy,
   FiExternalLink,
   FiFolder,
@@ -183,7 +184,7 @@ export default function ExportVersionsModal({
     return (
       <div
         className={
-          mode === "modal" ? "p-6 rounded-lg max-w-5xl mx-auto" : "p-1"
+          mode === "modal" ? "artifacts-page p-6 rounded-lg max-w-5xl mx-auto" : "absolute inset-0 flex items-center justify-center"
         }
         style={{
           background: mode === "modal" ? "var(--modal-bg)" : "transparent",
@@ -199,28 +200,27 @@ export default function ExportVersionsModal({
     <div
       className={
         mode === "modal"
-          ? "p-6 rounded-lg max-w-5xl mx-auto"
-          : "p-1 h-full flex flex-col"
+          ? "artifacts-page p-6 rounded-lg max-w-5xl mx-auto"
+          : "artifacts-page w-full max-w-6xl mx-auto pb-6"
       }
       style={{
         background: mode === "modal" ? "var(--modal-bg)" : "transparent",
         color: "var(--text-primary)",
       }}
     >
-      <h2 className="text-xl font-bold mb-1">
-        Artifact History for{" "}
-        <span style={{ color: "var(--btn-primary)" }}>
-          {decodedProjectName}
-        </span>
-      </h2>
-      <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-        Preview the actual file, reproduce a manifest-backed publish, or manage
-        copies without changing the project source.
-      </p>
+      <header className="mb-6">
+        <h2 className="text-2xl font-normal flex items-center gap-2">
+          <FiArchive size={20} aria-hidden="true" style={{ color: "var(--accent)" }} />
+          {mode === "modal" ? `Artifacts for ${decodedProjectName}` : "Artifacts"}
+        </h2>
+        <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+          Published files for this project.
+        </p>
+      </header>
 
       {notice && (
         <p
-          className="rounded border p-2 mb-3 text-sm"
+          className="rounded border px-4 py-3 mb-4 text-sm"
           style={{
             borderColor: "var(--border-color)",
             color: "var(--btn-success)",
@@ -232,15 +232,18 @@ export default function ExportVersionsModal({
       )}
 
       {artifacts.length === 0 ? (
-        <p style={{ color: "var(--text-secondary)" }}>
-          No published artifacts found for this project.
-        </p>
+        <div className="artifacts-empty">
+          <p className="text-sm">No published files yet.</p>
+          <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>
+            Create an edition on the Publish page to see it here.
+          </p>
+        </div>
       ) : (
         <ul
           className={
             mode === "modal"
-              ? "max-h-[60vh] overflow-y-auto space-y-3 pr-1"
-              : "flex-1 overflow-y-auto space-y-3 pr-1"
+              ? "artifacts-list max-h-[60vh] overflow-y-auto"
+              : "artifacts-list"
           }
         >
           {artifacts.map((entry) => {
@@ -248,15 +251,16 @@ export default function ExportVersionsModal({
             return (
               <li
                 key={entry.path}
-                className="rounded border p-3"
+                className="artifact-row px-5 py-4"
                 style={{
                   borderColor: "var(--border-color)",
-                  background: "var(--bg-input)",
+                  background: "var(--bg-primary)",
                 }}
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
+                    <p className="text-sm font-medium truncate"
+                      title={entry.filename}>
                       {entry.filename}
                     </p>
                     <p
@@ -271,7 +275,7 @@ export default function ExportVersionsModal({
                       {formatTimestamp(entry.modified)}
                     </p>
                   </div>
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="artifact-actions flex flex-wrap items-center gap-1 lg:justify-end">
                     <HistoryButton
                       title={`Preview actual ${entry.format.toUpperCase()} artifact`}
                       onClick={() => void handleOpen(entry)}
@@ -355,10 +359,9 @@ function HistoryButton({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className="px-2 py-1 rounded border input-button text-xs flex items-center gap-1 disabled:opacity-40"
+      className={`artifact-action px-2 py-1.5 rounded text-xs flex items-center gap-1.5 disabled:opacity-40 ${danger ? "artifact-action-danger" : ""}`}
       style={{
-        borderColor: danger ? "var(--btn-danger)" : "var(--border-color)",
-        color: danger ? "var(--btn-danger)" : "var(--text-primary)",
+        color: "var(--text-secondary)",
       }}
     >
       {children}

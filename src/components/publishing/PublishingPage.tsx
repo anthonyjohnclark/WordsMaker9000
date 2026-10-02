@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   FiCheckCircle,
-  FiChevronDown,
+  FiUpload,
   FiEye,
   FiExternalLink,
   FiSave,
@@ -134,8 +134,6 @@ export const PublishingPage = ({
   const [outlineConfirmed, setOutlineConfirmed] = useState(false);
   const [scopeMode, setScopeMode] = useState("full_project");
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
-  const [outlineOpen, setOutlineOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedSavedProfileId, setSelectedSavedProfileId] = useState("");
   const [savedProfileName, setSavedProfileName] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -574,7 +572,7 @@ export const PublishingPage = ({
 
   if (isSetupLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="absolute inset-0 flex items-center justify-center">
         <Loader />
       </div>
     );
@@ -582,9 +580,9 @@ export const PublishingPage = ({
 
   if (setupError) {
     return (
-      <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4">
+      <div className="publish-page-panel w-full max-w-6xl mx-auto flex flex-col gap-6">
         <h2
-          className="text-lg font-bold"
+          className="text-2xl font-normal"
           style={{ color: "var(--text-primary)" }}
         >
           Preparing publishing failed
@@ -619,9 +617,9 @@ export const PublishingPage = ({
 
   if (result) {
     return (
-      <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4">
+      <div className="publish-page-panel w-full max-w-6xl mx-auto flex flex-col gap-6">
         <h2
-          className="text-lg font-bold flex items-center gap-2"
+          className="text-2xl font-normal flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
         >
           <FiCheckCircle style={{ color: "var(--btn-success)" }} />
@@ -642,7 +640,7 @@ export const PublishingPage = ({
             }}
           />
         )}
-        <div className="flex justify-end gap-4">
+        <div className="flex flex-wrap justify-end gap-3">
           <button
             onClick={() => {
               setResult(null);
@@ -694,14 +692,12 @@ export const PublishingPage = ({
         ? Math.round((progress.current / progress.total) * 100)
         : 0;
     return (
-      <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4">
+      <div className="publish-page-panel w-full max-w-6xl mx-auto flex flex-col gap-6">
         <h2
-          className="text-lg font-bold flex items-center gap-2"
+          className="text-2xl font-normal flex items-center gap-2"
           style={{ color: "var(--text-primary)" }}
         >
-          <span aria-hidden="true" className="text-sm leading-none">
-            🚀
-          </span>
+          <FiUpload size={20} aria-hidden="true" style={{ color: "var(--accent)" }} />
           Publishing…
         </h2>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -812,24 +808,25 @@ export const PublishingPage = ({
   }
 
   return (
-    <div className="publish-page-panel w-full max-w-5xl mx-auto flex flex-col gap-4 h-full overflow-y-auto pr-1 pb-6">
+    <div className="publish-page-panel w-full max-w-6xl mx-auto flex flex-col gap-6 pb-6">
       <h2
-        className="text-lg font-bold flex items-center gap-2"
+        className="text-2xl font-normal flex items-center gap-2"
         style={{ color: "var(--text-primary)" }}
       >
-        <span aria-hidden="true" className="text-sm leading-none">
-          🚀
-        </span>
+<FiUpload size={20} aria-hidden="true" style={{ color: "var(--accent)" }} />
         Publish
       </h2>
-      <fieldset>
+      <p className="text-sm -mt-3" style={{ color: "var(--text-secondary)" }}>
+        Prepare your manuscript, ebook, or print edition.
+      </p>
+      <fieldset className="publish-section">
         <legend
           className="text-sm font-medium mb-1"
           style={{ color: "var(--text-secondary)" }}
         >
           Destination
         </legend>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <ChoiceButton
             selected={format === "docx"}
             onClick={() => chooseFormat("docx")}
@@ -852,10 +849,11 @@ export const PublishingPage = ({
       </fieldset>
 
       <div
-        className="rounded border p-3 grid gap-2"
+        className="publish-section grid gap-4"
         style={{ borderColor: "var(--border-color)" }}
       >
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] gap-2 items-end">
+        <h3 className="publish-section-title">Saved workflow</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] gap-3 items-end">
           <Field label="Saved workflow">
             <select
               value={selectedSavedProfileId}
@@ -925,23 +923,10 @@ export const PublishingPage = ({
         </p>
       )}
 
-      <details
-        open={advancedOpen}
-        onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
-        className="rounded border p-3"
-        style={{ borderColor: "var(--border-color)" }}
-      >
-        <summary className="cursor-pointer font-medium">
-          Advanced publishing settings
-          <span
-            className="block text-xs font-normal"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Metadata, profile details, scope, outline, and included matter
-          </span>
-        </summary>
-        <div className="grid gap-4 mt-4">
-          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+      <section className="publish-section" aria-labelledby="publish-details-heading">
+        <h3 id="publish-details-heading" className="publish-section-title">Publication details</h3>
+        <div className="publish-fields-grid">
+          <p className="text-xs col-span-full" style={{ color: "var(--text-secondary)" }}>
             Fields marked <span style={{ color: "var(--btn-danger)" }}>*</span>{" "}
             are required.
           </p>
@@ -987,6 +972,12 @@ export const PublishingPage = ({
             />
           </Field>
 
+        </div>
+      </section>
+
+      <section className="publish-section" aria-labelledby="publish-format-heading">
+        <h3 id="publish-format-heading" className="publish-section-title">Format settings</h3>
+        <div className="grid gap-4">
           {format === "pdf" && (
             <>
               <Field label="PDF profile">
@@ -1117,6 +1108,12 @@ export const PublishingPage = ({
             />
           )}
 
+        </div>
+      </section>
+
+      <section className="publish-section" aria-labelledby="publish-outline-heading">
+        <h3 id="publish-outline-heading" className="publish-section-title">Scope and outline</h3>
+        <div className="grid gap-4">
           <Field label="Publication scope">
             <select
               value={scopeMode}
@@ -1164,30 +1161,13 @@ export const PublishingPage = ({
             </Field>
           )}
 
-          <button
-            type="button"
-            onClick={() => setOutlineOpen((open) => !open)}
-            className="flex items-center justify-between rounded border p-2 text-left"
-            style={inputStyle}
-          >
-            <span>
-              <span className="font-medium">Outline and roles</span>
-              <span
-                className="block text-xs"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                Review inferred structure and exclusions
-              </span>
-            </span>
-            <FiChevronDown
-              style={{ transform: outlineOpen ? "rotate(180deg)" : undefined }}
-            />
-          </button>
-          {outlineOpen && (
-            <div
-              className="rounded border p-2"
-              style={{ borderColor: "var(--border-color)" }}
-            >
+          <div>
+            <h4 className="text-sm font-medium">Outline and roles</h4>
+            <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+              Review inferred structure and exclusions.
+            </p>
+          </div>
+          <div className="publish-outline">
               {displayedOutline.map((node) => (
                 <OutlineRow
                   key={`${node.id ?? "matter"}-${node.title ?? node.role}`}
@@ -1197,8 +1177,7 @@ export const PublishingPage = ({
                   onChange={setNodeOverrides}
                 />
               ))}
-            </div>
-          )}
+          </div>
 
           <label className="flex items-start gap-2 text-sm">
             <input
@@ -1220,14 +1199,12 @@ export const PublishingPage = ({
             </span>
           </label>
 
-          <details>
-            <summary
-              className="text-sm cursor-pointer"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Front and back matter
-            </summary>
-            <div className="grid gap-3 mt-2">
+        </div>
+      </section>
+
+      <section className="publish-section" aria-labelledby="publish-matter-heading">
+        <h3 id="publish-matter-heading" className="publish-section-title">Front and back matter</h3>
+        <div className="grid gap-4">
               <MatterTemplateFields
                 catalog={setup.matter_template_catalog}
                 selections={matterTemplates}
@@ -1263,12 +1240,10 @@ export const PublishingPage = ({
                   style={inputStyle}
                 />
               </Field>
-            </div>
-          </details>
         </div>
-      </details>
+      </section>
 
-      <div className="flex items-center justify-between gap-4 mt-2">
+      <div className="publish-actions flex flex-wrap items-center justify-between gap-4">
         <div className="text-xs" aria-live="polite">
           <p
             id="publish-requirements"
@@ -1287,18 +1262,9 @@ export const PublishingPage = ({
                   docxProfileId,
                 ).toLowerCase()}.`}
           </p>
-          {publishBlockers.length > 0 && !advancedOpen && (
-            <button
-              type="button"
-              className="underline mt-1"
-              style={{ color: "var(--btn-primary)" }}
-              onClick={() => setAdvancedOpen(true)}
-            >
-              Open Advanced settings
-            </button>
-          )}
+
         </div>
-        <div className="flex justify-end gap-4">
+        <div className="flex flex-wrap justify-end gap-3">
           <button
             onClick={onNavigateEditor}
             className="px-4 py-2 rounded border input-button"
@@ -1321,7 +1287,7 @@ export const PublishingPage = ({
               color: "var(--btn-text)",
             }}
           >
-            <span aria-hidden="true">🚀</span>
+            <FiUpload size={16} aria-hidden="true" />
             Publish {format.toUpperCase()}
           </button>
         </div>
@@ -1337,15 +1303,11 @@ const inputStyle = {
 };
 
 const saveButtonStyle = {
-  borderColor: "var(--btn-success)",
-  background: "var(--btn-success)",
-  color: "var(--btn-text)",
+  ...inputStyle,
 };
 
 const deleteButtonStyle = {
-  borderColor: "var(--btn-danger)",
-  background: "var(--btn-danger)",
-  color: "var(--btn-text)",
+  ...inputStyle,
 };
 
 function profileSummary(
@@ -1416,10 +1378,12 @@ function ChoiceButton({
     <button
       type="button"
       onClick={onClick}
-      className="rounded border p-2 text-left"
+      aria-pressed={selected}
+      className="publish-choice rounded border p-4 text-left"
       style={{
         ...inputStyle,
-        borderColor: selected ? "var(--btn-primary)" : "var(--border-color)",
+        borderColor: selected ? "var(--accent)" : "var(--border-color)",
+        background: selected ? "var(--selection-bg)" : "var(--bg-primary)",
       }}
     >
       <span className="block font-medium text-sm">{title}</span>
@@ -1523,7 +1487,7 @@ function MatterTemplateFields({
         Built-in templates are versioned and saved with publishing workflows.
         Existing free-text matter below remains unchanged.
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {(["front", "back"] as const).map((placement) => (
           <div key={placement} className="grid gap-2 content-start">
             <h4 className="text-sm font-semibold">
@@ -1665,7 +1629,7 @@ function PrintInteriorFields({
       >
         Print interior settings
       </legend>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Trim size">
           <select
             value={settings.trim_size}
@@ -1704,7 +1668,7 @@ function PrintInteriorFields({
           </select>
         </Field>
       </div>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {marginFields.map(({ key, label, min }) => (
           <Field key={key} label={`${label} (in)`}>
             <input
@@ -1821,7 +1785,7 @@ function LargePrintFields({
         to cap line length. They do not claim compliance with a specific
         printer.
       </p>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Field label="Trim size">
           <select
             value={settings.trim_size}
@@ -1924,7 +1888,7 @@ function LargePrintFields({
           />
         </Field>
       </div>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {margins.map(({ key, label, min }) => (
           <Field key={key} label={`${label} (in)`}>
             <input
@@ -2001,7 +1965,7 @@ function HardcoverFields({
         The binding gutter is added to the inside margin. Hardcover minimums are
         provider-neutral and intentionally stricter than general interiors.
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Trim size">
           <select
             value={settings.trim_size}
@@ -2041,7 +2005,7 @@ function HardcoverFields({
           </select>
         </Field>
       </div>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {margins.map(({ key, label, min }) => (
           <Field key={key} label={`${label} (in)`}>
             <input
@@ -2124,14 +2088,11 @@ function ContactFields({
     });
   };
   return (
-    <details>
-      <summary
-        className="text-sm cursor-pointer"
-        style={{ color: "var(--text-secondary)" }}
-      >
+    <section aria-labelledby="publish-contact-heading">
+      <h4 id="publish-contact-heading" className="text-sm font-medium">
         Contact and manuscript header
-      </summary>
-      <div className="grid grid-cols-2 gap-3 mt-2">
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
         {(
           [
             ["author_name", "Contact name"],
@@ -2152,7 +2113,7 @@ function ContactFields({
           </Field>
         ))}
       </div>
-    </details>
+    </section>
   );
 }
 
@@ -2187,7 +2148,7 @@ function EbookFields({
       style={{ borderColor: "var(--border-color)" }}
     >
       <p className="text-sm font-medium">EPUB metadata</p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="Language (BCP 47)" required>
           <input
             value={metadata.language ?? ""}

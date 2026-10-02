@@ -14,7 +14,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
       for (let entry of entries) {
-        const height = entry.contentRect.height;
+        const height = entry.target.getBoundingClientRect().height;
         onStateChange(false, height); // Notify parent of height changes
       }
     });
@@ -33,36 +33,34 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   return (
     <div
       ref={drawerRef}
-      className="absolute bottom-0 left-0 right-0 overflow-hidden max-h-12"
-      style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}
+      className="editor-status absolute bottom-0 left-0 right-0 px-5 pb-2"
+      style={{ color: "var(--text-secondary)" }}
     >
       {/* Header Row */}
       <div
-        className="flex items-center justify-between p-2 border-t"
-        style={{ borderColor: "var(--border-color)" }}
+        className="editor-status-surface flex min-h-[42px] items-center justify-between px-4 py-2"
+        style={{ background: "var(--bg-primary)" }}
       >
         <div className="flex items-center space-x-4">
-          <span className="text-sm">
-            <span className="font-bold">Created:</span>{" "}
-            <span style={{ color: "var(--btn-success)" }}>
+          <span className="text-xs">
+            <span className="font-normal">Created:</span>{" "}
+            <span style={{ color: "var(--text-secondary)" }}>
               {project?.selectedFile?.data?.createDate &&
                 formatDateTime(project.selectedFile.data.createDate)}
             </span>
           </span>
-          <span className="text-sm">
-            <span className="font-bold">Last Edited:</span>{" "}
-            <span style={{ color: "var(--btn-success)" }}>
+          <span className="text-xs">
+            <span className="font-normal">Last Edited:</span>{" "}
+            <span style={{ color: "var(--text-secondary)" }}>
               {project?.selectedFile?.data?.lastModified &&
                 formatDateTime(project.selectedFile.data.lastModified)}
             </span>
           </span>
-          <span className="text-sm">
-            <span className="font-bold">Word Count:</span>{" "}
-            <span style={{ color: "var(--btn-primary)" }}>
-              {project?.selectedFile?.data?.wordCount}
-            </span>
-          </span>
+
         </div>
+        <span className="ml-auto shrink-0 pl-4 text-right text-xs">
+          {project?.selectedFile?.data?.wordCount ?? 0} words
+        </span>
       </div>
     </div>
   );

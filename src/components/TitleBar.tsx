@@ -8,6 +8,7 @@ import {
   FiEdit3,
   FiHome,
   FiSearch,
+  FiUpload,
 } from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
 import {
@@ -68,7 +69,7 @@ const TitleBar = () => {
 
   return (
     <div
-      className="relative h-8 flex items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
+      className="app-title-bar relative h-8 flex items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
       style={
         {
           background: "var(--bg-primary)",
@@ -229,7 +230,7 @@ const TitleBar = () => {
               {wordCount !== null && (
                 <span
                   className="shrink-0"
-                  style={{ color: "var(--btn-primary)" }}
+                  style={{ color: "var(--text-secondary)" }}
                 >
                   {wordCount} words
                 </span>
@@ -243,7 +244,7 @@ const TitleBar = () => {
                   label="Editor"
                   title="Editor"
                   ariaLabel="Open editor"
-                  icon={<FiEdit3 size={12} />}
+                  icon={<FiEdit3 size={14} />}
                   onClick={() => {
                     const encoded = encodeURIComponent(projectName);
                     navigate(`/projects/${encoded}`);
@@ -255,7 +256,7 @@ const TitleBar = () => {
                   label="Publish"
                   title="Publish project"
                   ariaLabel="Open publish page"
-                  icon={<span aria-hidden="true">🚀</span>}
+                  icon={<FiUpload size={14} />}
                   onClick={() => {
                     const encoded = encodeURIComponent(projectName);
                     navigate(`/projects/${encoded}/publish`);
@@ -267,7 +268,7 @@ const TitleBar = () => {
                   label="Artifacts"
                   title="Artifacts"
                   ariaLabel="Open artifact history"
-                  icon={<FiArchive size={12} />}
+                  icon={<FiArchive size={14} />}
                   onClick={() => {
                     const encoded = encodeURIComponent(projectName);
                     navigate(`/projects/${encoded}/artifacts`);
@@ -348,7 +349,7 @@ function TitleBarRouteButton({
     <button
       type="button"
       onClick={onClick}
-      className="h-6 px-2 rounded flex items-center gap-1 text-xs font-semibold transition-colors shrink-0"
+      className="h-6 px-2 rounded flex items-center gap-1 text-xs font-medium transition-colors shrink-0"
       style={
         {
           color: "var(--text-primary)",

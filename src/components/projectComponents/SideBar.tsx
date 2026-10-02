@@ -1,8 +1,9 @@
 import React, { useEffect } from "react";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import {
-  FiX,
-  FiMenu,
+  FiChevronLeft,
+  FiChevronRight,
+  FiSidebar,
   FiFilePlus,
   FiFolderPlus,
 } from "react-icons/fi";
@@ -41,33 +42,45 @@ const Sidebar: React.FC = () => {
     <>
       <div
         className={`${
-          project.isSidebarOpen ? "w-[16rem]" : "w-12"
-        } flex flex-col transition-all duration-300 ease-in-out`}
+          project.isSidebarOpen ? "w-[16rem]" : "w-7"
+        } flex shrink-0 flex-col mb-2 rounded-b-2xl overflow-hidden transition-[width,background-color,border-color] duration-300 ease-in-out motion-reduce:transition-none`}
         style={{
-          background: "var(--bg-primary)",
+          background: project.isSidebarOpen ? "var(--bg-primary)" : "var(--editor-bg)",
+          borderBottomWidth: "1px",
+          borderBottomStyle: "solid",
+          borderBottomColor: project.isSidebarOpen ? "var(--border-color)" : "transparent",
+          borderRightWidth: "1px",
+          borderRightStyle: "solid",
+          borderRightColor: project.isSidebarOpen ? "var(--border-color)" : "transparent",
           color: "var(--text-primary)",
         }}
       >
         {/* Header with Toggle Button, Project Name, and Action Buttons */}
-        <div className="flex items-center justify-between p-3 pb-0">
+        <div className={`flex h-16 shrink-0 items-center justify-between ${project.isSidebarOpen ? "px-3" : "px-0"}`}>
           {/* Left Section: Toggle Button and Project Name */}
-          <div className="flex items-center min-w-0 flex-1">
+          <div className={`flex items-center min-w-0 flex-1 ${project.isSidebarOpen ? "" : "justify-center"}`}>
             {/* Toggle Button */}
             <button
               onClick={() => project.setIsSidebarOpen((prev) => !prev)}
-              className="focus:outline-none flex-shrink-0"
+              className="flex h-8 shrink-0 items-center justify-center rounded"
+              aria-label={project.isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              aria-expanded={project.isSidebarOpen}
+              title={project.isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
-              {project.isSidebarOpen ? (
-                <FiX className="text-2xl" />
-              ) : (
-                <FiMenu className="text-2xl" />
-              )}
+              <span className="relative block h-5 w-5" aria-hidden="true">
+                <FiSidebar size={20} className="block" />
+                {project.isSidebarOpen ? (
+                  <FiChevronLeft className="absolute right-0 top-[5px]" size={10} />
+                ) : (
+                  <FiChevronRight className="absolute right-0 top-[5px]" size={10} />
+                )}
+              </span>
             </button>
 
             {project.isSidebarOpen && (
-              <div className="ml-4 min-w-0">
+              <div className="ml-2 flex h-8 min-w-0 items-center">
                 <h2
-                  className="font-bold text-lg whitespace-nowrap overflow-hidden text-ellipsis"
+                  className="editor-document-title font-normal text-2xl leading-none whitespace-nowrap overflow-hidden text-ellipsis"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {project.projectMetadata.projectType}
@@ -78,7 +91,7 @@ const Sidebar: React.FC = () => {
 
           {/* Right Section: Action Buttons */}
           {project.isSidebarOpen && (
-            <div className="flex gap-4 pl-4 flex-shrink-0">
+            <div className="flex h-8 items-center gap-3 pl-2 flex-shrink-0">
               <FiFilePlus
                 onClick={() => {
                   modal.renderModal({
@@ -102,8 +115,8 @@ const Sidebar: React.FC = () => {
                     ),
                   });
                 }}
-                className="cursor-pointer text-xl"
-                style={{ color: "var(--btn-success)" }}
+                className="block cursor-pointer text-xl"
+                style={{ color: "var(--text-secondary)" }}
                 title="Add File"
               />
               <FiFolderPlus
@@ -129,8 +142,8 @@ const Sidebar: React.FC = () => {
                     ),
                   });
                 }}
-                className="cursor-pointer text-xl"
-                style={{ color: "var(--btn-primary)" }}
+                className="block cursor-pointer text-xl"
+                style={{ color: "var(--text-secondary)" }}
                 title="Add Folder"
               />
             </div>
@@ -139,7 +152,7 @@ const Sidebar: React.FC = () => {
 
         {/* Sidebar Content */}
         {project.isSidebarOpen ? (
-          <div className="p-4 h-full overflow-y-auto scrollbar-hide">
+          <div className="px-3 pt-1 pb-4 min-h-0 flex-1 overflow-y-auto scrollbar-hide">
             <DndProvider backend={HTML5Backend}>
               <Tree
                 tree={project.treeData}
@@ -182,7 +195,7 @@ const Sidebar: React.FC = () => {
             </DndProvider>
           </div>
         ) : (
-          <div className="p-4 text-center text-sm"></div>
+          <div className="flex-1"></div>
         )}
       </div>
     </>

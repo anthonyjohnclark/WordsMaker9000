@@ -20,14 +20,14 @@ const PublishingWorkspace = () => {
 
   return (
     <section
-      className="h-full flex flex-col"
+      className="h-full min-h-0 flex flex-col"
       style={{
         background: "var(--bg-secondary)",
         color: "var(--text-primary)",
       }}
     >
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className={isArtifactsPage ? "hidden" : "block h-full"}>
+      <div className="relative flex-1 min-h-0 overflow-y-auto px-5 py-8 sm:px-8">
+        <div className={isArtifactsPage ? "hidden" : "block min-h-full"}>
           <PublishingPage
             onNavigateEditor={goToEditor}
             onOpenArtifactHistory={goToArtifacts}
@@ -36,7 +36,7 @@ const PublishingWorkspace = () => {
             }
           />
         </div>
-        <div className={isArtifactsPage ? "block h-full" : "hidden"}>
+        <div className={isArtifactsPage ? "block min-h-full" : "hidden"}>
           <ExportVersionsModal
             projectName={projectName}
             mode="page"

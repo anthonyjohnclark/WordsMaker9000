@@ -4,6 +4,8 @@
 
 :root {
   --editor-font-size: 16px; /* Default font size */
+  --ui-font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --heading-font-family: var(--ui-font-family);
   /* Theme variables — defaults match Midnight theme, overridden at runtime */
   --bg-primary: #111827;
   --bg-secondary: #000000;
@@ -47,7 +49,7 @@
 body {
   color: var(--text-primary);
   background: var(--bg-secondary);
-  font-family: var(--editor-font-family);
+  font-family: var(--ui-font-family);
   -ms-overflow-style: none;
 }
 
@@ -252,7 +254,7 @@ body {
 }
 
 .futuristic-font {
-  font-family: var(--editor-font-family);
+  font-family: var(--heading-font-family);
 }
 
 .ql-snow.ql-toolbar button:hover .ql-stroke,
@@ -305,4 +307,318 @@ body {
   color: var(--toolbar-active) !important;
   stroke: var(--toolbar-active) !important;
   background-color: transparent !important;
+}
+
+/* Shared, quiet control treatments; manuscript sizing remains independent. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button,
+input,
+select,
+textarea,
+a {
+  transition: color 150ms ease, background-color 150ms ease,
+    border-color 150ms ease, box-shadow 150ms ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.projects-page .project-control {
+  min-height: 42px;
+  border-radius: 6px;
+}
+
+.projects-page .project-control:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+
+.projects-page .project-create-button:hover:not(:disabled) {
+  background: var(--accent-bg-hover) !important;
+}
+
+.projects-page .project-create-button:disabled {
+  background: var(--bg-input) !important;
+  color: var(--text-muted) !important;
+  cursor: not-allowed;
+}
+
+.projects-page .project-name {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.projects-page .project-name:hover {
+  color: var(--accent) !important;
+}
+
+.projects-page .project-icon-button {
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.projects-page .project-icon-button:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.projects-page .project-delete-button:hover {
+  color: var(--btn-danger);
+}
+
+.project-metadata,
+.editor-status {
+  font-variant-numeric: tabular-nums;
+}
+
+.project-metadata {
+  line-height: 1.6;
+}
+
+.app-title-bar {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.app-title-bar .futuristic-font {
+  font-family: var(--ui-font-family);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.editor-document-title {
+  font-family: var(--heading-font-family);
+}
+
+.ql-toolbar {
+  min-height: 42px;
+  box-shadow: inset 0 -1px 0 var(--border-color);
+  font-family: var(--ui-font-family);
+}
+
+.ql-toolbar button,
+.ql-toolbar .ql-picker-label {
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  input,
+  select,
+  textarea,
+  a {
+    transition: none;
+  }
+}
+/* Inset toolbar surface; fullscreen retains its existing hidden toolbar. */
+.project-text-editor:not(.fullscreen-editor) .ql-toolbar {
+  margin: 8px 20px 12px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--border-color),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.project-text-editor:not(.fullscreen-editor) .save-icon {
+  z-index: 1;
+}
+/* Keep the toolbar inset inside the wrapper so its absolute overlays align. */
+.project-text-editor:not(.fullscreen-editor) > .quill {
+  display: flow-root;
+}
+.editor-status-surface {
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--border-color),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.sidebar-tree-row .sidebar-row-action {
+  color: var(--text-secondary);
+}
+
+.sidebar-tree-row .sidebar-row-action:hover {
+  color: var(--accent);
+}
+
+.sidebar-tree-row .sidebar-row-delete:hover {
+  color: var(--btn-danger);
+}
+/* Compact controls retain a shared centerline inside the floating toolbar. */
+.project-text-editor .ql-toolbar.ql-snow {
+  min-height: 34px;
+  padding: 5px 8px;
+}
+
+.project-text-editor .ql-toolbar.ql-snow button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+}
+
+.project-text-editor .ql-toolbar.ql-snow button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.project-text-editor .ql-toolbar.ql-snow .ql-picker {
+  font-size: 12px;
+}
+
+.project-text-editor .ql-toolbar.ql-snow button.ql-sceneBreak::before,
+.project-text-editor .ql-toolbar.ql-snow button.ql-footnotes::before {
+  font-size: 14px;
+  height: 14px;
+}
+
+.project-text-editor .ql-toolbar.ql-snow button.ql-projectImage::before {
+  width: 14px;
+  height: 11px;
+}
+
+.project-text-editor .ql-toolbar.ql-snow button.ql-projectImage::after {
+  width: 10px;
+  height: 5px;
+  bottom: 7px;
+}
+/* Publishing uses one scrolling page with visible, comfortably spaced sections. */
+.publish-page-panel .publish-section {
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.publish-page-panel .publish-section-title {
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.publish-page-panel .publish-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.publish-page-panel input:not([type="checkbox"]),
+.publish-page-panel select,
+.publish-page-panel textarea {
+  border-color: var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.publish-page-panel input:not([type="checkbox"]),
+.publish-page-panel select {
+  min-height: 40px;
+}
+
+.publish-page-panel input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.publish-page-panel button {
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.publish-page-panel .input-button:hover:not(:disabled) {
+  background: var(--bg-hover) !important;
+}
+
+.publish-page-panel .publish-delete-button:hover:not(:disabled) {
+  border-color: var(--btn-danger) !important;
+  color: var(--btn-danger) !important;
+}
+
+.publish-page-panel .publish-choice:hover {
+  border-color: var(--accent) !important;
+}
+
+.publish-page-panel .publish-outline {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.publish-page-panel .publish-actions {
+  padding: 20px 0 0;
+  border-top: 1px solid var(--border-color);
+}
+
+@media (max-width: 640px) {
+  .publish-page-panel .publish-section {
+    padding: 16px;
+  }
+
+  .publish-page-panel .publish-fields-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.artifacts-page .artifacts-list,
+.artifacts-page .artifacts-empty {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.artifacts-page .artifact-row + .artifact-row {
+  border-top: 1px solid var(--border-color);
+}
+
+.artifacts-page .artifact-row:first-child {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.artifacts-page .artifact-row:last-child {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+
+.artifacts-page .artifacts-empty {
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.artifacts-page .artifact-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.artifacts-page .artifact-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary) !important;
+}
+
+.artifacts-page .artifact-actions .artifact-action:first-child {
+  color: var(--accent) !important;
+}
+
+.artifacts-page .artifact-action-danger:hover:not(:disabled) {
+  color: var(--btn-danger) !important;
+}
+
+.artifacts-page .artifact-action:disabled {
+  cursor: not-allowed;
 }

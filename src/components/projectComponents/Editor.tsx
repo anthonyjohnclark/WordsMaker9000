@@ -24,7 +24,7 @@ const EditorView: React.FC<{ isEditorActive?: boolean }> = ({
           <div className="relative flex flex-col h-full">
             {/* Slot for the in-file find bar, aligned with the title input */}
             <div id="findbar-slot" className="absolute top-3 right-5 z-50" />
-            <div className="mx-5 mb-0 flex items-center justify-between pb-2 pt-2">
+            <div className="mx-5 flex h-16 shrink-0 items-center justify-between">
               <FiFileText
                 aria-hidden="true"
                 size={22}
@@ -35,7 +35,7 @@ const EditorView: React.FC<{ isEditorActive?: boolean }> = ({
                 type="text"
                 value={project.selectedFile?.text || ""}
                 onChange={(e) => project.handleFileNameChange(e.target.value)}
-                className="min-w-0 flex-1 text-2xl font-semibold p-2 rounded focus:outline-none"
+                className="min-w-0 flex-1 editor-document-title h-12 text-2xl font-normal p-2 rounded"
                 style={{
                   background: "var(--bg-secondary)",
                   color: "var(--text-primary)",

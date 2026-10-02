@@ -16,9 +16,8 @@ import { useErrorContext } from "../contexts/global/ErrorContext";
 import ErrorModal from "../components/ErrorModal";
 import { UserSettingsModal } from "../components/UserSettingsModal";
 import RestoreBackupsModal from "../components/projectComponents/modals/RestoreBackupsModal";
-import { FaCog } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
-import { FiEdit2, FiTrash2, FiRotateCcw } from "react-icons/fi";
+import { FiEdit2, FiTrash2, FiRotateCcw, FiSettings } from "react-icons/fi";
 import EditProjectTypeModal from "./EditProjectTypeModal";
 
 export default function HomePage() {
@@ -112,7 +111,7 @@ export default function HomePage() {
       <ErrorModal />
 
       <div
-        className="flex flex-col h-full overflow-hidden"
+        className="projects-page flex flex-col h-full overflow-hidden"
         style={{
           background: "var(--bg-secondary)",
           color: "var(--text-primary)",
@@ -120,14 +119,15 @@ export default function HomePage() {
       >
         {/* Header */}
         <header
-          className="py-6 shadow-md"
+          className="py-6"
           style={{
-            background: "var(--accent-bg)",
-            color: "var(--bg-primary)",
+            background: "var(--bg-secondary)",
+            color: "var(--text-primary)",
+            borderColor: "var(--border-color)",
           }}
         >
           <div className="container mx-auto flex justify-between items-center px-6">
-            <h1 className="text-3xl font-extrabold futuristic-font">
+            <h1 className="text-3xl font-normal futuristic-font">
               Projects
             </h1>
             <button
@@ -136,10 +136,11 @@ export default function HomePage() {
                   modalBody: <UserSettingsModal onClose={modal.handleClose} />,
                 })
               }
-              style={{ color: "var(--bg-primary)" }}
+              className="project-icon-button p-2"
+              aria-label="Settings"
               title="Settings"
             >
-              <FaCog size={24} />
+              <FiSettings size={20} />
             </button>
           </div>
         </header>
@@ -147,20 +148,20 @@ export default function HomePage() {
         <Loadable isLoading={isLoadingProjects}>
           <main className="flex-1 container mx-auto p-6 flex flex-col overflow-hidden">
             <div
-              className="p-6 rounded-lg shadow-lg mb-6"
-              style={{ background: "var(--card-bg)" }}
+              className="p-6 rounded-lg border mb-6"
+              style={{ background: "var(--card-bg)", borderColor: "var(--border-color)" }}
             >
-              <h3 className="text-xl font-bold mb-4">Create New Project</h3>
+              <h3 className="text-sm font-medium mb-4">Create New Project</h3>
               <div className="flex items-center space-x-4">
                 <input
                   type="text"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   placeholder="New project name"
-                  className="flex-1 border rounded p-2 focus:outline-none"
+                  className="project-control flex-1 border px-3 py-2 text-sm"
                   style={{
                     borderColor: "var(--border-color)",
-                    background: "var(--bg-primary)",
+                    background: "var(--bg-input)",
                     color: "var(--text-primary)",
                   }}
                 />
@@ -169,10 +170,10 @@ export default function HomePage() {
                   onChange={(e) =>
                     setProjectType(e.target.value as ProjectType)
                   }
-                  className="border rounded p-2 focus:outline-none"
+                  className="project-control border px-3 py-2 text-sm"
                   style={{
                     borderColor: "var(--border-color)",
-                    background: "var(--bg-primary)",
+                    background: "var(--bg-input)",
                     color: "var(--text-primary)",
                   }}
                 >
@@ -189,12 +190,10 @@ export default function HomePage() {
 
                 <button
                   onClick={handleCreateProject}
-                  className={`py-2 px-4 rounded transition ${
-                    isCreateDisabled ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
+                  className="project-control project-create-button py-2 px-4 text-sm font-medium"
                   style={{
-                    background: "var(--btn-primary)",
-                    color: "var(--btn-text)",
+                    background: "var(--accent-bg)",
+                    color: "var(--accent-text)",
                   }}
                   disabled={isCreateDisabled}
                 >
@@ -206,8 +205,8 @@ export default function HomePage() {
               {projects.map((project) => (
                 <li
                   key={project.projectName}
-                  className="rounded-lg shadow-lg px-4 py-3 relative transition"
-                  style={{ background: "var(--card-bg)" }}
+                  className="rounded-lg border px-4 py-3 relative transition-colors"
+                  style={{ background: "var(--card-bg)", borderColor: "var(--border-color)" }}
                   onMouseEnter={(e) =>
                     (e.currentTarget.style.background = "var(--bg-hover)")
                   }
@@ -219,8 +218,8 @@ export default function HomePage() {
                   <div className="flex items-center justify-between">
                     <Link
                       to={`/projects/${project.projectName}`}
-                      className="text-xl font-semibold hover:underline futuristic-font"
-                      style={{ color: "var(--btn-primary)" }}
+                      className="project-name text-xl font-normal hover:underline futuristic-font"
+                      style={{ color: "var(--text-primary)" }}
                     >
                       {decodeURIComponent(project.projectName)}
                     </Link>
@@ -252,8 +251,8 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="p-1.5 rounded hover:opacity-80 transition"
-                        style={{ color: "var(--accent-bg)" }}
+                        className="project-icon-button p-1.5"
+                        aria-label="Restore Backup"
                         title="Restore Backup"
                       >
                         <FiRotateCcw size={16} />
@@ -270,8 +269,8 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="p-1.5 rounded hover:opacity-80 transition"
-                        style={{ color: "var(--btn-danger)" }}
+                        className="project-icon-button project-delete-button p-1.5"
+                        aria-label="Delete Project"
                         title="Delete Project"
                       >
                         <FiTrash2 size={16} />
@@ -281,17 +280,17 @@ export default function HomePage() {
 
                   {/* Bottom row: metadata in a horizontal line */}
                   <div
-                    className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-1 text-sm"
+                    className="project-metadata flex items-center flex-wrap gap-x-4 gap-y-1 mt-1 text-xs"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     <span className="flex items-center space-x-1">
                       <span
-                        className="font-semibold"
-                        style={{ color: "var(--text-primary)" }}
+                        className="font-normal"
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         Type:
                       </span>
-                      <span style={{ color: "var(--accent)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>
                         {project.projectType}
                       </span>
                       <button
@@ -311,8 +310,8 @@ export default function HomePage() {
                             ),
                           });
                         }}
-                        className="hover:opacity-80 p-0.5"
-                        style={{ color: "var(--btn-primary)" }}
+                        className="project-icon-button p-0.5"
+                        style={{ color: "var(--text-secondary)" }}
                         title="Edit Project Type"
                       >
                         <FiEdit2 size={12} />
@@ -326,12 +325,12 @@ export default function HomePage() {
                     </span>
                     <span>
                       <span
-                        className="font-semibold"
-                        style={{ color: "var(--text-primary)" }}
+                        className="font-normal"
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         Created:
                       </span>{" "}
-                      <span style={{ color: "var(--btn-success)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>
                         {formatDateTime(project.createDate)}
                       </span>
                     </span>
@@ -343,12 +342,12 @@ export default function HomePage() {
                     </span>
                     <span>
                       <span
-                        className="font-semibold"
-                        style={{ color: "var(--text-primary)" }}
+                        className="font-normal"
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         Edited:
                       </span>{" "}
-                      <span style={{ color: "var(--btn-success)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>
                         {formatDateTime(project.lastModified ?? "")}
                       </span>
                     </span>
@@ -360,12 +359,12 @@ export default function HomePage() {
                     </span>
                     <span>
                       <span
-                        className="font-semibold"
-                        style={{ color: "var(--text-primary)" }}
+                        className="font-normal"
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         Words:
                       </span>{" "}
-                      <span style={{ color: "var(--btn-primary)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>
                         {project.wordCount}
                       </span>
                     </span>
@@ -377,10 +376,11 @@ export default function HomePage() {
         </Loadable>
         {/* Footer */}
         <footer
-          className="h-8"
+          className="h-8 border-t"
           style={{
             background: "var(--bg-primary)",
             color: "var(--text-secondary)",
+            borderColor: "var(--border-color)",
           }}
         >
           <div className="h-full px-6 flex items-center justify-between gap-3">

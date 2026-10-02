@@ -180,39 +180,38 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
   },
   slate: {
     label: "Slate",
-    description: "Dark blues, blacks, and greys with warm pops of color",
+    description: "Quiet charcoal, warm paper tones, and a restrained amber accent",
     variables: {
-      "--bg-primary": "#1e293b", // slate-800
-      "--bg-secondary": "#020617", // slate-950
-      "--bg-input": "#334155", // slate-700
-      "--bg-hover": "#334155",
-      "--text-primary": "#f8fafc", // slate-50
-      "--text-secondary": "#94a3b8", // slate-400
-      "--text-muted": "#64748b", // slate-500
-      "--accent": "#f59e0b", // amber-500
-      "--accent-hover": "#fbbf24", // amber-400
-      "--accent-bg": "#f59e0b",
-      "--accent-bg-hover": "#fbbf24",
-      "--border-color": "#334155",
+      "--bg-primary": "#20252b",
+      "--bg-secondary": "#181c21",
+      "--bg-input": "#252b32",
+      "--bg-hover": "#2b323a",
+      "--text-primary": "#ebe7df",
+      "--text-secondary": "#b1b3b5",
+      "--text-muted": "#91969d",
+      "--accent": "#c9a66b",
+      "--accent-hover": "#ddbd88",
+      "--accent-bg": "#c9a66b",
+      "--accent-bg-hover": "#ddbd88",
+      "--border-color": "#353c45",
       "--editor-font-family": "'Lora', Georgia, serif",
-      "--editor-bg": "#020617",
-      "--editor-text": "#f8fafc", // slate-300
-      "--selection-bg": "rgba(245, 158, 11, 0.35)", // amber-500 @ 35%
-      "--toolbar-active": "#f59e0b",
-      "--btn-primary": "#3b82f6", // blue-500
-      "--btn-primary-hover": "#60a5fa",
-      "--btn-success": "#22c55e",
-      "--btn-success-hover": "#4ade80",
-      "--btn-danger": "#ef4444",
-      "--btn-danger-hover": "#f87171",
-      "--card-bg": "#1e293b",
-      "--modal-bg": "#0f172a",
-      "--btn-text": "#020617",
-      "--accent-text": "#020617",
+      "--editor-bg": "#181c21",
+      "--editor-text": "#ebe7df",
+      "--selection-bg": "rgba(201, 166, 107, 0.25)",
+      "--toolbar-active": "#c9a66b",
+      "--btn-primary": "#c9a66b",
+      "--btn-primary-hover": "#ddbd88",
+      "--btn-success": "#8bb59a",
+      "--btn-success-hover": "#a4cbb1",
+      "--btn-danger": "#d58c85",
+      "--btn-danger-hover": "#e5a49d",
+      "--card-bg": "#20252b",
+      "--modal-bg": "#20252b",
+      "--btn-text": "#181c21",
+      "--accent-text": "#181c21",
     },
   },
 };
-
 export const themeNames = Object.keys(themes) as ThemeName[];
 
 export function applyTheme(themeName: ThemeName | undefined): void {
