@@ -1,5 +1,5 @@
 // context/ErrorContext.tsx
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useState } from "react";
 
 interface ErrorContextProps {
   error: Error | null | string;
@@ -16,10 +16,10 @@ export const ErrorProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<Error | null | string>(null);
   const [errorAction, setErrorAction] = useState<string | null>(null);
 
-  const showError = (error: unknown, errorAction: string) => {
+  const showError = useCallback((error: unknown, errorAction: string) => {
     setError(error as string);
     setErrorAction(errorAction);
-  };
+  }, []);
 
   const clearError = () => setError(null);
 

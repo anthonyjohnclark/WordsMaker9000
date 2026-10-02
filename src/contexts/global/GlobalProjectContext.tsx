@@ -15,6 +15,8 @@ interface GlobalProjectContextProps {
   lastBackupTime: Date | null;
   isSearchOpen: boolean;
   setIsSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isSidebarOpen: boolean;
+  setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const GlobalProjectContext = createContext<
@@ -32,6 +34,7 @@ export const GlobalProjectProvider = ({
   const [isBackingUp, setIsBackingUp] = useState<boolean>(false);
   const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
     <GlobalProjectContext.Provider
@@ -48,6 +51,8 @@ export const GlobalProjectProvider = ({
         lastBackupTime,
         isSearchOpen,
         setIsSearchOpen,
+        isSidebarOpen,
+        setIsSidebarOpen,
       }}
     >
       {children}

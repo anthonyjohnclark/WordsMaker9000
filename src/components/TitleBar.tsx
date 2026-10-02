@@ -8,6 +8,7 @@ import {
   FiEdit3,
   FiHome,
   FiSearch,
+  FiSidebar,
   FiUpload,
 } from "react-icons/fi";
 import { formatDateTime } from "../utils/helpers";
@@ -37,6 +38,8 @@ const TitleBar = () => {
     isBackingUp,
     lastBackupTime,
     setIsSearchOpen,
+    isSidebarOpen,
+    setIsSidebarOpen,
   } = useGlobalProjectContext();
 
   const handleClose = () => getCurrentWindow().close();
@@ -163,6 +166,34 @@ const TitleBar = () => {
           >
             <FiChevronRight size={14} aria-hidden="true" />
           </button>
+          {isEditorRoute && (
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen((current) => !current)}
+              className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
+              style={
+                {
+                  color: "var(--text-secondary)",
+                  background: "transparent",
+                  WebkitAppRegion: "no-drag",
+                  cursor: "pointer",
+                } as React.CSSProperties
+              }
+              aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              aria-expanded={isSidebarOpen}
+              aria-controls="project-sidebar"
+              title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              <span className="relative block h-4 w-4" aria-hidden="true">
+                <FiSidebar size={16} className="block" />
+                {isSidebarOpen ? (
+                  <FiChevronLeft className="absolute right-0 top-1" size={8} />
+                ) : (
+                  <FiChevronRight className="absolute right-0 top-1" size={8} />
+                )}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 

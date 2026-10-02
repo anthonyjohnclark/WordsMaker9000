@@ -32,6 +32,7 @@ import { countWordsInHtml } from "../../utils/searchUtils";
 import { createDocumentSaveQueue } from "../../utils/documentSaveQueue";
 import { useErrorContext } from "../global/ErrorContext";
 import { useUserSettings } from "../global/UserSettingsContext";
+import { useGlobalProjectContext } from "../global/GlobalProjectContext";
 
 interface ProjectContextProps {
   projectName: string;
@@ -106,7 +107,10 @@ export const ProjectProvider: React.FC<{
   const [fileContent, setFileContent] = useState<string | null>(
     initialSelectedFile ? initialFileContent ?? null : null,
   );
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const { isSidebarOpen, setIsSidebarOpen } = useGlobalProjectContext();
+  useEffect(() => {
+    setIsSidebarOpen(true);
+  }, [projectName, setIsSidebarOpen]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fileSavedMessage, setFileSavedMessage] = useState(false);
   const [isProjectPageLoading, setIsProjectPageLoading] = useState(

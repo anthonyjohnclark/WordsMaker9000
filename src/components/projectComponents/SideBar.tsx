@@ -1,9 +1,6 @@
 import React, { useEffect } from "react";
 import { useProjectContext } from "../../contexts/pages/ProjectProvider";
 import {
-  FiChevronLeft,
-  FiChevronRight,
-  FiSidebar,
   FiFilePlus,
   FiFolderPlus,
 } from "react-icons/fi";
@@ -41,44 +38,28 @@ const Sidebar: React.FC = () => {
   return (
     <>
       <div
+        id="project-sidebar"
         className={`${
-          project.isSidebarOpen ? "w-[16rem]" : "w-7"
+          project.isSidebarOpen ? "w-[16rem]" : "w-0"
         } flex shrink-0 flex-col mb-2 rounded-b-2xl overflow-hidden transition-[width,background-color,border-color] duration-300 ease-in-out motion-reduce:transition-none`}
+        aria-hidden={!project.isSidebarOpen}
         style={{
           background: project.isSidebarOpen ? "var(--bg-primary)" : "var(--editor-bg)",
           borderBottomWidth: "1px",
           borderBottomStyle: "solid",
           borderBottomColor: project.isSidebarOpen ? "var(--border-color)" : "transparent",
-          borderRightWidth: "1px",
+          borderRightWidth: project.isSidebarOpen ? "1px" : "0",
           borderRightStyle: "solid",
           borderRightColor: project.isSidebarOpen ? "var(--border-color)" : "transparent",
           color: "var(--text-primary)",
         }}
       >
-        {/* Header with Toggle Button, Project Name, and Action Buttons */}
+        {/* Header with Project Name and Action Buttons */}
         <div className={`flex h-16 shrink-0 items-center justify-between ${project.isSidebarOpen ? "px-3" : "px-0"}`}>
-          {/* Left Section: Toggle Button and Project Name */}
+          {/* Left Section: Project Name */}
           <div className={`flex items-center min-w-0 flex-1 ${project.isSidebarOpen ? "" : "justify-center"}`}>
-            {/* Toggle Button */}
-            <button
-              onClick={() => project.setIsSidebarOpen((prev) => !prev)}
-              className="flex h-8 shrink-0 items-center justify-center rounded"
-              aria-label={project.isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-              aria-expanded={project.isSidebarOpen}
-              title={project.isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            >
-              <span className="relative block h-5 w-5" aria-hidden="true">
-                <FiSidebar size={20} className="block" />
-                {project.isSidebarOpen ? (
-                  <FiChevronLeft className="absolute right-0 top-[5px]" size={10} />
-                ) : (
-                  <FiChevronRight className="absolute right-0 top-[5px]" size={10} />
-                )}
-              </span>
-            </button>
-
             {project.isSidebarOpen && (
-              <div className="ml-2 flex h-8 min-w-0 items-center">
+              <div className="flex h-8 min-w-0 items-center">
                 <h2
                   className="editor-document-title font-normal text-2xl leading-none whitespace-nowrap overflow-hidden text-ellipsis"
                   style={{ color: "var(--text-primary)" }}
