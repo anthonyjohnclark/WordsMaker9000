@@ -25,7 +25,7 @@ const renderApp = (initialSettings?: UserSettings) => {
 const loadInitialSettings = async (): Promise<UserSettings | undefined> => {
   try {
     const settings = await retrieveSettings();
-    applyTheme(settings.theme);
+    applyTheme(settings.theme, settings.customThemes);
     document.documentElement.style.setProperty(
       "--editor-font-size",
       `${settings.defaultFontZoom}px`,

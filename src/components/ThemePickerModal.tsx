@@ -1,14 +1,16 @@
 import React from "react";
-import { themes, themeNames, ThemeName } from "../themes";
+import { CustomTheme, normalizeCustomThemes, resolveTheme, themeNames } from "../themes";
 
 interface ThemePickerModalProps {
-  selectedTheme: ThemeName;
-  onSelect: (theme: ThemeName) => void;
+  selectedTheme: string;
+  customThemes?: CustomTheme[];
+  onSelect: (theme: string) => void;
   onClose: () => void;
 }
 
 const ThemePickerModal: React.FC<ThemePickerModalProps> = ({
   selectedTheme,
+  customThemes = [],
   onSelect,
   onClose,
 }) => {
@@ -37,8 +39,8 @@ const ThemePickerModal: React.FC<ThemePickerModalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {themeNames.map((name) => {
-            const theme = themes[name];
+          {[...themeNames, ...normalizeCustomThemes(customThemes).map((theme) => theme.id)].map((name) => {
+            const theme = resolveTheme(name, customThemes);
             const isSelected = selectedTheme === name;
             const vars = theme.variables;
 
@@ -56,7 +58,7 @@ const ThemePickerModal: React.FC<ThemePickerModalProps> = ({
                     ? `3px solid ${vars["--accent"]}`
                     : "3px solid transparent",
                   boxShadow: isSelected
-                    ? `0 0 16px ${vars["--accent"]}50`
+                    ? `0 0 0 1px ${vars["--accent"]}`
                     : "0 2px 8px rgba(0,0,0,0.2)",
                 }}
               >

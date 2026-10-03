@@ -16,55 +16,28 @@
     <link rel="stylesheet" href="/src/index.css" />
     <script>
       (function () {
-        const themeName =
-          localStorage.getItem("wm9000:last-theme") || "midnight";
-        const startupPalette = {
-          midnight: {
-            primary: "#111827",
-            secondary: "#000000",
-            ink: "#eab308",
-            lettering: "#ffffff",
-          },
-          parchment: {
-            primary: "#f5f0e8",
-            secondary: "#ede4d4",
-            ink: "#b45309",
-            lettering: "#3d2b1f",
-          },
-          ocean: {
-            primary: "#0f172a",
-            secondary: "#020617",
-            ink: "#22d3ee",
-            lettering: "#e2e8f0",
-          },
-          forest: {
-            primary: "#1a2e1a",
-            secondary: "#0f1f0f",
-            ink: "#34d399",
-            lettering: "#e2efe2",
-          },
-          typewriter: {
-            primary: "#f5f5f0",
-            secondary: "#eaeae5",
-            ink: "#1f2937",
-            lettering: "#1f2937",
-          },
-          slate: {
-            primary: "#1e293b",
-            secondary: "#020617",
-            ink: "#f59e0b",
-            lettering: "#f8fafc",
-          },
-        };
-
-        const palette = startupPalette[themeName] || startupPalette.midnight;
-        const root = document.documentElement;
-        root.style.setProperty("--bg-primary", palette.primary);
-        root.style.setProperty("--bg-secondary", palette.secondary);
-        root.style.setProperty("--wm-logo-background", palette.secondary);
-        root.style.setProperty("--wm-logo-ink", palette.ink);
-        root.style.setProperty("--wm-logo-lettering", palette.lettering);
-        root.style.setProperty("--wm-logo-outline", palette.secondary);
+        // A synchronous snapshot of the resolved theme avoids duplicating presets.
+        // On first launch (or an older install), CSS defaults cover the splash
+        // until main.tsx loads the authoritative settings file.
+        try {
+          const cached = JSON.parse(localStorage.getItem("wm9000:startup-theme") || "null");
+          if (!cached || cached.version !== 1 || !cached.variables) return;
+          const keys = [
+            "--bg-primary", "--bg-secondary", "--wm-logo-background",
+            "--wm-logo-ink", "--wm-logo-lettering", "--wm-logo-outline",
+          ];
+          const validColor = (value) =>
+            typeof value === "string" && value.length <= 200 &&
+            /^(#[\da-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%+-]+\)|[a-z]+)$/i.test(value) &&
+            CSS.supports("color", value) &&
+            !/^(inherit|initial|unset|revert|revert-layer|currentcolor)$/i.test(value);
+          if (!keys.every((key) => validColor(cached.variables[key]))) return;
+          for (const key of keys) {
+            document.documentElement.style.setProperty(key, cached.variables[key]);
+          }
+        } catch {
+          // Unavailable storage or an invalid cache falls back to CSS defaults.
+        }
       })();
     </script>
     <!-- Import your index.css -->

@@ -4,7 +4,7 @@ import { saveSettings, UserSettings } from "../utils/fileManager";
 import { useUserSettings } from "../contexts/global/UserSettingsContext";
 import { useErrorContext } from "../contexts/global/ErrorContext";
 import Loadable from "./Loadable";
-import { themes, ThemeName } from "../themes";
+import { resolveTheme } from "../themes";
 import ThemePickerModal from "./ThemePickerModal";
 
 interface UserSettingsModalProps {
@@ -17,10 +17,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const { settings, setSettings } = useUserSettings();
   const { showError } = useErrorContext();
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedTheme, setSelectedTheme] = useState<ThemeName>(
+  const [selectedTheme, setSelectedTheme] = useState<string>(
     settings?.theme || "midnight",
   );
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const selectedDefinition = resolveTheme(selectedTheme, settings?.customThemes);
 
   const saveIntervalOptions = [
     { label: "1 minute", value: 60000 },
@@ -46,7 +47,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     },
   });
 
-  const handleThemeSelect = (themeName: ThemeName) => {
+  const handleThemeSelect = (themeName: string) => {
     setSelectedTheme(themeName);
     setValue("theme", themeName);
   };
@@ -56,8 +57,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setIsLoading(true);
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      await saveSettings(data);
-      setSettings(data);
+      const updatedSettings = { ...data, customThemes: settings?.customThemes ?? [] };
+      await saveSettings(updatedSettings);
+      setSettings(updatedSettings);
     } catch (error) {
       showError(error, "retrieving user settings");
     } finally {
@@ -82,9 +84,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               onClick={() => setShowThemePicker(true)}
               className="w-full flex items-center justify-between rounded-lg p-3 transition-all"
               style={{
-                background: themes[selectedTheme].variables["--bg-primary"],
-                color: themes[selectedTheme].variables["--text-primary"],
-                border: `2px solid ${themes[selectedTheme].variables["--accent"]}`,
+                background: selectedDefinition.variables["--bg-primary"],
+                color: selectedDefinition.variables["--text-primary"],
+                border: `2px solid ${selectedDefinition.variables["--accent"]}`,
               }}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -93,35 +95,35 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   <div
                     className="w-3.5 h-3.5 rounded-full"
                     style={{
-                      background: themes[selectedTheme].variables["--accent"],
+                      background: selectedDefinition.variables["--accent"],
                     }}
                   />
                   <div
                     className="w-3.5 h-3.5 rounded-full"
                     style={{
                       background:
-                        themes[selectedTheme].variables["--btn-primary"],
+                        selectedDefinition.variables["--btn-primary"],
                     }}
                   />
                   <div
                     className="w-3.5 h-3.5 rounded-full"
                     style={{
                       background:
-                        themes[selectedTheme].variables["--btn-success"],
+                        selectedDefinition.variables["--btn-success"],
                     }}
                   />
                 </div>
                 <span className="font-semibold">
-                  {themes[selectedTheme].label}
+                  {selectedDefinition.label}
                 </span>
                 <span
                   className="text-xs opacity-60 truncate"
                   style={{
                     fontFamily:
-                      themes[selectedTheme].variables["--editor-font-family"],
+                      selectedDefinition.variables["--editor-font-family"],
                   }}
                 >
-                  {themes[selectedTheme].variables["--editor-font-family"]
+                  {selectedDefinition.variables["--editor-font-family"]
                     .split(",")[0]
                     .replace(/'/g, "")}
                 </span>
@@ -135,6 +137,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           {showThemePicker && (
             <ThemePickerModal
               selectedTheme={selectedTheme}
+              customThemes={settings?.customThemes}
               onSelect={handleThemeSelect}
               onClose={() => setShowThemePicker(false)}
             />

@@ -62,8 +62,8 @@ export const UserSettingsProvider: React.FC<UserSettingsProviderProps> = ({
   }, [settings.defaultFontZoom]);
 
   useLayoutEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    applyTheme(settings.theme, settings.customThemes);
+  }, [settings.theme, settings.customThemes]);
 
   return (
     <UserSettingsContext.Provider

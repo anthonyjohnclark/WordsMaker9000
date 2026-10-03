@@ -12,6 +12,71 @@ export interface ThemeDefinition {
   variables: Record<string, string>;
 }
 
+export interface CustomTheme {
+  id: string;
+  label: string;
+  description: string;
+  baseTheme: ThemeName;
+  variables: Record<string, string>;
+}
+
+export function isThemeName(value: unknown): value is ThemeName {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(themes, value);
+}
+
+// Only known theme properties may be overridden; no arbitrary CSS or resources.
+function isValidThemeVariable(key: string, value: unknown): value is string {
+  if (!Object.prototype.hasOwnProperty.call(themes.midnight.variables, key) || typeof value !== "string") {
+    return false;
+  }
+  if (value.length > 200 || /[;{}]|url\s*\(|var\s*\(/i.test(value)) return false;
+  if (key === "--editor-font-family") {
+    return /^[\w\s,'"-]+$/.test(value) && value.trim().length > 0;
+  }
+  return /^(#[\da-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%+-]+\)|[a-z]+)$/i.test(value)
+    && CSS.supports("color", value)
+    && !/^(inherit|initial|unset|revert|revert-layer|currentcolor)$/i.test(value);
+}
+
+export function normalizeCustomThemes(value: unknown): CustomTheme[] {
+  if (!Array.isArray(value)) return [];
+  const ids = new Set<string>();
+  return value.flatMap((entry): CustomTheme[] => {
+    if (!entry || typeof entry !== "object"
+      || typeof entry.id !== "string" || !/^custom:[\w-]+$/.test(entry.id)
+      || ids.has(entry.id) || typeof entry.label !== "string"
+      || !entry.label.trim() || !isThemeName(entry.baseTheme)) return [];
+    ids.add(entry.id);
+    const variables: Record<string, string> = {};
+    if (entry.variables && typeof entry.variables === "object") {
+      for (const [key, candidate] of Object.entries(entry.variables)) {
+        if (isValidThemeVariable(key, candidate)) variables[key] = candidate;
+      }
+    }
+    return [{
+      id: entry.id,
+      label: entry.label.trim().slice(0, 100),
+      description: typeof entry.description === "string" ? entry.description.slice(0, 300) : "",
+      baseTheme: entry.baseTheme,
+      variables,
+    }];
+  });
+}
+
+export function resolveTheme(
+  themeId: string | undefined,
+  customThemes: CustomTheme[] = [],
+): ThemeDefinition {
+  if (isThemeName(themeId)) return themes[themeId];
+  const custom = normalizeCustomThemes(customThemes).find((theme) => theme.id === themeId);
+  if (!custom) return themes.midnight;
+  return {
+    label: custom.label,
+    description: custom.description,
+    variables: { ...themes[custom.baseTheme].variables, ...custom.variables },
+  };
+}
+
 export const themes: Record<ThemeName, ThemeDefinition> = {
   midnight: {
     label: "Midnight",
@@ -214,8 +279,8 @@ export const themes: Record<ThemeName, ThemeDefinition> = {
 };
 export const themeNames = Object.keys(themes) as ThemeName[];
 
-export function applyTheme(themeName: ThemeName | undefined): void {
-  const theme = themes[themeName ?? "midnight"] ?? themes.midnight;
+export function applyTheme(themeName: string | undefined, customThemes: CustomTheme[] = []): void {
+  const theme = resolveTheme(themeName, customThemes);
   const root = document.documentElement;
 
   Object.entries(theme.variables).forEach(([key, value]) => {
@@ -238,6 +303,17 @@ export function applyTheme(themeName: ThemeName | undefined): void {
 
   try {
     window.localStorage.setItem("wm9000:last-theme", themeName ?? "midnight");
+    window.localStorage.setItem("wm9000:startup-theme", JSON.stringify({
+      version: 1,
+      variables: {
+        "--bg-primary": theme.variables["--bg-primary"],
+        "--bg-secondary": theme.variables["--bg-secondary"],
+        "--wm-logo-background": theme.variables["--bg-secondary"],
+        "--wm-logo-ink": theme.variables["--accent"],
+        "--wm-logo-lettering": theme.variables["--text-primary"],
+        "--wm-logo-outline": theme.variables["--bg-secondary"],
+      },
+    }));
   } catch {
     // Ignore storage failures (private mode, disabled storage, test envs).
   }

@@ -10,14 +10,15 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { join } from "path-browserify";
 import { ExtendedNodeModel } from "../types/ProjectPageTypes";
-import { ThemeName } from "../themes";
+import { CustomTheme, isThemeName, normalizeCustomThemes } from "../themes";
 import { IS_DEV } from "./env";
 
 export interface UserSettings {
   defaultFontZoom: number;
   defaultSaveInterval: number; // milliseconds
   defaultBackupInterval: number; // milliseconds
-  theme: ThemeName;
+  theme: string;
+  customThemes?: CustomTheme[];
   dictionaryEnabled: boolean;
 }
 
@@ -63,12 +64,16 @@ export interface ProjectMetadata extends ProjectMetadataSummary {
 
 export async function saveSettings(settings: UserSettings) {
   try {
+    const customThemes = normalizeCustomThemes(settings.customThemes);
+    const theme = isThemeName(settings.theme) || customThemes.some((entry) => entry.id === settings.theme)
+      ? settings.theme : "midnight";
+    const normalizedSettings = { ...settings, theme, customThemes };
     // Ensure the user directory exists
     await mkdir(USER_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
 
     // Save settings to file
     const filePath = `${USER_DIR}/${SETTINGS_FILE}`;
-    await writeTextFile(filePath, JSON.stringify(settings), {
+    await writeTextFile(filePath, JSON.stringify(normalizedSettings), {
       baseDir: BaseDirectory.AppData,
     });
   } catch (error) {
@@ -91,7 +96,14 @@ export async function retrieveSettings(): Promise<UserSettings> {
     baseDir: BaseDirectory.AppData,
   });
 
-  return JSON.parse(content) as UserSettings;
+  const stored = JSON.parse(content);
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
+    throw new Error("Invalid user settings: expected an object");
+  }
+  const customThemes = normalizeCustomThemes(stored.customThemes);
+  const theme = isThemeName(stored.theme) || customThemes.some((entry) => entry.id === stored.theme)
+    ? stored.theme : "midnight";
+  return { ...DEFAULT_USER_SETTINGS, ...stored, theme, customThemes };
 }
 
 export async function saveLastActiveSession(session: LastActiveSession) {
