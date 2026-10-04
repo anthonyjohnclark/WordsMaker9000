@@ -643,13 +643,13 @@ const TextEditor: React.FC<TextEditorProps> = ({
 
       <FiSave
         onClick={isActive ? handleSave : undefined}
-        className="save-icon absolute top-4 right-12 cursor-pointer text-lg"
+        className="save-icon absolute top-2 right-12 cursor-pointer text-lg"
         style={{ color: "var(--accent)" }}
         title="Save"
       />
 
       <p
-        className="save-icon absolute top-2 right-[100px] flex h-[34px] items-center text-xs"
+        className="save-icon absolute top-0.25 right-[100px] flex h-[34px] items-center text-xs"
         style={{ color: "var(--text-muted)" }}
       >
         Ctrl + wheel to zoom · F11 for fullscreen

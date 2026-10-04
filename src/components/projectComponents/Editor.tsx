@@ -24,7 +24,7 @@ const EditorView: React.FC<{ isEditorActive?: boolean }> = ({
           <div className="relative flex flex-col h-full">
             {/* Slot for the in-file find bar, aligned with the title input */}
             <div id="findbar-slot" className="absolute top-3 right-5 z-50" />
-            <div className="mx-5 flex h-16 shrink-0 items-center justify-between">
+            <div className="mx-3 flex h-16 shrink-0 items-center justify-between">
               <FiFileText
                 aria-hidden="true"
                 size={22}
@@ -44,12 +44,7 @@ const EditorView: React.FC<{ isEditorActive?: boolean }> = ({
             </div>
 
             {/* Scrollable TextEditor */}
-            <div
-              className="flex-1 overflow-y-scroll relative h-full scrollbar-hide"
-              style={{
-                marginBottom: `${drawerHeight}px`, // Use dynamic drawer height
-              }}
-            >
+            <div className="flex-1 overflow-y-scroll relative h-full scrollbar-hide">
               <TextEditor
                 key={project.selectedFile?.id}
                 selectedFile={project.selectedFile}

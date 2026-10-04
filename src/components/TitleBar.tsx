@@ -173,7 +173,9 @@ const TitleBar = () => {
               className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
               style={
                 {
-                  color: "var(--text-secondary)",
+                  color: isSidebarOpen
+                    ? "var(--accent)"
+                    : "var(--text-secondary)",
                   background: "transparent",
                   WebkitAppRegion: "no-drag",
                   cursor: "pointer",
