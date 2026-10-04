@@ -33,7 +33,7 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
   return (
     <div
       ref={drawerRef}
-      className="editor-status absolute bottom-0 left-0 right-0 px-5 pb-2"
+      className="editor-status absolute bottom-0 left-50 right-0 px-5 pb-2 w-fit"
       style={{ color: "var(--text-secondary)" }}
     >
       {/* Header Row */}
@@ -43,20 +43,19 @@ const BottomDrawer: React.FC<BottomDrawerProps> = ({ onStateChange }) => {
       >
         <div className="flex items-center space-x-4">
           <span className="text-xs">
-            <span className="font-normal">Created:</span>{" "}
+            <span className="font-normal">created:</span>{" "}
             <span style={{ color: "var(--text-secondary)" }}>
               {project?.selectedFile?.data?.createDate &&
                 formatDateTime(project.selectedFile.data.createDate)}
             </span>
           </span>
           <span className="text-xs">
-            <span className="font-normal">Last Edited:</span>{" "}
+            <span className="font-normal">edited:</span>{" "}
             <span style={{ color: "var(--text-secondary)" }}>
               {project?.selectedFile?.data?.lastModified &&
                 formatDateTime(project.selectedFile.data.lastModified)}
             </span>
           </span>
-
         </div>
         <span className="ml-auto shrink-0 pl-4 text-right text-xs">
           {project?.selectedFile?.data?.wordCount ?? 0} words
