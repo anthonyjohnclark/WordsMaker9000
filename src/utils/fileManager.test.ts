@@ -54,6 +54,7 @@ const defaultSettings: UserSettings = {
   defaultSaveInterval: 60000, // 1 minute
   defaultBackupInterval: 3600000, // 1 hour
   theme: "midnight",
+  customThemes: [],
   dictionaryEnabled: true,
 };
 
@@ -81,7 +82,7 @@ describe("fileManager", () => {
       });
       expect(writeTextFile).toHaveBeenCalledWith(
         "User/settings.json",
-        JSON.stringify(testSettings),
+        JSON.stringify({ ...testSettings, customThemes: [] }),
         { baseDir: expect.any(String) },
       );
     });
@@ -101,7 +102,7 @@ describe("fileManager", () => {
       expect(settings).toEqual(defaultSettings);
     });
 
-    it("should return existing settings if file exists", async () => {
+    it("should merge existing settings with defaults if file exists", async () => {
       const customSettings = {
         defaultFontZoom: 20,
         defaultSaveInterval: 20000,
@@ -115,7 +116,7 @@ describe("fileManager", () => {
       const settings = await retrieveSettings();
       expect(exists).toHaveBeenCalled();
       expect(readTextFile).toHaveBeenCalled();
-      expect(settings).toEqual(customSettings);
+      expect(settings).toEqual({ ...defaultSettings, ...customSettings });
     });
   });
 

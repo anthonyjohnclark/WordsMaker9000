@@ -466,7 +466,8 @@ mod tests {
     fn full_document_matches_golden_snapshot_and_round_trips() {
         let document = sample_document();
         let serialized = serde_json::to_string_pretty(&document).unwrap();
-        let golden = include_str!("fixtures/book_document_full.json").trim_end();
+        let golden = include_str!("fixtures/book_document_full.json").replace("\r\n", "\n");
+        let golden = golden.trim_end();
 
         assert_eq!(serialized, golden);
 
