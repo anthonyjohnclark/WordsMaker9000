@@ -384,7 +384,10 @@ export default function HomePage() {
           }}
         >
           <div className="h-full px-6 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-left">
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              v{__APP_VERSION__}
+            </span>
+            <div className="flex items-center gap-2 text-right">
               <svg
                 className="w-5 h-5 shrink-0"
                 viewBox="0 0 500 500"
@@ -402,12 +405,9 @@ export default function HomePage() {
                 <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
               </svg>
               <span className="text-sm">
-                © {new Date().getFullYear()} WordsMaker9000
+                © {new Date().getFullYear()} Carborundum
               </span>
             </div>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              v{__APP_VERSION__}
-            </span>
           </div>
         </footer>
       </div>
