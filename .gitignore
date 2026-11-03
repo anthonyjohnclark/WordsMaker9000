@@ -28,3 +28,4 @@ dist-ssr
 # Generated Publish QA artifacts
 /publish-qa-output/
 /tests/publishing-qa/output/
+Architecture.md
