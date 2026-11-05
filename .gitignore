@@ -29,3 +29,6 @@ dist-ssr
 /publish-qa-output/
 /tests/publishing-qa/output/
 Architecture.md
+/Architecture.md
+/VERIFY_LOCALLY.md
+/RELEASE.md
