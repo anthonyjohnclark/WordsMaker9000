@@ -115,11 +115,12 @@ const TreeNode = ({ node, depth, isOpen, onToggle }: TreeNodeProps) => {
               title="Add Folder"
             />
             <FiEdit
-              onClick={() =>
+              onClick={(e) => {
+                e.stopPropagation();
                 modal.renderModal({
                   modalBody: <RenameModal node={node} />,
-                })
-              }
+                });
+              }}
               className="sidebar-row-action cursor-pointer"
               
               title="Rename"
