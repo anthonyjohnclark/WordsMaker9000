@@ -214,7 +214,7 @@ const TitleBar = () => {
           )}
         </div>
         {isProjectRoute && projectName && (
-          <div className="ml-3 flex items-center gap-1">
+          <div className="ml-5 flex items-center gap-1">
               {!isEditorRoute && (
                 <TitleBarRouteButton
                   title="Editor"
@@ -305,7 +305,7 @@ const TitleBar = () => {
               <FiSearch size={14} aria-hidden="true" />
             </button>
             {wordCount !== null && (
-              <span className="shrink-0" style={{ color: "var(--text-secondary)" }}>
+              <span className="mr-2 shrink-0" style={{ color: "var(--text-secondary)" }}>
                 {wordCount} words
               </span>
             )}
