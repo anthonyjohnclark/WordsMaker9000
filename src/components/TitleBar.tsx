@@ -96,7 +96,6 @@ const TitleBar = () => {
         } as React.CSSProperties
       }
     >
-      {/* Logo, history, sidebar, and project navigation. */}
       <div
         ref={leftControlsRef}
         className="ml-3 flex items-center shrink-0"
