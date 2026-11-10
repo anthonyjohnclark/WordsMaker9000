@@ -16,7 +16,7 @@ import {
   useNavigate,
   useNavigationType,
 } from "react-router-dom";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   canNavigateBack,
   canNavigateForward,
@@ -56,6 +56,33 @@ const TitleBar = () => {
   );
   const [homeQuote] = useState(getRandomWritingQuote);
   const formattedHomeQuote = formatWritingQuote(homeQuote);
+  const titleBarRef = useRef<HTMLDivElement>(null);
+  const leftControlsRef = useRef<HTMLDivElement>(null);
+  const rightControlsRef = useRef<HTMLDivElement>(null);
+  const [projectTitleWidth, setProjectTitleWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const titleBar = titleBarRef.current;
+    const leftControls = leftControlsRef.current;
+    const rightControls = rightControlsRef.current;
+    if (!titleBar || !leftControls || !rightControls) return;
+
+    const updateTitleWidth = () => {
+      const bar = titleBar.getBoundingClientRect();
+      const left = leftControls.getBoundingClientRect();
+      const right = rightControls.getBoundingClientRect();
+      // Reserve the wider side on both sides, plus a gap before the title.
+      const inset = Math.max(left.right - bar.left, bar.right - right.left) + 8;
+      setProjectTitleWidth(Math.max(0, bar.width - 2 * inset));
+    };
+
+    updateTitleWidth();
+    const observer = new ResizeObserver(updateTitleWidth);
+    observer.observe(titleBar);
+    observer.observe(leftControls);
+    observer.observe(rightControls);
+    return () => observer.disconnect();
+  }, []);
 
   useLayoutEffect(() => {
     setNavigationHistory((current) =>
@@ -68,20 +95,20 @@ const TitleBar = () => {
 
   return (
     <div
-      className="app-title-bar relative grid h-8 items-center px-2 select-none overflow-hidden whitespace-nowrap"
+      ref={titleBarRef}
+      className="app-title-bar relative flex h-8 items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
       style={
         {
           background: "var(--bg-primary)",
           color: "var(--text-primary)",
-          gridTemplateColumns:
-            "minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr)",
           WebkitAppRegion: "drag",
         } as React.CSSProperties
       }
     >
       {/* App Logo and Title */}
       <div
-        className="ml-3 flex items-center shrink-0"
+        ref={leftControlsRef}
+        className="ml-3 flex min-w-0 items-center overflow-x-auto scrollbar-hide py-1"
         style={{ WebkitAppRegion: "no-drag" }}
       >
         <svg
@@ -101,7 +128,7 @@ const TitleBar = () => {
         >
           <use href="/wordsmaker9000.svg#wordsmaker9000-logo" />
         </svg>
-        <div className="ml-5 flex items-center gap-1">
+        <div className="ml-5 flex shrink-0 items-center gap-1">
           {pathname !== "/" && (
             <Link
               to="/"
@@ -246,11 +273,11 @@ const TitleBar = () => {
         </h2>
       )}
 
-      {/* The equal outer tracks keep the project title centered in the window. */}
+      {/* Reserve equal space for controls while centering across the window. */}
       {pathname !== "/" && projectName && (
         <h2
-          className="min-w-0 truncate text-center text-lg font-semibold futuristic-font"
-          style={{ gridColumn: 2 }}
+          className="absolute left-1/2 -translate-x-1/2 min-w-0 truncate text-center text-lg font-semibold futuristic-font"
+          style={{ maxWidth: projectTitleWidth }}
         >
           <span style={{ color: "var(--text-primary)" }}>
             {decodeURIComponent(projectName)}
@@ -259,8 +286,9 @@ const TitleBar = () => {
       )}
 
       <div
-        className="flex items-center justify-self-end shrink-0"
-        style={{ gridColumn: 3, WebkitAppRegion: "no-drag" }}
+        ref={rightControlsRef}
+        className="flex items-center shrink-0"
+        style={{ WebkitAppRegion: "no-drag" }}
       >
         {pathname !== "/" && projectName && !isLoading && isEditorRoute && (
           <div className="mr-4 flex items-center gap-2">
