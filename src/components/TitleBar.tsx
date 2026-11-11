@@ -56,6 +56,7 @@ const TitleBar = () => {
   );
   const [homeQuote] = useState(getRandomWritingQuote);
   const formattedHomeQuote = formatWritingQuote(homeQuote);
+  const titleBarRef = useRef<HTMLDivElement>(null);
   const leftControlsRef = useRef<HTMLDivElement>(null);
   const rightControlsRef = useRef<HTMLDivElement>(null);
   const [titleInset, setTitleInset] = useState(0);
@@ -67,16 +68,24 @@ const TitleBar = () => {
   }, [location.key, navigationType]);
 
   useLayoutEffect(() => {
+    const titleBar = titleBarRef.current;
     const leftControls = leftControlsRef.current;
     const rightControls = rightControlsRef.current;
-    if (!leftControls || !rightControls) return;
+    if (!titleBar || !leftControls || !rightControls) return;
 
     const updateTitleInset = () => {
+      const titleBarBounds = titleBar.getBoundingClientRect();
+      const leftControlsBounds = leftControls.getBoundingClientRect();
+      const rightControlsBounds = rightControls.getBoundingClientRect();
       setTitleInset(
-        Math.max(leftControls.offsetWidth, rightControls.offsetWidth) + 16,
+        Math.max(
+          leftControlsBounds.right - titleBarBounds.left,
+          titleBarBounds.right - rightControlsBounds.left,
+        ) + 16,
       );
     };
     const observer = new ResizeObserver(updateTitleInset);
+    observer.observe(titleBar);
     observer.observe(leftControls);
     observer.observe(rightControls);
     updateTitleInset();
@@ -88,6 +97,7 @@ const TitleBar = () => {
 
   return (
     <div
+      ref={titleBarRef}
       className="app-title-bar relative h-8 flex items-center justify-between px-2 select-none overflow-hidden whitespace-nowrap"
       style={
         {
