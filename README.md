@@ -19,6 +19,7 @@ Some release qualification is intentionally still manual. Live editor save/reope
 - A Quill-based editor with headings, inline formatting, block quotes, links, lists, soft line breaks, semantic scene breaks, and smart typography.
 - Project-managed images with alt text or explicit decorative semantics, plus editor-native footnotes.
 - In-file find, project-wide search and replace, and optional online dictionary lookup for a selected word.
+- Search & Replace requires at least one character in the replacement field to enable replacement actions. Search remains available when the replacement field is empty.
 - Configurable automatic saves and rotating local backups, with backup restoration from the project list.
 - Multiple themes, editor zoom, and a distraction-free fullscreen mode.
 
