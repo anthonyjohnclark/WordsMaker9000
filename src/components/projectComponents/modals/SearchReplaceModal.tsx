@@ -148,6 +148,8 @@ const SearchReplaceModal = () => {
 
   const replaceAndSave = useCallback(
     async (fileId: string, nodeId: number, targetIndices?: number[]) => {
+      if (replaceTerm.length === 0) return;
+
       const isActive = selectedFile && (selectedFile.id as number) === nodeId;
       let content: string;
 
@@ -207,6 +209,8 @@ const SearchReplaceModal = () => {
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!isSearchOpen) return null;
+
+  const canReplace = replaceTerm.length > 0;
 
   return (
     <div
@@ -322,6 +326,7 @@ const SearchReplaceModal = () => {
                     </span>
                     {replaceTerm !== undefined && (
                       <button
+                        disabled={!canReplace}
                         onClick={() =>
                           handleReplaceAllInFile(
                             fileResult.fileId,
@@ -333,8 +338,10 @@ const SearchReplaceModal = () => {
                           background: "var(--bg-secondary)",
                           color: "var(--text-secondary)",
                           border: "1px solid var(--border)",
+                          opacity: canReplace ? 1 : 0.5,
                         }}
                         onMouseEnter={(e) => {
+                          if (!canReplace) return;
                           e.currentTarget.style.background = "var(--accent)";
                           e.currentTarget.style.color = "var(--bg-primary)";
                         }}
@@ -367,6 +374,7 @@ const SearchReplaceModal = () => {
                         {match.contextAfter}
                       </span>
                       <button
+                        disabled={!canReplace}
                         onClick={() =>
                           handleReplaceSingle(
                             fileResult.fileId,
@@ -375,10 +383,14 @@ const SearchReplaceModal = () => {
                           )
                         }
                         className="ml-2 p-1 rounded shrink-0 transition-colors"
-                        style={{ color: "var(--text-secondary)" }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.color = "var(--accent)")
-                        }
+                        style={{
+                          color: "var(--text-secondary)",
+                          opacity: canReplace ? 1 : 0.5,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (canReplace)
+                            e.currentTarget.style.color = "var(--accent)";
+                        }}
                         onMouseLeave={(e) =>
                           (e.currentTarget.style.color =
                             "var(--text-secondary)")
@@ -399,14 +411,20 @@ const SearchReplaceModal = () => {
         {results.length > 0 && (
           <div className="px-4 pt-4 pb-3 flex justify-end">
             <button
+              disabled={!canReplace}
               onClick={handleReplaceAllInProject}
               className="text-xs px-3 py-1.5 rounded font-semibold transition-colors"
               style={{
                 background: "var(--accent)",
                 color: "var(--bg-primary)",
+                opacity: canReplace ? 1 : 0.5,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+              onMouseEnter={(e) => {
+                if (canReplace) e.currentTarget.style.opacity = "0.85";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = canReplace ? "1" : "0.5";
+              }}
             >
               Replace All in Project
             </button>
