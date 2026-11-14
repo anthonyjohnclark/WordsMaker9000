@@ -22,6 +22,8 @@ Some release qualification is intentionally still manual. Live editor save/reope
 - Configurable automatic saves and rotating local backups, with backup restoration from the project list.
 - Multiple themes, editor zoom, and a distraction-free fullscreen mode.
 
+Project-wide Search & Replace requires at least one character in the replacement field to enable replacement actions. Search remains available when that field is empty.
+
 ### Publishing
 
 - Editable DOCX output using Standard Manuscript or Clean Handoff profiles.
