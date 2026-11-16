@@ -1,0 +1,49 @@
+# Repository-owned developer image for Carborundum (Linux AMD64, Debian 12).
+# Build from the repository root; dependencies are fetched only at image build time.
+FROM rust:1.88.0-bookworm AS rust-toolchain
+RUN rustup component add --toolchain 1.88.0 clippy rustfmt rust-analyzer \
+    && chmod -R a+rX /usr/local/rustup /usr/local/cargo/bin
+
+FROM node:22-bookworm-slim AS node
+
+FROM debian:bookworm-slim AS tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates curl git openssh-client pkg-config python3 \
+    libwebkit2gtk-4.1-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+    patchelf fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=rust-toolchain /usr/local/rustup /usr/local/rustup
+COPY --from=rust-toolchain /usr/local/cargo/bin /usr/local/cargo/bin
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+# Cargo uses the caller's private HOME; toolchains are public, read-only image files.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    RUSTUP_TOOLCHAIN=1.88.0 \
+    PATH=/usr/local/cargo/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+FROM tools AS dependencies
+WORKDIR /tmp/wordsmaker9000
+COPY package.json package-lock.json rust-toolchain.toml ./
+COPY src-tauri ./src-tauri
+RUN mkdir -p /opt/wordsmaker9000 \
+    && npm ci --cache /opt/wordsmaker9000/npm-cache --no-audit --no-fund \
+    && rm -rf /opt/wordsmaker9000/npm-cache/_logs
+RUN cargo vendor --locked --manifest-path src-tauri/Cargo.toml \
+    /opt/wordsmaker9000/vendor > /opt/wordsmaker9000/cargo-config.toml \
+    && chmod -R a+rX /opt/wordsmaker9000/vendor
+
+FROM tools
+LABEL org.opencontainers.image.title="WordsMaker9000 developer environment" \
+    org.opencontainers.image.description="Node, pinned Rust, Tauri Linux libraries and prepared dependencies for isolated verification"
+ENV CARGO_NET_OFFLINE=true \
+    NPM_CONFIG_OFFLINE=true \
+    NPM_CONFIG_AUDIT=false \
+    NPM_CONFIG_FUND=false
+COPY --from=dependencies /opt/wordsmaker9000 /opt/wordsmaker9000
+COPY docker/carborundum-prepare.sh /usr/local/bin/wordsmaker9000-prepare
+RUN sed -i 's/\r$//' /usr/local/bin/wordsmaker9000-prepare \
+    && chmod 755 /usr/local/bin/wordsmaker9000-prepare
+WORKDIR /work
+CMD ["/bin/bash"]

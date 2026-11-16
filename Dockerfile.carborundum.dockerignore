@@ -1,0 +1,13 @@
+# Limit this Dockerfile's context to public dependency inputs and the setup script.
+**
+!package.json
+!package-lock.json
+!rust-toolchain.toml
+!src-tauri/
+!src-tauri/**
+src-tauri/target/
+src-tauri/**/.git/
+src-tauri/**/.env*
+src-tauri/**/credentials*
+!docker/
+!docker/carborundum-prepare.sh
