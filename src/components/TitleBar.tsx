@@ -2,7 +2,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGlobalProjectContext } from "../contexts/global/GlobalProjectContext";
 import {
   FiArchive,
-  FiCheckCircle,
   FiChevronLeft,
   FiChevronRight,
   FiEdit3,
@@ -11,14 +10,13 @@ import {
   FiSidebar,
   FiUpload,
 } from "react-icons/fi";
-import { formatDateTime } from "../utils/helpers";
 import {
   Link,
   useLocation,
   useNavigate,
   useNavigationType,
 } from "react-router-dom";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   canNavigateBack,
   canNavigateForward,
@@ -35,8 +33,6 @@ const TitleBar = () => {
     projectName,
     wordCount,
     isLoading,
-    isBackingUp,
-    lastBackupTime,
     setIsSearchOpen,
     isSidebarOpen,
     setIsSidebarOpen,
@@ -60,6 +56,26 @@ const TitleBar = () => {
   );
   const [homeQuote] = useState(getRandomWritingQuote);
   const formattedHomeQuote = formatWritingQuote(homeQuote);
+  const leftControlsRef = useRef<HTMLDivElement>(null);
+  const rightControlsRef = useRef<HTMLDivElement>(null);
+  const [sideWidth, setSideWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const leftControls = leftControlsRef.current;
+    const rightControls = rightControlsRef.current;
+    if (!leftControls || !rightControls) return;
+
+    const updateSideWidth = () => {
+      setSideWidth(
+        Math.max(leftControls.offsetWidth + 12, rightControls.offsetWidth),
+      );
+    };
+    const observer = new ResizeObserver(updateSideWidth);
+    observer.observe(leftControls);
+    observer.observe(rightControls);
+    updateSideWidth();
+    return () => observer.disconnect();
+  }, []);
 
   useLayoutEffect(() => {
     setNavigationHistory((current) =>
@@ -81,8 +97,9 @@ const TitleBar = () => {
         } as React.CSSProperties
       }
     >
-      {/* App Logo and Title */}
+      {/* App logo and left navigation */}
       <div
+        ref={leftControlsRef}
         className="ml-3 flex items-center shrink-0"
         style={{ WebkitAppRegion: "no-drag" }}
       >
@@ -196,6 +213,43 @@ const TitleBar = () => {
               </span>
             </button>
           )}
+          {isProjectRoute && projectName && (
+            <>
+              {!isEditorRoute && (
+                <TitleBarRouteButton
+                  title="Editor"
+                  ariaLabel="Open editor"
+                  icon={<FiEdit3 size={14} />}
+                  onClick={() => {
+                    const encoded = encodeURIComponent(projectName);
+                    navigate(`/projects/${encoded}`);
+                  }}
+                />
+              )}
+              {!isPublishRoute && (
+                <TitleBarRouteButton
+                  title="Publish project"
+                  ariaLabel="Open publish page"
+                  icon={<FiUpload size={14} />}
+                  onClick={() => {
+                    const encoded = encodeURIComponent(projectName);
+                    navigate(`/projects/${encoded}/publish`);
+                  }}
+                />
+              )}
+              {!isArtifactsRoute && (
+                <TitleBarRouteButton
+                  title="Artifacts"
+                  ariaLabel="Open artifact history"
+                  icon={<FiArchive size={14} />}
+                  onClick={() => {
+                    const encoded = encodeURIComponent(projectName);
+                    navigate(`/projects/${encoded}/artifacts`);
+                  }}
+                />
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -211,168 +265,121 @@ const TitleBar = () => {
         </h2>
       )}
 
-      {/* Render project-related info if not on the home page */}
+      {/* Match the title's clearance on both sides to the wider control group. */}
       {pathname !== "/" && projectName && (
-        <>
-          <h2 className="text-lg font-semibold futuristic-font truncate min-w-0">
-            <span style={{ color: "var(--text-primary)" }}>
-              {decodeURIComponent(projectName)}
-            </span>
-          </h2>
-          {!isLoading && isEditorRoute && (
-            <>
-              <button
-                onClick={() => setIsSearchOpen(true)}
-                className="p-1 rounded transition-colors shrink-0"
-                style={
-                  {
-                    color: "var(--text-secondary)",
-                    WebkitAppRegion: "no-drag",
-                    cursor: "pointer",
-                  } as React.CSSProperties
-                }
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "var(--accent)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = "var(--text-secondary)")
-                }
-                aria-label="Search & Replace"
-                title="Search & Replace (Ctrl+Shift+F)"
-              >
-                <FiSearch size={14} />
-              </button>
-              <div className="text-sm flex items-center space-x-2 shrink-0">
-                {isBackingUp ? (
-                  <span style={{ color: "var(--text-muted)" }}>
-                    Backing up...
-                  </span>
-                ) : lastBackupTime ? (
-                  <>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      Backed up at {formatDateTime(lastBackupTime)}
-                    </span>
-                    <FiCheckCircle style={{ color: "var(--btn-success)" }} />
-                  </>
-                ) : (
-                  <span style={{ color: "var(--btn-danger)" }}>
-                    No backups yet
-                  </span>
-                )}
-              </div>
-              {wordCount !== null && (
-                <span
-                  className="shrink-0"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {wordCount} words
-                </span>
-              )}
-            </>
-          )}
-          {isProjectRoute && (
-            <div className="ml-3 mr-4 flex items-center gap-1">
-              {!isEditorRoute && (
-                <TitleBarRouteButton
-                  label="Editor"
-                  title="Editor"
-                  ariaLabel="Open editor"
-                  icon={<FiEdit3 size={14} />}
-                  onClick={() => {
-                    const encoded = encodeURIComponent(projectName);
-                    navigate(`/projects/${encoded}`);
-                  }}
-                />
-              )}
-              {!isPublishRoute && (
-                <TitleBarRouteButton
-                  label="Publish"
-                  title="Publish project"
-                  ariaLabel="Open publish page"
-                  icon={<FiUpload size={14} />}
-                  onClick={() => {
-                    const encoded = encodeURIComponent(projectName);
-                    navigate(`/projects/${encoded}/publish`);
-                  }}
-                />
-              )}
-              {!isArtifactsRoute && (
-                <TitleBarRouteButton
-                  label="Artifacts"
-                  title="Artifacts"
-                  ariaLabel="Open artifact history"
-                  icon={<FiArchive size={14} />}
-                  onClick={() => {
-                    const encoded = encodeURIComponent(projectName);
-                    navigate(`/projects/${encoded}/artifacts`);
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </>
+        <h2
+          className="absolute left-1/2 -translate-x-1/2 max-w-full min-w-0 truncate text-center text-lg font-semibold futuristic-font"
+          style={{
+            color: "var(--text-primary)",
+            width: "max-content",
+            maxWidth: `max(0px, calc(100% - ${2 * (sideWidth + 8)}px))`,
+          }}
+          title={decodeURIComponent(projectName)}
+        >
+          {decodeURIComponent(projectName)}
+        </h2>
       )}
 
-      {/* Window Controls */}
+      {/* Search and count sit directly before the window controls. */}
       <div
-        className="flex space-x-2 shrink-0"
+        ref={rightControlsRef}
+        className="flex items-center shrink-0"
         style={{ WebkitAppRegion: "no-drag" }}
       >
-        <button
-          onClick={handleMinimize}
-          className="w-8 h-8 flex items-center justify-center transition-colors"
-          style={{ color: "var(--text-primary)" }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--bg-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-          aria-label="Minimize"
+        {pathname !== "/" && projectName && !isLoading && isEditorRoute && (
+          <div className="mr-4 flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(true)}
+              className="p-1 rounded transition-colors shrink-0"
+              style={
+                {
+                  color: "var(--text-secondary)",
+                  WebkitAppRegion: "no-drag",
+                  cursor: "pointer",
+                } as React.CSSProperties
+              }
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.color = "var(--accent)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.color = "var(--text-secondary)")
+              }
+              aria-label="Search & Replace"
+              title="Search & Replace (Ctrl+Shift+F)"
+            >
+              <FiSearch size={14} />
+            </button>
+            {wordCount !== null && (
+              <span
+                className="shrink-0"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {wordCount} words
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Window Controls */}
+        <div
+          className="flex space-x-2 shrink-0"
+          style={{ WebkitAppRegion: "no-drag" }}
         >
-          &#8211;
-        </button>
-        <button
-          onClick={handleMaximize}
-          className="w-8 h-8 flex items-center justify-center transition-colors"
-          style={{ color: "var(--text-primary)" }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--bg-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-          aria-label="Maximize"
-        >
-          &#9633;
-        </button>
-        <button
-          onClick={handleClose}
-          className="w-8 h-8 flex items-center justify-center transition-colors"
-          style={{ color: "var(--text-primary)" }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--btn-danger)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-          aria-label="Close"
-        >
-          &#10005;
-        </button>
+          <button
+            onClick={handleMinimize}
+            className="w-8 h-8 flex items-center justify-center transition-colors"
+            style={{ color: "var(--text-primary)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--bg-hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+            aria-label="Minimize"
+          >
+            &#8211;
+          </button>
+          <button
+            onClick={handleMaximize}
+            className="w-8 h-8 flex items-center justify-center transition-colors"
+            style={{ color: "var(--text-primary)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--bg-hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+            aria-label="Maximize"
+          >
+            &#9633;
+          </button>
+          <button
+            onClick={handleClose}
+            className="w-8 h-8 flex items-center justify-center transition-colors"
+            style={{ color: "var(--text-primary)" }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--btn-danger)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+            aria-label="Close"
+          >
+            &#10005;
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
 function TitleBarRouteButton({
-  label,
   title,
   ariaLabel,
   icon,
   onClick,
 }: {
-  label: string;
   title: string;
   ariaLabel: string;
   icon: React.ReactNode;
@@ -382,7 +389,7 @@ function TitleBarRouteButton({
     <button
       type="button"
       onClick={onClick}
-      className="h-6 px-2 rounded flex items-center gap-1 text-xs font-medium transition-colors shrink-0"
+      className="title-bar-navigation-button w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0"
       style={
         {
           color: "var(--text-primary)",
@@ -401,7 +408,6 @@ function TitleBarRouteButton({
       title={title}
     >
       {icon}
-      <span>{label}</span>
     </button>
   );
 }
