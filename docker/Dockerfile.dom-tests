@@ -1,0 +1,11 @@
+# Extend the existing offline Rust/Tauri environment with the locked DOM test dependencies.
+ARG BASE_IMAGE=wordsmaker9000-dev:carborundum
+FROM ${BASE_IMAGE} AS dependencies
+USER root
+WORKDIR /tmp/wordsmaker9000-dependencies
+COPY package.json package-lock.json ./
+RUN NPM_CONFIG_OFFLINE=false npm ci --cache /opt/wordsmaker9000/npm-cache --no-audit --no-fund \
+    && chmod -R a+rX /opt/wordsmaker9000/npm-cache
+FROM ${BASE_IMAGE}
+COPY --from=dependencies /opt/wordsmaker9000/npm-cache /opt/wordsmaker9000/npm-cache
+LABEL org.opencontainers.image.description="WordsMaker9000 offline Rust/Tauri environment with locked Jest DOM testing dependencies"
