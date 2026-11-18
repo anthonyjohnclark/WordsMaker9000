@@ -57,10 +57,11 @@ const setup = (contents: string[]) => {
     if (!fileId) throw new Error("Missing file ID");
     storedContent.set(fileId, content);
   });
+  // These partial context mocks provide only the fields consumed by the modal.
   jest.mocked(useGlobalProjectContext).mockReturnValue({
     isSearchOpen: true,
     setIsSearchOpen: jest.fn(),
-  } as ReturnType<typeof useGlobalProjectContext>);
+  } as unknown as ReturnType<typeof useGlobalProjectContext>);
   jest.mocked(useProjectContext).mockReturnValue({
     treeData,
     setTreeData: jest.fn(),
@@ -68,7 +69,7 @@ const setup = (contents: string[]) => {
     projectName: "Test Project",
     editorContentRef,
     setFileContentDirectly,
-  } as ReturnType<typeof useProjectContext>);
+  } as unknown as ReturnType<typeof useProjectContext>);
 
   render(<SearchReplaceModal />);
 
